@@ -21,6 +21,7 @@
 
 #include "algorithm/brute_force.h"
 #include "algorithm/hgraph.h"
+#include "algorithm/hybrid_index/hybrid_index.h"
 #include "algorithm/ivf.h"
 #include "algorithm/pyramid.h"
 #include "algorithm/pyramid_zparameters.h"
@@ -63,7 +64,7 @@ Engine::CreateIndex(const std::string& origin_name, const std::string& parameter
         std::string name = origin_name;
         transform(name.begin(), name.end(), name.begin(), ::tolower);
         auto parsed_params = JsonType::Parse(parameters);
-        auto index_common_params = IndexCommonParam::CheckAndCreate(parsed_params, this->resource_);
+        auto index_common_params = IndexCommonParam::CheckAndCreate(parsed_params, this->resource_); // Extract the common parameters from `parsed_params`.
         if (name == INDEX_HNSW) {
             // read parameters from json, throw exception if not exists
             CHECK_ARGUMENT(parsed_params.Contains(INDEX_HNSW),
@@ -148,6 +149,14 @@ Engine::CreateIndex(const std::string& origin_name, const std::string& parameter
             auto sparse_index =
                 std::make_shared<IndexImpl<SINDI>>(sparse_json, index_common_params);
             return sparse_index;
+        } else if (name == INDEX_HYBRID) {
+            logger::debug("created a hybrid index");
+            JsonType json;
+            if (parsed_params.Contains(INDEX_PARAM)) {
+                json = parsed_params[INDEX_PARAM];
+            }
+            auto hybrid_index = std::make_shared<IndexImpl<HybridIndex>>(json, index_common_params);
+            return hybrid_index;
         } else {
             LOG_ERROR_AND_RETURNS(
                 ErrorType::UNSUPPORTED_INDEX, "failed to create index(unsupported): ", name);

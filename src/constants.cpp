@@ -28,6 +28,7 @@ const char* const INDEX_SINDI = "sindi";
 const char* const INDEX_BRUTE_FORCE = "brute_force";
 const char* const INDEX_IVF = "ivf";
 const char* const INDEX_GNO_IMI = "gno_imi";
+const char* const INDEX_HYBRID = "hybrid_index";
 
 const char* const DIM = "dim";
 const char* const NUM_ELEMENTS = "num_elements";

@@ -150,14 +150,12 @@ Engine::CreateIndex(const std::string& origin_name, const std::string& parameter
                 std::make_shared<IndexImpl<SINDI>>(sparse_json, index_common_params);
             return sparse_index;
         } else if (name == INDEX_HYBRID) {
-            logger::debug("created a hybrid index");
-            JsonType json;
-            if (parsed_params.Contains(INDEX_PARAM)) {
-                json = parsed_params[INDEX_PARAM];
-            }
-            auto hybrid_index = std::make_shared<IndexImpl<HybridIndex>>(json, index_common_params);
+            auto hybrid_param_obj = parsed_params[INDEX_PARAM];
+            auto hybrid_index =
+                std::make_shared<IndexImpl<HybridIndex>>(hybrid_param_obj, index_common_params);
             return hybrid_index;
-        } else {
+        }
+        else {
             LOG_ERROR_AND_RETURNS(
                 ErrorType::UNSUPPORTED_INDEX, "failed to create index(unsupported): ", name);
         }

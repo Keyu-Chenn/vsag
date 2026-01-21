@@ -16,4 +16,10 @@ HybridIndexParameter::FromJson(const JsonType& json) {
     alpha = json["alpha"].GetFloat();
 }
 
+JsonType
+HybridIndexParameter::ToJson() const {
+    JsonType json;
+    json["alpha"].SetInt(alpha);
+    return json;
+}
 }  // namespace vsag

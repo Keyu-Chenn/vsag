@@ -12,8 +12,18 @@
 #include "vsag/filter.h"
 #include "algorithm/sparse_index.h"
 #include "vsag/dataset.h"
+#include "index_common_param.h"
 
 namespace vsag {
+/** In dataset.h, define HybridVector like this:
+struct HybridVector {
+    float* dense_vector_;
+    int64_t dim_;
+    SparseVector sparse_vector_;
+    HybridVector() : dense_vector_{nullptr}, dim_{0}, sparse_vector_() {
+    }
+};
+**/
 
 class HybridIndex : public InnerIndexInterface {
 public:
@@ -24,6 +34,8 @@ public:
     explicit HybridIndex(const HybridIndexParameterPtr& param, const IndexCommonParam& common_param);
     explicit HybridIndex(const ParamPtr& param, const IndexCommonParam& common_param)
         : HybridIndex(std::dynamic_pointer_cast<HybridIndexParameter>(param), common_param){};
+
+    ~HybridIndex() override;
 
     std::vector<int64_t>
     Add(const DatasetPtr& data) override;

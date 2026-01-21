@@ -92,11 +92,11 @@ main(int argc, char** argv) {
     std::string hybrid_index_build_parameters = R"(
     {
         "dtype": "float32",
-        "metric_type": "l2",
+        "metric_type": "ip",
         "dim": 128,
         "index_param": {
             "sparse_dtype": "float32",
-            "saprse_metric_type": "l2",
+            "saprse_metric_type": "ip",
             "sparse_dim": 10000,
             "alpha": 0.5
         }

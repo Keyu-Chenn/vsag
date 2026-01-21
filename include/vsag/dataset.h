@@ -36,6 +36,16 @@ struct SparseVector {
 
     SparseVector() : len_{0}, ids_{nullptr}, vals_{nullptr} {
     }
+
+};
+
+
+struct HybridVector {
+    float* dense_vector_;
+    int64_t dim_;
+    SparseVector sparse_vector_;
+    HybridVector() : dense_vector_{nullptr}, dim_{0}, sparse_vector_() {
+    }
 };
 
 class Dataset;

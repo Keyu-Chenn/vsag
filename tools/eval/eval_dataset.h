@@ -26,6 +26,7 @@
 #include "simd/basic_func.h"
 #include "vsag/constants.h"
 #include "vsag/dataset.h"
+#include "algorithm/hybrid_index/hybrid_index.h"
 
 namespace vsag::eval {
 
@@ -47,6 +48,16 @@ public:
         } else {
             return sparse_train_.data();
         }
+    }
+
+    [[nodiscard]] const void*
+    GetTrainDense() const {
+        return train_.get();
+    }
+
+    [[nodiscard]] const void*
+    GetTrainSparse() const {
+        return sparse_train_.data();
     }
 
     [[nodiscard]] const void*
@@ -128,6 +139,15 @@ public:
     [[nodiscard]] std::string
     GetTestDataType() const {
         return test_data_type_;
+    }
+
+    DatasetPtr
+    GetOneHybridQuery(int64_t id) {
+        auto query_vc = Dataset::Make();
+        query_vc->NumElements(1)->Dim(this->dim_)->Owner(false);
+        query_vc->Float32Vectors((const float*)(this->test_.get() + id * this->dim_ * this->test_data_size_));
+        query_vc->SparseVectors(sparse_test_.data() + id);
+        return query_vc;
     }
 
     bool
@@ -227,10 +247,12 @@ private:
     int64_t number_of_query_{};
     int64_t number_of_label_{};
     int64_t dim_{};
+
     size_t train_data_size_{};
     size_t test_data_size_{};
     std::string train_data_type_;
     std::string test_data_type_;
+
     std::string file_path_;
     std::string metric_;
 
@@ -238,5 +260,12 @@ private:
     std::vector<SparseVector> sparse_test_;
 
     std::string vector_type_ = DENSE_VECTORS;
+
+    // when type is hybrid, these are used for sparse and those above are used for dense
+    size_t train_data_size_sparse_{};
+    size_t test_data_size_sparse_{};
+    std::string train_data_type_sparse_{};
+    std::string test_data_type_sparse_{};
+    std::string sparse_metric_;
 };
 }  // namespace vsag::eval

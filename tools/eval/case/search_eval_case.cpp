@@ -154,7 +154,7 @@ SearchEvalCase::do_knn_search() {
     uint64_t topk = config_.top_k;
     auto query_count = this->dataset_ptr_->GetNumberOfQuery();
     this->logger_->Debug("query count is " + std::to_string(query_count));
-    auto min_query = std::max(query_count, 100'000L);
+    auto min_query = std::max(query_count, 1L);
     for (auto& monitor : this->monitors_) {
         monitor->Start();
 
@@ -163,17 +163,22 @@ SearchEvalCase::do_knn_search() {
         for (int64_t id = 0; id < min_query; ++id) {
             auto i = id % query_count;
             auto query = vsag::Dataset::Make();
-            query->NumElements(1)->Dim(this->dataset_ptr_->GetDim())->Owner(false);
             const void* query_vector = this->dataset_ptr_->GetOneTest(i);
-            if (this->dataset_ptr_->GetVectorType() == DENSE_VECTORS) {
-                if (this->dataset_ptr_->GetTestDataType() == vsag::DATATYPE_FLOAT32) {
-                    query->Float32Vectors((const float*)query_vector);
-                } else if (this->dataset_ptr_->GetTestDataType() == vsag::DATATYPE_INT8) {
-                    query->Int8Vectors((const int8_t*)query_vector);
+            if (this->dataset_ptr_->GetVectorType() == HYBRID_VECTORS) {
+                query = this->dataset_ptr_->GetOneHybridQuery(i);
+            }else {
+                query->NumElements(1)->Dim(this->dataset_ptr_->GetDim())->Owner(false);
+                if (this->dataset_ptr_->GetVectorType() == DENSE_VECTORS) {
+                    if (this->dataset_ptr_->GetTestDataType() == vsag::DATATYPE_FLOAT32) {
+                        query->Float32Vectors((const float*)query_vector);
+                    } else if (this->dataset_ptr_->GetTestDataType() == vsag::DATATYPE_INT8) {
+                        query->Int8Vectors((const int8_t*)query_vector);
+                    }
+                } else if (this->dataset_ptr_->GetVectorType() == SPARSE_VECTORS) {
+                    query->SparseVectors((const SparseVector*)query_vector);
                 }
-            } else {
-                query->SparseVectors((const SparseVector*)query_vector);
             }
+
             auto result = this->index_->KnnSearch(query, topk, config_.search_param);
             if (not result.has_value()) {
                 std::cerr << "query error: " << result.error().message << std::endl;

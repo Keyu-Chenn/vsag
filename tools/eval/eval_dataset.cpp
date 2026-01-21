@@ -14,6 +14,8 @@
 // limitations under the License.
 
 #include "eval_dataset.h"
+#include <iostream>
+#include <fstream>
 
 using namespace H5;
 namespace vsag::eval {
@@ -151,6 +153,9 @@ EvalDataset::Load(const std::string& filename) {
             } else if (type == "sparse") {
                 obj->vector_type_ = SPARSE_VECTORS;
             }
+            else if (type == "hybrid") {
+                obj->vector_type_ = HYBRID_VECTORS;
+            }
         } catch (H5::Exception& err) {
             throw std::runtime_error("fail to read metric: there is no 'type' in the dataset");
         }
@@ -202,7 +207,7 @@ EvalDataset::Load(const std::string& filename) {
                 new char[test_shape.first * test_shape.second * obj->test_data_size_]);
             dataset.read(obj->test_.get(), type, dataspace);
         }
-    } else {
+    } else if (obj->vector_type_ == SPARSE_VECTORS) {
         obj->dim_ = 0;
         {
             H5::PredType type = H5::PredType::ALPHA_I8;
@@ -232,6 +237,97 @@ EvalDataset::Load(const std::string& filename) {
             obj->test_.reset();
             obj->number_of_query_ = obj->sparse_test_.size();
         }
+    } else {
+
+        int64_t dim_sparse = 0; // unused
+        // read sparse
+        {
+            H5::PredType type = H5::PredType::ALPHA_U8;
+            H5::DataSet dataset = file.openDataSet("/train_sparse");
+            H5::DataSpace dataspace = dataset.getSpace();
+            hsize_t dims_out[2];
+            dataspace.getSimpleExtentDims(dims_out, NULL);
+            obj->train_data_size_sparse_ = dims_out[0];
+            obj->train_.reset(new char[obj->train_data_size_sparse_]);
+            dataset.read(obj->train_.get(), type, dataspace);
+
+
+            // === DEBUG: 保存 C++ 读取的字节流 ===
+            /*
+            std::ofstream debug_file("/tbase-project/vsag/scripts/debug_cpp_train.bin", std::ios::binary);
+            debug_file.write(obj->train_.get(), obj->train_data_size_sparse_);
+            debug_file.close();
+            std::cout << "C++ debug file: debug_cpp_train.bin (" << obj->train_data_size_sparse_ << " bytes)" << std::endl;
+            */
+
+
+
+            parse_sparse_vectors(
+                obj->train_.get(), obj->train_data_size_sparse_, obj->sparse_train_, dim_sparse);
+            obj->train_.reset();
+            obj->number_of_base_ = obj->sparse_train_.size();
+        }
+        {
+            H5::PredType type = H5::PredType::ALPHA_U8;
+            H5::DataSet dataset = file.openDataSet("/test_sparse");
+            H5::DataSpace dataspace = dataset.getSpace();
+            hsize_t dims_out[2];
+            dataspace.getSimpleExtentDims(dims_out, NULL);
+            obj->test_data_size_sparse_ = dims_out[0];
+            obj->test_.reset(new char[obj->test_data_size_sparse_]);
+            dataset.read(obj->test_.get(), type, dataspace);
+            parse_sparse_vectors(
+                obj->test_.get(), obj->test_data_size_sparse_, obj->sparse_test_, dim_sparse);
+            obj->test_.reset();
+            obj->number_of_query_ = obj->sparse_test_.size();
+        }
+
+        // read dense
+        {
+            H5::DataSet dataset = file.openDataSet("/train");
+            H5::DataSpace dataspace = dataset.getSpace();
+            auto data_type = dataset.getDataType();
+            H5::PredType type = H5::PredType::ALPHA_I8;
+            if (data_type.getClass() == H5T_INTEGER && data_type.getSize() == 1) {
+                obj->train_data_type_ = vsag::DATATYPE_INT8;
+                type = H5::PredType::ALPHA_I8;
+                obj->train_data_size_ = 1;
+            } else if (data_type.getClass() == H5T_FLOAT) {
+                obj->train_data_type_ = vsag::DATATYPE_FLOAT32;
+                type = H5::PredType::NATIVE_FLOAT;
+                obj->train_data_size_ = 4;
+            } else {
+                throw std::runtime_error(
+                    fmt::format("wrong data type, data type ({}), data size ({})",
+                                (int)data_type.getClass(),
+                                data_type.getSize()));
+            }
+            obj->train_ = std::shared_ptr<char[]>(
+                new char[train_shape.first * train_shape.second * obj->train_data_size_]);
+            dataset.read(obj->train_.get(), type, dataspace);
+        }
+
+        {
+            H5::DataSet dataset = file.openDataSet("/test");
+            H5::DataSpace dataspace = dataset.getSpace();
+            auto data_type = dataset.getDataType();
+            H5::PredType type = H5::PredType::ALPHA_I8;
+            if (data_type.getClass() == H5T_INTEGER && data_type.getSize() == 1) {
+                obj->test_data_type_ = vsag::DATATYPE_INT8;
+                type = H5::PredType::ALPHA_I8;
+                obj->test_data_size_ = 1;
+            } else if (data_type.getClass() == H5T_FLOAT) {
+                obj->test_data_type_ = vsag::DATATYPE_FLOAT32;
+                type = H5::PredType::NATIVE_FLOAT;
+                obj->test_data_size_ = 4;
+            } else {
+                throw std::runtime_error("wrong data type");
+            }
+            obj->test_ = std::shared_ptr<char[]>(
+                new char[test_shape.first * test_shape.second * obj->test_data_size_]);
+            dataset.read(obj->test_.get(), type, dataspace);
+        }
+
     }
 
     try {

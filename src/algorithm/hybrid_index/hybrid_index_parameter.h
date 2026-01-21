@@ -16,6 +16,7 @@ class HybridIndexParameter : public InnerIndexParameter {
 public:
     HybridIndexParameter() = default;
     void FromJson(const JsonType& json) override;
+    JsonType ToJson() const override;
 
 public:
     JsonType sparse_json;

@@ -254,7 +254,7 @@ EvalDataset::Load(const std::string& filename) {
 
             // === DEBUG: 保存 C++ 读取的字节流 ===
             /*
-            std::ofstream debug_file("/tbase-project/vsag/scripts/debug_cpp_train.bin", std::ios::binary);
+            std::ofstream debug_file("/tbase-project/vsag/scripts/hybrid_index/debug_cpp_train.bin", std::ios::binary);
             debug_file.write(obj->train_.get(), obj->train_data_size_sparse_);
             debug_file.close();
             std::cout << "C++ debug file: debug_cpp_train.bin (" << obj->train_data_size_sparse_ << " bytes)" << std::endl;

@@ -109,3 +109,6 @@ target_link_libraries (402_persistent_streaming vsag)
 
 add_executable (501_quantization_transform 501_quantization_transform.cpp)
 target_link_libraries (501_quantization_transform vsag)
+
+add_executable (601_hybrid_exp1 601_hybrid_exp1.cpp)
+target_link_libraries (601_hybrid_exp1 vsag libhdf5_cpp.a libhdf5.a z)

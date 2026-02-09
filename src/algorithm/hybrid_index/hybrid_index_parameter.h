@@ -21,6 +21,9 @@ public:
 public:
     JsonType sparse_json;
     float alpha{0.5};
+    uint64_t ef_construction{20};
+    int64_t max_degree{10};
+
 };
 
 class HybridIndexSearchParameter : public IndexSearchParameter {

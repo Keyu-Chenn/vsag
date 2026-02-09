@@ -5,25 +5,19 @@
 #pragma once
 
 #include "algorithm/inner_index_interface.h"
+#include "algorithm/sparse_index.h"
+#include "datacell/graph_interface.h"
+#include "datacell/hybrid_vector_datacell.h"
 #include "hybrid_index_parameter.h"
 #include "impl/label_table.h"
+#include "impl/searcher/basic_searcher.h"
+#include "index_common_param.h"
 #include "typing.h"
 #include "utils/pointer_define.h"
-#include "vsag/filter.h"
-#include "algorithm/sparse_index.h"
 #include "vsag/dataset.h"
-#include "index_common_param.h"
+#include "vsag/filter.h"
 
 namespace vsag {
-/** In dataset.h, define HybridVector like this:
-struct HybridVector {
-    float* dense_vector_;
-    int64_t dim_;
-    SparseVector sparse_vector_;
-    HybridVector() : dense_vector_{nullptr}, dim_{0}, sparse_vector_() {
-    }
-};
-**/
 
 class HybridIndex : public InnerIndexInterface {
 public:
@@ -35,7 +29,9 @@ public:
     explicit HybridIndex(const ParamPtr& param, const IndexCommonParam& common_param)
         : HybridIndex(std::dynamic_pointer_cast<HybridIndexParameter>(param), common_param){};
 
-    ~HybridIndex() override;
+
+    void
+    add_one_point(InnerIdType inner_id, const float* vector);
 
     std::vector<int64_t>
     Add(const DatasetPtr& data) override;
@@ -96,8 +92,19 @@ public:
     Serialize(StreamWriter& writer) const override;
 
 private:
-    Vector<float> dense_vector_;
-    Vector<SparseVector> sparse_vector_;
+
+
+    // Vector<float> dense_vector_;
+    // Vector<SparseVector> sparse_vector_;
+    FlattenInterfacePtr flatten_codes_{nullptr};
+
+    GraphInterfacePtr graph_{nullptr};
+
+    BasicSearcherPtr searcher_{nullptr};
+    InnerIdType entry_point_id_{std::numeric_limits<InnerIdType>::max()};
+    uint64_t ef_construction_{20};
+    int64_t max_degree_{10};
+
     uint64_t total_count_{0};
     float alpha_;
 

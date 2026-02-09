@@ -14,12 +14,16 @@ void
 HybridIndexParameter::FromJson(const JsonType& json) {
     JsonType sparse_p = json;
     alpha = json["alpha"].GetFloat();
+    ef_construction = json["ef_construction"].GetInt();
+    max_degree = json["max_degree"].GetInt();
 }
 
 JsonType
 HybridIndexParameter::ToJson() const {
     JsonType json;
-    json["alpha"].SetInt(alpha);
+    json["alpha"].SetFloat(alpha);
+    json["ef_construction"].SetInt(ef_construction);
+    json["max_degree"].SetInt(max_degree);
     return json;
 }
 }  // namespace vsag

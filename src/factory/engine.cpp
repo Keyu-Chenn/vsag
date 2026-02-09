@@ -150,6 +150,8 @@ Engine::CreateIndex(const std::string& origin_name, const std::string& parameter
                 std::make_shared<IndexImpl<SINDI>>(sparse_json, index_common_params);
             return sparse_index;
         } else if (name == INDEX_HYBRID) {
+            CHECK_ARGUMENT(parsed_params.Contains(INDEX_PARAM),
+                           fmt::format("parameters must contains {}", INDEX_PARAM));
             auto hybrid_param_obj = parsed_params[INDEX_PARAM];
             auto hybrid_index =
                 std::make_shared<IndexImpl<HybridIndex>>(hybrid_param_obj, index_common_params);

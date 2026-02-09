@@ -112,3 +112,6 @@ target_link_libraries (501_quantization_transform vsag)
 
 add_executable (601_hybrid_exp1 601_hybrid_exp1.cpp)
 target_link_libraries (601_hybrid_exp1 vsag libhdf5_cpp.a libhdf5.a z)
+
+add_executable (602_hybrid_exp2 602_hybrid_exp2.cpp)
+target_link_libraries (602_hybrid_exp2 vsag libhdf5_cpp.a libhdf5.a z)

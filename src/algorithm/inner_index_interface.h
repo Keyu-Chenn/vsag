@@ -35,7 +35,6 @@
 #include "vsag/index.h"
 
 namespace vsag {
-
 DEFINE_POINTER2(InnerIndex, InnerIndexInterface);
 DEFINE_POINTER(LabelTable);
 DEFINE_POINTER(IndexFeatureList);

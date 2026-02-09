@@ -40,6 +40,7 @@
 #include "utils/visited_list.h"
 #include "vsag/options.h"
 
+#include<iostream>
 namespace vsag {
 
 HGraph::HGraph(const HGraphParameterPtr& hgraph_param, const vsag::IndexCommonParam& common_param)
@@ -1932,7 +1933,8 @@ HGraph::SearchWithRequest(const SearchRequest& request) const {
     CHECK_ARGUMENT(query->GetNumElements() == 1, "query dataset should contain 1 vector only");
 
     InnerSearchParam search_param;
-    search_param.ep = this->entry_point_id_;
+    // search_param.ep = this->entry_point_id_;
+    search_param.ep = params.entry_point;
     search_param.topk = 1;
     search_param.ef = 1;
     search_param.is_inner_id_allowed = nullptr;

@@ -244,23 +244,23 @@ def main():
     print(f"   File size: {os.path.getsize(args.output) / (1024*1024):.2f} MB")
 
 
-    print("train: ")
-    for i in range(args.num_train):
-        print(f"{i}: ")
-        print(f"dense: {train_dense[i]}")
-        print(f"sparse: {train_sparse_list[i]}")
-
-    print("test: ")
-    for i in range(args.num_test):
-        print(f"{i}: ")
-        print(f"dense: {test_dense[i]}")
-        print(f"sparse: {test_sparse_list[i]}")
-        print("ground_truth: ")
-        for j in range(args.gt_k):
-            print(f"num{j}: ")
-            print(f"label: {neighbors[i][j]}")
-            print(f"dis: {distances[i][j]}")
-        print()
+    # print("train: ")
+    # for i in range(args.num_train):
+    #     print(f"{i}: ")
+    #     print(f"dense: {train_dense[i]}")
+    #     print(f"sparse: {train_sparse_list[i]}")
+    #
+    # print("test: ")
+    # for i in range(args.num_test):
+    #     print(f"{i}: ")
+    #     print(f"dense: {test_dense[i]}")
+    #     print(f"sparse: {test_sparse_list[i]}")
+    #     print("ground_truth: ")
+    #     for j in range(args.gt_k):
+    #         print(f"num{j}: ")
+    #         print(f"label: {neighbors[i][j]}")
+    #         print(f"dis: {distances[i][j]}")
+    #     print()
 
 
 if __name__ == "__main__":

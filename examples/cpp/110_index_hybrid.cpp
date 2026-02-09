@@ -54,6 +54,7 @@ GenerateSparseVectors(
 
 int
 main(int argc, char** argv) {
+
     vsag::init();
 
     /******************* Prepare Dense_base Dataset *****************/
@@ -130,11 +131,11 @@ main(int argc, char** argv) {
 
 
     //test_look
-    auto tt = query->GetSparseVectors();
-    auto num = tt[0].len_;
-    for (int i = 0; i < num; ++i) {
-        std::cout << i << ": " << tt[0].ids_[i] << "  " << tt[0].vals_[i] << std::endl;
-    }
+    // auto tt = query->GetSparseVectors();
+    // auto num = tt[0].len_;
+    // for (int i = 0; i < num; ++i) {
+    //     std::cout << i << ": " << tt[0].ids_[i] << "  " << tt[0].vals_[i] << std::endl;
+    // }
 
 
 

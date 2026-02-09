@@ -207,6 +207,10 @@ HGraphSearchParameters::FromJson(const std::string& json_string) {
         obj.topk_factor = params[INDEX_TYPE_HGRAPH][SEARCH_PARAM_FACTOR].GetFloat();
     }
 
+    if (params[INDEX_TYPE_HGRAPH].Contains("entry_point")) {
+        obj.entry_point = params[INDEX_TYPE_HGRAPH]["entry_point"].GetInt();
+    }
+
     return obj;
 }
 }  // namespace vsag

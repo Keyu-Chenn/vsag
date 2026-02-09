@@ -78,6 +78,7 @@ public:
     float topk_factor{0.0F};
     bool use_reorder{false};
     bool use_extra_info_filter{false};
+    InnerIdType entry_point{0};
 
 private:
     HGraphSearchParameters() = default;

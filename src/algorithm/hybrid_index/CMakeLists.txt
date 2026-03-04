@@ -22,3 +22,4 @@ set (HYBRID_INDEX_SRCS
 add_library (hybrid_index OBJECT ${HYBRID_INDEX_SRCS})
 target_link_libraries (hybrid_index PUBLIC coverage_config)
 maybe_add_dependencies (hybrid_index spdlog fmt::fmt)
+target_link_libraries (hybrid_index PUBLIC libhdf5_cpp.a libhdf5.a z)

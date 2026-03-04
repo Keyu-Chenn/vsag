@@ -220,7 +220,7 @@ HybridVectorDataCell::GetQuantizerName() {
 }
 
 const uint8_t*
-HybridVectorDataCell::GetCodesById(InnerIdType id, bool& need_release) const {
+HybridVectorDataCell::GetCodesById(InnerIdType id, bool& need_release) const { // remember to deallocate
     // Allocate buffer for combined codes
     bool dense_release = false, sparse_release = false;
     const uint8_t* dense_codes = dense_cell_->GetCodesById(id, dense_release);

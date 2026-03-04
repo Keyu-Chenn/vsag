@@ -124,6 +124,21 @@ CalSparseIp(const vsag::SparseVector& vec1, const vsag::SparseVector& vec2) {
     return dis;
 }
 
+float CalculateRecall(const std::vector<int64_t>& results,
+                      const std::vector<int64_t>& ground_truth) {
+    std::unordered_set<int64_t> gt_set(ground_truth.begin(), ground_truth.end());
+    int hit_count = 0;
+
+    for (auto id : results) {
+        if (gt_set.count(id) > 0) {
+            hit_count++;
+        }
+    }
+
+    return static_cast<float>(hit_count) / ground_truth.size();
+}
+
+
 int
 main(int argc, char** argv) {
     vsag::init();
@@ -196,6 +211,19 @@ main(int argc, char** argv) {
         auto test_sparse = ParseSparseVectors(test_sparse_blob);
         std::cout << "Loaded test sparse: " << test_sparse.size() << " vectors" << std::endl;
 
+        /******************* Read Ground Truth *****************/
+        H5::DataSet gt_dataset = file.openDataSet("neighbors");
+        H5::DataSpace gt_dataspace = gt_dataset.getSpace();
+        hsize_t gt_dims[2];
+        gt_dataspace.getSimpleExtentDims(gt_dims);
+        int64_t num_queries = gt_dims[0];
+        int64_t k_gt = gt_dims[1];
+
+        std::vector<int64_t> ground_truth(num_queries * k_gt);
+        gt_dataset.read(ground_truth.data(), H5::PredType::NATIVE_INT64);
+
+        std::cout << "Loaded ground truth: " << num_queries << " x " << k_gt << std::endl;
+
         /******************* Prepare Base Dataset *****************/
         auto base = vsag::Dataset::Make();
         base->NumElements(num_train)
@@ -213,7 +241,6 @@ main(int argc, char** argv) {
              ->Float32Vectors(test_dense.data())
              ->SparseVectors(test_sparse.data())
              ->Owner(false);
-
 
 
         //exp: sindi结果作为hgraph入口点
@@ -274,14 +301,16 @@ main(int argc, char** argv) {
             exit(-1);
         }
 
+        // read ground truth
+
 
         // 处理每个点
-        long long avg_of_dist_compute = 0;
-        long long avg_of_hops = 0;
+        float avg_dist_compute = 0;
+        float avg_hops = 0;
+        float avg_recall = 0;
+
 
         for (int i = 0; i <tt_num; i++) {
-            int64_t num_cal = 0;
-            int64_t num_hops = 0;
             auto q_test = vsag::Dataset::Make();
             q_test->NumElements(1)
                 ->Dim(dense_dim)
@@ -330,7 +359,7 @@ main(int argc, char** argv) {
             {
                 "hgraph": {
                     "ef_search": 100,
-                    "entry_point": 0
+                    "entry_point": 6325
                 }
             }
             )";
@@ -354,17 +383,29 @@ main(int argc, char** argv) {
             auto stats_js = nlohmann::json::parse(stats);
             int cur_dist_comp = stats_js["dist_cmp"];
             int cur_hops = stats_js["hops"];
-            avg_of_dist_compute += cur_dist_comp;
-            avg_of_hops += cur_hops;
+            avg_dist_compute += cur_dist_comp;
+            avg_hops += cur_hops;
 
             // std::cout << hgraph_search_parameters << std::endl;
+            // compute recall
+            std::vector<int64_t> search_results(result_dense->GetIds(),
+                                                    result_dense->GetIds() + k);
+            std::vector<int64_t> gt(ground_truth.begin() + i * k_gt,
+                                   ground_truth.begin() + i * k_gt + k);
+
+            float recall = CalculateRecall(search_results, gt);
+            avg_recall += recall;
         }
-        avg_of_dist_compute /= tt_num;
-        avg_of_hops /= tt_num;
+        avg_dist_compute /= tt_num;
+        avg_hops /= tt_num;
+        avg_recall /= tt_num;
 
         std::cout << "k: " << k << std::endl;
-        std::cout << "avg of dist compute: " << avg_of_dist_compute << std::endl;
-        std::cout << "avg of hops: " << avg_of_hops << std::endl;
+        std::cout << "avg dist compute: " << avg_dist_compute << std::endl;
+        std::cout << "avg hops: " << avg_hops << std::endl;
+        std::cout << "avg recall: " << avg_recall << std::endl;
+
+
         /******************* Cleanup *****************/
         FreeSparseVectors(train_sparse);
         FreeSparseVectors(test_sparse);

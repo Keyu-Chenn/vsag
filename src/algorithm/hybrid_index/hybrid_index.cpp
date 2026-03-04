@@ -2,6 +2,7 @@
 // Created by root on 2026/1/8.
 //
 #include "hybrid_index.h"
+#include <H5Cpp.h>
 
 #include <atomic>
 #include <mutex>
@@ -46,23 +47,24 @@ HybridIndex::HybridIndex(const HybridIndexParameterPtr& param, const IndexCommon
     auto dense_param = std::make_shared<FlattenDataCellParameter>();
     dense_param->FromJson(dense_param_json);
 
-    // const char* sparse_param_str =
-    //     R"({
-    //         "io_params": {
-    //             "type": "memory_io"
-    //         },
-    //         "quantization_params": {
-    //             "type": "sparse"
-    //         }
-    //     }
-    // )";
-    //
-    // JsonType sparse_param_json = JsonType::Parse(sparse_param_str);
-    // auto sparse_param = std::make_shared<SparseVectorDataCellParameter>();
-    // sparse_param->FromJson(sparse_param_json);
-    //
-    // hybrid_codes_ = std::make_shared<HybridVectorDataCell>(dense_param, sparse_param, common_param);
-    this->flatten_codes_ = FlattenInterface::MakeInstance(dense_param, common_param);
+    const char* sparse_param_str =
+        R"({
+            "io_params": {
+                "type": "memory_io"
+            },
+            "quantization_params": {
+                "type": "sparse"
+            }
+        }
+    )";
+
+    JsonType sparse_param_json = JsonType::Parse(sparse_param_str);
+    auto sparse_param = std::make_shared<SparseVectorDataCellParameter>();
+    sparse_param->FromJson(sparse_param_json);
+
+    hybrid_codes_ = std::make_shared<HybridVectorDataCell>(dense_param, sparse_param, common_param);
+    hybrid_codes_->SetHybridWeight(alpha_, 1-alpha_);
+
     JsonType json;
     json["max_degree"].SetInt(max_degree_);
     JsonType io_json;
@@ -144,30 +146,101 @@ HybridIndex::add_one_point(InnerIdType inner_id, const float* vector) {
         std::cout << "HybridIndex::allocator_ is null!" << std::endl;
     }
 
-    if (graph_->total_count_ == 0) {
-        graph_->InsertNeighborsById(inner_id, Vector<InnerIdType>(allocator_));
-        entry_point_id_ = inner_id;
-    }
-    else {
-        InnerSearchParam search_param;
-        search_param.ef = ef_construction_;
-        search_param.topk = max_degree_;
-        search_param.search_mode = KNN_SEARCH;
-        search_param.ep = entry_point_id_;
+    // if (graph_->total_count_ == 0) {
+    //     graph_->InsertNeighborsById(inner_id, Vector<InnerIdType>(allocator_));
+    //     entry_point_id_ = inner_id;
+    // }
+    // else {
 
-        auto vl = std::make_shared<VisitedList>(graph_->max_capacity_, allocator_);
-        Statistics discard_stats;
-        auto results = searcher_->Search(graph_, flatten_codes_, vl, vector, search_param,
-                                        (LabelTablePtr)nullptr, discard_stats);
-        auto e_mutex = std::make_shared<EmptyMutex>();
-        mutually_connect_new_element(inner_id, results, graph_, flatten_codes_, e_mutex, allocator_);
-    }
+        // single alpha neighbors
+
+        // InnerSearchParam search_param;
+        // search_param.ef = ef_construction_;
+        // search_param.topk = max_degree_;
+        // search_param.search_mode = KNN_SEARCH;
+        // search_param.ep = entry_point_id_;
+
+        // auto vl = std::make_shared<VisitedList>(graph_->max_capacity_, allocator_);
+        // Statistics discard_stats;
+        // auto results = searcher_->Search(graph_, hybrid_codes_, vl, vector, search_param,
+        //                                 (LabelTablePtr)nullptr, discard_stats);
+        // auto e_mutex = std::make_shared<EmptyMutex>();
+        // mutually_connect_new_element(inner_id, results, graph_, hybrid_codes_, e_mutex, allocator_);
+
+
+        // all alpha neighbors
+        // 静态变量，只读取一次HDF5文件
+        static std::vector<std::vector<int64_t>> precomputed_neighbors;
+        static bool neighbors_loaded = false;
+
+        if (!neighbors_loaded) {
+            try {
+                std::string h5_file = "/tbase-project/vsag/build-release/examples/cpp/601_output_neighbors_k32.h5";
+                H5::H5File file(h5_file, H5F_ACC_RDONLY);
+
+                // 读取邻居数据
+                H5::DataSet neighbors_dataset = file.openDataSet("neighbors");
+                H5::DataSpace neighbors_dataspace = neighbors_dataset.getSpace();
+                hsize_t dims[2];
+                neighbors_dataspace.getSimpleExtentDims(dims);
+
+                int64_t num_points = dims[0];
+                int64_t max_neighbors = dims[1];
+
+                std::vector<int64_t> flat_neighbors(num_points * max_neighbors);
+                neighbors_dataset.read(flat_neighbors.data(), H5::PredType::NATIVE_INT64);
+
+                // 读取每个点的实际邻居数量
+                H5::DataSet counts_dataset = file.openDataSet("neighbor_counts");
+                std::vector<int64_t> counts(num_points);
+                counts_dataset.read(counts.data(), H5::PredType::NATIVE_INT64);
+
+                // 转换为内部数据结构
+                precomputed_neighbors.resize(num_points);
+                for (int64_t i = 0; i < num_points; ++i) {
+                    int64_t actual_count = std::min(counts[i], static_cast<int64_t>(max_degree_));
+                    precomputed_neighbors[i].reserve(actual_count);
+
+                    for (int64_t j = 0; j < actual_count; ++j) {
+                        int64_t neighbor_id = flat_neighbors[i * max_neighbors + j];
+                        if (neighbor_id >= 0) {  // -1 表示填充值
+                            precomputed_neighbors[i].push_back(neighbor_id);
+                        }
+                    }
+                }
+
+                neighbors_loaded = true;
+                std::cout << "Loaded precomputed neighbors for " << num_points << " points" << std::endl;
+
+            } catch (H5::Exception& e) {
+                std::cerr << "Failed to load precomputed neighbors: " << e.getDetailMsg() << std::endl;
+                neighbors_loaded = false;
+            }
+        }
+
+        // 使用预计算的邻居
+        if (neighbors_loaded && inner_id < precomputed_neighbors.size()) {
+            const auto& neighbors = precomputed_neighbors[inner_id];
+
+            // 转换为 Vector<InnerIdType>
+            Vector<InnerIdType> neighbor_vec(allocator_);
+            neighbor_vec.resize(neighbors.size());
+
+            for (size_t i = 0; i < neighbors.size(); ++i) {
+                neighbor_vec[i] = static_cast<InnerIdType>(neighbors[i]);
+            }
+
+            // 插入邻居关系
+            graph_->InsertNeighborsById(inner_id, neighbor_vec);
+        }
+    // }
+
 }
 
 std::vector<int64_t>
 HybridIndex::Add(const DatasetPtr& data) {
     std::vector<int64_t> failed_ids;
-    int64_t dense_num = data->GetNumElements();
+    int64_t vec_num = data->GetNumElements();
 
     int64_t dim = data->GetDim();
     auto labels = data->GetIds();
@@ -176,17 +249,27 @@ HybridIndex::Add(const DatasetPtr& data) {
     auto dense_vecs = data->GetFloat32Vectors();
     auto sparse_vecs = data->GetSparseVectors();
 
-    flatten_codes_->BatchInsertVector(dense_vecs, dense_num);
+    auto hybrid_vecs = static_cast<int8_t*>(allocator_->Allocate(vec_num * dim * sizeof(float) + vec_num * sizeof(sparse_vecs[0])));
+    std::memcpy(hybrid_vecs, dense_vecs, vec_num * dim * sizeof(float));
+    std::memcpy(hybrid_vecs + vec_num * dim * sizeof(float), sparse_vecs, vec_num * sizeof(sparse_vecs[0]));
+    // insert codes
+    hybrid_codes_->BatchInsertVector(hybrid_vecs, vec_num);
 
-    // insert labels
-    for (auto i = total_count_; i < total_count_ + dense_num; i++) {
+    // insert labels and points
+    for (auto i = total_count_; i < total_count_ + vec_num; i++) {
         label_table_->Insert(i, labels[i]);
-        add_one_point(i, dense_vecs + (i - total_count_) * dim);
+        auto sparse_vec = sparse_vecs[i];
+        int64_t total_size = dim * sizeof(float) + 4 * (2 * sparse_vec.len_ + 1);
+        auto hybrid_vec = static_cast<uint8_t*>(allocator_->Allocate(total_size));
+        std::memcpy(hybrid_vec, dense_vecs + i, dim * sizeof(float));
+        std::memcpy(hybrid_vec + dim * sizeof(float), sparse_vecs + i, sizeof(sparse_vecs[0]));
+        add_one_point(i, (const float *)hybrid_vec);
+        allocator_->Deallocate(hybrid_vec);
     }
 
+    allocator_->Deallocate(hybrid_vecs);
 
-
-    this->total_count_ += dense_num;
+    this->total_count_ += vec_num;
     return failed_ids;
 }
 
@@ -200,16 +283,25 @@ HybridIndex::KnnSearch(const DatasetPtr& query,
     search_param.ef = parsed_search_param["ef_search"].GetInt();
     search_param.topk = k;
     search_param.search_mode = KNN_SEARCH;
-    search_param.ep = entry_point_id_;
+    // search_param.ep = entry_point_id_;
+    search_param.ep = parsed_search_param["entry_point"].GetInt();
 
-    auto vector = query->GetFloat32Vectors();
-    std::cout << vector[0] << std::endl;
+    auto search_alpha_ = parsed_search_param["alpha"].GetFloat();
+    hybrid_codes_->SetHybridWeight(search_alpha_, 1-search_alpha_);
+
+    auto dense_vector = query->GetFloat32Vectors();
+    auto dim = query->GetDim();
+    auto sparse_vector = query->GetSparseVectors();
+    auto hybrid_vector = (int8_t*)(allocator_->Allocate(dim * sizeof(float) + sizeof(sparse_vector[0])));
+    std::memcpy(hybrid_vector, dense_vector, dim * sizeof(float));
+    std::memcpy(hybrid_vector + dim * sizeof(float), sparse_vector, sizeof(sparse_vector[0]));
 
     auto vl = std::make_shared<VisitedList>(graph_->max_capacity_, allocator_);
     Statistics discard_stats;
-    auto search_results = searcher_->Search(graph_, flatten_codes_, vl, vector, search_param,
+    auto search_results = searcher_->Search(graph_, hybrid_codes_, vl, hybrid_vector, search_param,
                                     (LabelTablePtr)nullptr, discard_stats);
 
+    allocator_->Deallocate(hybrid_vector);
     int64_t result_size = search_results->Size();
     auto results = Dataset::Make();
 
@@ -226,11 +318,13 @@ HybridIndex::KnnSearch(const DatasetPtr& query,
         }
         search_results->Pop();
     }
-    for (int j = 0; j < result_size; ++j) {
-        std::cout << "id: " << ids[j] << "      ";
-        std::cout << "dist: " << dists[j] << std::endl;
-    }
-    std::cout << std::endl;
+    // for (int j = 0; j < result_size; ++j) {
+    //     std::cout << "id: " << ids[j] << "      ";
+    //     std::cout << "dist: " << dists[j] << std::endl;
+    // }
+    // allocator_->Deallocate(ids);
+    // allocator_->Deallocate(dists);
+    // std::cout << std::endl;
     return results;
 }
 
@@ -321,7 +415,7 @@ HybridIndex::RangeSearch(const vsag::DatasetPtr& query,
 
 void HybridIndex::Serialize(StreamWriter& writer) const {
     label_table_->Serialize(writer);
-    flatten_codes_->Serialize(writer);
+    hybrid_codes_->Serialize(writer);
     graph_->Serialize(writer);
 
     StreamWriter::WriteObj(writer, entry_point_id_);
@@ -336,7 +430,7 @@ HybridIndex::Deserialize(StreamReader& reader) {
     std::cout << "begin label" << std::endl;
     label_table_->Deserialize(reader);
     std::cout << "end label" << std::endl;
-    flatten_codes_->Deserialize(reader);
+    hybrid_codes_->Deserialize(reader);
     graph_->Deserialize(reader);
 
     StreamReader::ReadObj(reader, entry_point_id_);

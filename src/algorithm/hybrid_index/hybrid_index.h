@@ -17,6 +17,7 @@
 #include "vsag/dataset.h"
 #include "vsag/filter.h"
 
+
 namespace vsag {
 
 class HybridIndex : public InnerIndexInterface {
@@ -96,7 +97,7 @@ private:
 
     // Vector<float> dense_vector_;
     // Vector<SparseVector> sparse_vector_;
-    FlattenInterfacePtr flatten_codes_{nullptr};
+    HybridVectorDataCellPtr hybrid_codes_{nullptr};
 
     GraphInterfacePtr graph_{nullptr};
 
@@ -106,7 +107,7 @@ private:
     int64_t max_degree_{10};
 
     uint64_t total_count_{0};
-    float alpha_;
+    float alpha_{0.5};
 
 };
 }

@@ -1,8 +1,3 @@
-//
-// Created by root on 2026/1/26.
-//
-// test difference between two-route top k and true hybrid top beta*k
-
 #include <H5Cpp.h>
 #include <vsag/vsag.h>
 
@@ -33,7 +28,6 @@ struct union_search_res {
     bool operator>(const union_search_res& other) const {
         return hybrid_distance > other.hybrid_distance;
     }
-
 };
 
 std::vector<vsag::SparseVector>
@@ -42,7 +36,6 @@ ParseSparseVectors(const std::vector<uint8_t>& blob) {
     size_t offset = 0;
 
     while (offset < blob.size()) {
-        // Read length
         if (offset + sizeof(uint32_t) > blob.size()) {
             break;
         }
@@ -55,7 +48,6 @@ ParseSparseVectors(const std::vector<uint8_t>& blob) {
         vec.len_ = len;
 
         if (len > 0) {
-            // Read IDs
             size_t ids_bytes = len * sizeof(uint32_t);
             if (offset + ids_bytes > blob.size()) {
                 break;
@@ -65,7 +57,6 @@ ParseSparseVectors(const std::vector<uint8_t>& blob) {
             std::memcpy(vec.ids_, &blob[offset], ids_bytes);
             offset += ids_bytes;
 
-            // Read Values
             size_t vals_bytes = len * sizeof(float);
             if (offset + vals_bytes > blob.size()) {
                 delete[] vec.ids_;
@@ -109,7 +100,6 @@ CalDenseIp(const float* vec1, const float* vec2, int dim) {
     return dis;
 }
 
-
 float
 CalSparseIp(const vsag::SparseVector& vec1, const vsag::SparseVector& vec2) {
     float dis = 0;
@@ -123,22 +113,74 @@ CalSparseIp(const vsag::SparseVector& vec1, const vsag::SparseVector& vec2) {
     return dis;
 }
 
+// 保存邻居到HDF5的函数
+void SaveNeighborsToHDF5(const std::string& filename, 
+                         const std::vector<std::vector<int64_t>>& all_neighbors) {
+    try {
+        H5::H5File file(filename, H5F_ACC_TRUNC);
+        
+        // 找出最大邻居数（用于确定数组维度）
+        size_t max_neighbors = 0;
+        for (const auto& neighbors : all_neighbors) {
+            max_neighbors = std::max(max_neighbors, neighbors.size());
+        }
+        
+        std::cout << "Max neighbors count: " << max_neighbors << std::endl;
+        
+        // 创建数据集（num_points x max_neighbors），用-1填充空位
+        hsize_t dims[2] = {all_neighbors.size(), max_neighbors};
+        H5::DataSpace dataspace(2, dims);
+        H5::DataSet dataset = file.createDataSet("neighbors", 
+                                                  H5::PredType::NATIVE_INT64, 
+                                                  dataspace);
+        
+        // 准备数据（填充-1表示无效邻居）
+        std::vector<int64_t> flat_data(all_neighbors.size() * max_neighbors, -1);
+        for (size_t i = 0; i < all_neighbors.size(); i++) {
+            for (size_t j = 0; j < all_neighbors[i].size(); j++) {
+                flat_data[i * max_neighbors + j] = all_neighbors[i][j];
+            }
+        }
+        
+        dataset.write(flat_data.data(), H5::PredType::NATIVE_INT64);
+        
+        // 保存每个点的实际邻居数
+        hsize_t count_dims[1] = {all_neighbors.size()};
+        H5::DataSpace count_space(1, count_dims);
+        H5::DataSet count_dataset = file.createDataSet("neighbor_counts", 
+                                                        H5::PredType::NATIVE_INT64, 
+                                                        count_space);
+        
+        std::vector<int64_t> counts;
+        for (const auto& neighbors : all_neighbors) {
+            counts.push_back(neighbors.size());
+        }
+        count_dataset.write(counts.data(), H5::PredType::NATIVE_INT64);
+        
+        std::cout << "Saved neighbors to " << filename << std::endl;
+        
+    } catch (H5::Exception& e) {
+        std::cerr << "HDF5 Error when saving: " << e.getDetailMsg() << std::endl;
+        throw;
+    }
+}
+
 int
 main(int argc, char** argv) {
     vsag::init();
 
     if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <h5_file_path>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <h5_file_path> [output_neighbors.h5]" << std::endl;
         return 1;
     }
 
     std::string h5_file = argv[1];
+    std::string output_file = (argc >= 3) ? argv[2] : "all_neighbors.h5";
 
     try {
         /******************* Load Dataset from HDF5 *****************/
         H5::H5File file(h5_file, H5F_ACC_RDONLY);
 
-        // Read train dense vectors
         H5::DataSet train_dataset = file.openDataSet("train");
         H5::DataSpace train_dataspace = train_dataset.getSpace();
         hsize_t train_dims[2];
@@ -148,10 +190,8 @@ main(int argc, char** argv) {
 
         std::vector<float> train_dense(num_train * dense_dim);
         train_dataset.read(train_dense.data(), H5::PredType::NATIVE_FLOAT);
-
         std::cout << "Loaded train dense: " << num_train << " x " << dense_dim << std::endl;
 
-        // Read train sparse vectors
         H5::DataSet train_sparse_dataset = file.openDataSet("train_sparse");
         H5::DataSpace train_sparse_dataspace = train_sparse_dataset.getSpace();
         hsize_t train_sparse_size = train_sparse_dataspace.getSimpleExtentNpoints();
@@ -162,38 +202,13 @@ main(int argc, char** argv) {
         auto train_sparse = ParseSparseVectors(train_sparse_blob);
         std::cout << "Loaded train sparse: " << train_sparse.size() << " vectors" << std::endl;
 
-        // Read train labels
         H5::DataSet train_labels_dataset = file.openDataSet("train_labels");
         H5::DataSpace train_labels_dataspace = train_labels_dataset.getSpace();
         hsize_t num_train_labels = train_labels_dataspace.getSimpleExtentNpoints();
 
         std::vector<int64_t> train_labels(num_train_labels);
         train_labels_dataset.read(train_labels.data(), H5::PredType::NATIVE_INT64);
-
         std::cout << "Loaded train labels: " << num_train_labels << std::endl;
-
-        // Read test dense vectors
-        H5::DataSet test_dataset = file.openDataSet("test");
-        H5::DataSpace test_dataspace = test_dataset.getSpace();
-        hsize_t test_dims[2];
-        test_dataspace.getSimpleExtentDims(test_dims);
-        int64_t num_test = test_dims[0];
-
-        std::vector<float> test_dense(num_test * dense_dim);
-        test_dataset.read(test_dense.data(), H5::PredType::NATIVE_FLOAT);
-
-        std::cout << "Loaded test dense: " << num_test << " x " << dense_dim << std::endl;
-
-        // Read test sparse vectors
-        H5::DataSet test_sparse_dataset = file.openDataSet("test_sparse");
-        H5::DataSpace test_sparse_dataspace = test_sparse_dataset.getSpace();
-        hsize_t test_sparse_size = test_sparse_dataspace.getSimpleExtentNpoints();
-
-        std::vector<uint8_t> test_sparse_blob(test_sparse_size);
-        test_sparse_dataset.read(test_sparse_blob.data(), H5::PredType::NATIVE_UINT8);
-
-        auto test_sparse = ParseSparseVectors(test_sparse_blob);
-        std::cout << "Loaded test sparse: " << test_sparse.size() << " vectors" << std::endl;
 
         /******************* Prepare Base Dataset *****************/
         auto base = vsag::Dataset::Make();
@@ -204,24 +219,10 @@ main(int argc, char** argv) {
             ->SparseVectors(train_sparse.data())
             ->Owner(false);
 
-
-        /******************* Prepare Query Dataset *****************/
-        auto query = vsag::Dataset::Make();
-        query->NumElements(num_test)
-             ->Dim(dense_dim)
-             ->Float32Vectors(test_dense.data())
-             ->SparseVectors(test_sparse.data())
-             ->Owner(false);
-
-
-
-        // dense & sparse 各搜top ak个，合并，采样alpha，在每个alpha对集合进行重排，取top k，把这些top k集合合并为最终的邻居all neighbors
-        // make sure ak >> k
         int k = 32;
         int ak = 10 * k;
 
-
-        // Build Dense Index: hgraph
+        /******************* Build Dense Index: hgraph *****************/
         std::string hgraph_build_parameters = R"(
         {
             "dtype": "float32",
@@ -240,14 +241,13 @@ main(int argc, char** argv) {
         auto index_hgraph = engine.CreateIndex("hgraph", hgraph_build_parameters).value();
 
         if (auto build_result_hgraph = index_hgraph->Build(base); build_result_hgraph.has_value()) {
-            std::cout << "After Build(), Index HGraph contains: " << index_hgraph->GetNumElements()
-                      << std::endl;
-        } else if (build_result_hgraph.error().type == vsag::ErrorType::INTERNAL_ERROR) {
-            std::cerr << "Failed to build index: internalError" << std::endl;
+            std::cout << "After Build(), Index HGraph contains: " << index_hgraph->GetNumElements() << std::endl;
+        } else {
+            std::cerr << "Failed to build hgraph index" << std::endl;
             exit(-1);
         }
 
-        // Build Sparse Index: sindi
+        /******************* Build Sparse Index: sindi *****************/
         auto sindi_build_params = R"(
         {
             "dtype": "sparse",
@@ -266,35 +266,29 @@ main(int argc, char** argv) {
         auto index_sindi = vsag::Factory::CreateIndex("sindi", sindi_build_params).value();
 
         if (auto build_result_sindi = index_sindi->Build(base); build_result_sindi.has_value()) {
-            std::cout << "After Build(), Sparse Term Index contains: " << index_sindi->GetNumElements()
-                      << std::endl;
-        } else if (build_result_sindi.error().type == vsag::ErrorType::INTERNAL_ERROR) {
-            std::cerr << "Failed to build index: internalError" << std::endl;
+            std::cout << "After Build(), Sparse Term Index contains: " << index_sindi->GetNumElements() << std::endl;
+        } else {
+            std::cerr << "Failed to build sindi index" << std::endl;
             exit(-1);
         }
 
-
-
-
-
-
-
-
-
-
-        // Get all neighbors
+        /******************* Process Each Point *****************/
         float avg_total_neighbor_num = 0;
-        int tt_num = 80000;
-
-        // cover_rate[bk]：记从dense和sparse两路取top bk得到的并集为A，all_neighbors为B，
-        // cover_rate = |A and B| / |B|
+        int tt_num = std::min(80000, (int)num_train);
         int bk_num = 10 * k;
         std::vector<float> cover_rate(bk_num);
+        
+        // **新增：存储所有点的邻居**
+        std::vector<std::vector<int64_t>> all_points_neighbors(tt_num);
+        std::vector<std::vector<int64_t>> all_points_neighbors_0_1(tt_num);
+        std::vector<std::vector<int64_t>> all_points_neighbors_1(tt_num);
 
+        int max_neighbor_num = 0;
+        for (int i = 0; i < tt_num; i++) {
+            if (i % 1000 == 0) {
+                std::cout << "Processing point " << i << "/" << tt_num << std::endl;
+            }
 
-
-        // 处理每个点
-        for (int i = 0; i <tt_num; i++) {
             auto q_train = vsag::Dataset::Make();
             q_train->NumElements(1)
                 ->Dim(dense_dim)
@@ -303,54 +297,24 @@ main(int argc, char** argv) {
                 ->SparseVectors(train_sparse.data() + i)
                 ->Owner(false);
 
-            /******************* KnnSearch For HGraph Index *****************/
-            auto hgraph_search_parameters = R"(
-            {
-                "hgraph": {
-                    "ef_search": 100
-                }
-            }
-            )";
+            auto hgraph_search_parameters = R"({"hgraph": {"ef_search": 100}})";
             auto result_dense = index_hgraph->KnnSearch(q_train, ak, hgraph_search_parameters).value();
 
-
-            /******************* KnnSearch For Sindi Index *****************/
-            auto sindi_search_params = R"(
-            {
-                "sindi": {
-                    "query_prune_ratio": 0,
-                    "term_prune_ratio": 0,
-                    "n_candidate": 0
-                }
-            }
-            )";
-
+            auto sindi_search_params = R"({"sindi": {"query_prune_ratio": 0, "term_prune_ratio": 0, "n_candidate": 0}})";
             auto result_sparse = index_sindi->KnnSearch(q_train, ak, sindi_search_params).value();
 
-
-            // std::cout << "dense_res_from_hgraph: " << std::endl;
-            // for (int z = 0; z < bk_num; z++) {
-            //     std::cout << "id: " << result_dense->GetIds()[z] << std::endl;
-            //     std::cout << "dense_dis: " << 1 - result_dense->GetDistances()[z] << std::endl;
-            // }
-            //
-            // std::cout << "sparse_res_from_sindi: " << std::endl;
-            // for (int z = 0; z < bk_num; z++) {
-            //     std::cout << "id: " << result_sparse->GetIds()[z] << std::endl;
-            //     std::cout << "sparse_dis: " << 1- result_sparse->GetDistances()[z] << std::endl;
-            // }
-
-
-
-            // Get dense_sparse_union 合并dense和sparse res的id，距离自己重算
+            // 合并dense和sparse结果
             std::vector<union_search_res> ds_u_res;
             std::unordered_set<int> seen_ids;
             std::unordered_set<int> all_neighbors;
+            std::unordered_set<int> neighbors_0_1;
+            std::unordered_set<int> neighbors_1;
 
             for (int64_t j = 0; j < result_dense->GetDim(); ++j) {
                 auto cur_id = result_dense->GetIds()[j];
                 if (seen_ids.insert(cur_id).second) {
-                    auto cur_dense_dist = CalDenseIp(train_dense.data() + i * dense_dim, train_dense.data() + cur_id * dense_dim, dense_dim);
+                    auto cur_dense_dist = CalDenseIp(train_dense.data() + i * dense_dim, 
+                                                     train_dense.data() + cur_id * dense_dim, dense_dim);
                     auto cur_sparse_dist = CalSparseIp(train_sparse[i], train_sparse[cur_id]);
                     ds_u_res.push_back({cur_id, cur_dense_dist, cur_sparse_dist, 0});
                 }
@@ -359,97 +323,91 @@ main(int argc, char** argv) {
             for (int64_t j = 0; j < result_sparse->GetDim(); ++j) {
                 auto cur_id = result_sparse->GetIds()[j];
                 if (seen_ids.insert(cur_id).second) {
-                    auto cur_dense_dist = CalDenseIp(train_dense.data() + i * dense_dim, train_dense.data() + cur_id * dense_dim, dense_dim);
+                    auto cur_dense_dist = CalDenseIp(train_dense.data() + i * dense_dim, 
+                                                     train_dense.data() + cur_id * dense_dim, dense_dim);
                     auto cur_sparse_dist = CalSparseIp(train_sparse[i], train_sparse[cur_id]);
                     ds_u_res.push_back({cur_id, cur_dense_dist, cur_sparse_dist, 0});
                 }
             }
 
-
-
-
-
-
-            // Get all neighbors
-            for (float x = 0; x <= 1 + 1e-5; x += 0.01) {
+            // 遍历不同alpha，收集所有top-k邻居
+            for (float alpha = 0; alpha <= 1.0 + 1e-5; alpha += 0.01) {
                 for (auto& item : ds_u_res) {
-                    item.GetHybridDis(x);
+                    item.GetHybridDis(alpha);
                 }
                 std::sort(ds_u_res.begin(), ds_u_res.end(), std::greater<union_search_res>());
-                for (int j = 0; j < k; j++) {
+                for (int j = 0; j < std::min(k, (int)ds_u_res.size()); j++) {
                     all_neighbors.insert(ds_u_res[j].id);
+                    if (std::abs(alpha) < 1e-5) {
+                        neighbors_0_1.insert(ds_u_res[j].id);
+                    }
+                }
+                if (std::abs(alpha - 1.0) < 1e-5) {
+                    for (int j = 0; j < std::min(2 * k, (int)ds_u_res.size()); j++) {
+                        neighbors_1.insert(ds_u_res[j].id);
+                        if (neighbors_0_1.size() < 2 * k) {
+                            neighbors_0_1.insert(ds_u_res[j].id);
+                        }
+                    }
                 }
             }
 
+            // **保存当前点的邻居到向量中**
+            std::vector<int64_t> neighbors_vec(all_neighbors.begin(), all_neighbors.end());
+            std::sort(neighbors_vec.begin(), neighbors_vec.end());  // 排序便于后续使用
+            all_points_neighbors[i] = neighbors_vec;
 
+            std::vector<int64_t> neighbors_0_1_vec(neighbors_0_1.begin(), neighbors_0_1.end());
+            std::sort(neighbors_0_1_vec.begin(), neighbors_0_1_vec.end());
+            all_points_neighbors_0_1[i] = neighbors_0_1_vec;
 
-            // 输出每个点的all_neighbors
+            std::vector<int64_t> neighbors_1_vec(neighbors_1.begin(), neighbors_1.end());
+            std::sort(neighbors_1_vec.begin(), neighbors_1_vec.end());
+            all_points_neighbors_1[i] = neighbors_1_vec;
 
-            std::cout << "id: " << i << "    total_neighbor_num: " << all_neighbors.size() << std::endl;
             avg_total_neighbor_num += all_neighbors.size();
-            // std::vector<int> alls;
-            // for (auto item : all_neighbors) {
-            //     alls.push_back(item);
-            // }
-            // std::sort(alls.begin(), alls.end());
-            // std::cout << "{ ";
-            // for (auto item : alls) {
-            //     std::cout << item << " ";
-            // }
-            // std::cout << "}" << std::endl;
+            max_neighbor_num = all_neighbors.size() > max_neighbor_num ? all_neighbors.size() : max_neighbor_num;
 
-
-
-            // 计算不同bk对应的覆盖率
+            // 计算覆盖率
             std::unordered_set<int> dsu;
-            for (int bk = 0; bk < bk_num; bk ++) {
-                int denseid = result_dense->GetIds()[bk];
-                int sparseid = result_sparse->GetIds()[bk];
-                for (auto item : all_neighbors) {
-                    if (denseid == item) {
+            for (int bk = 0; bk < bk_num; bk++) {
+                if (bk < result_dense->GetDim()) {
+                    int denseid = result_dense->GetIds()[bk];
+                    if (all_neighbors.count(denseid)) {
                         dsu.insert(denseid);
                     }
-                    if (sparseid == item) {
+                }
+                if (bk < result_sparse->GetDim()) {
+                    int sparseid = result_sparse->GetIds()[bk];
+                    if (all_neighbors.count(sparseid)) {
                         dsu.insert(sparseid);
                     }
                 }
                 cover_rate[bk] += (float)dsu.size() / all_neighbors.size();
             }
-
         }
+        std::cout << "max_neighbor_num: " << max_neighbor_num << std::endl;
 
-        std::cout << "avg_num: " << avg_total_neighbor_num / tt_num << std::endl;
+        std::cout << "Average neighbors per point: " << avg_total_neighbor_num / tt_num << std::endl;
 
+        /******************* Save Results *****************/
+        // 保存邻居到HDF5
+        SaveNeighborsToHDF5(output_file, all_points_neighbors);
+        SaveNeighborsToHDF5("601_output_neighbors_k32_alpha_0_1.h5", all_points_neighbors_0_1);
+        SaveNeighborsToHDF5("601_output_neighbors_k32_alpha_1.h5", all_points_neighbors_1);
 
-
-        std::ofstream fout("601_results_k32.txt");
+        // 保存统计信息到文本文件
+        std::ofstream fout("601_results_msmarco_k32.txt");
         fout << "avg_num: " << avg_total_neighbor_num / tt_num << std::endl;
         fout << "cover_rate: " << std::endl;
-        for (int bk = 0; bk < bk_num; bk ++) {
+        for (int bk = 0; bk < bk_num; bk++) {
             fout << "bk" << bk + 1 << ": " << cover_rate[bk] / tt_num << std::endl;
         }
         fout.close();
-
-
-
-        // std::cout << "cover_rate: " << std::endl;
-        // for (int bk = 0; bk < bk_num; bk ++) {
-        //    std::cout << "bk" << bk + 1 << ": " << cover_rate[bk] / tt_num << std::endl;
-        // }
-
-
-
-
-
-
-
-
-
-
+        std::cout << "Saved statistics to 601_results_msmarco_k32.txt" << std::endl;
 
         /******************* Cleanup *****************/
         FreeSparseVectors(train_sparse);
-        FreeSparseVectors(test_sparse);
         engine.Shutdown();
 
     } catch (H5::Exception& e) {

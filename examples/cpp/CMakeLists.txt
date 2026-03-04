@@ -115,3 +115,9 @@ target_link_libraries (601_hybrid_exp1 vsag libhdf5_cpp.a libhdf5.a z)
 
 add_executable (602_hybrid_exp2 602_hybrid_exp2.cpp)
 target_link_libraries (602_hybrid_exp2 vsag libhdf5_cpp.a libhdf5.a z)
+
+add_executable (603_hybrid_exp3 603_hybrid_exp3.cpp)
+target_link_libraries (603_hybrid_exp3 vsag libhdf5_cpp.a libhdf5.a z)
+
+add_executable (604_hybrid_exp4 604_hybrid_exp4.cpp)
+target_link_libraries (604_hybrid_exp4 vsag libhdf5_cpp.a libhdf5.a z)

@@ -29,11 +29,11 @@
 
 namespace vsag {
 
+DEFINE_POINTER(HybridVectorDataCell);
 /**
  * HybridVectorDataCell manages both dense and sparse vectors
  * Each hybrid vector contains one dense vector and one sparse vector
  */
-
 // Hybrid Computer that combines dense and sparse computers
 class HybridComputer : public ComputerInterface {
 public:

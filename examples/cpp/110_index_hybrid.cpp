@@ -146,7 +146,9 @@ main(int argc, char** argv) {
     /******************* KnnSearch For Hybrid Index *****************/
     auto hybrid_index_search_parameters = R"(
     {
-        "alpha": 0.5
+        "alpha": 0.5,
+        "ef_search": 200,
+        "entry_point": 0
     })";
     int64_t topk = 10;
     auto result = index->KnnSearch(query, topk, hybrid_index_search_parameters).value();

@@ -282,19 +282,71 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
                (attr_ft == nullptr or attr_ft->CheckValid(id));
     };
 
-    flatten->Query(&dist, computer, &ep, 1, alloc);
-    ++dist_cmp;
-    if (check_func(ep)) {
-        top_candidates->Push(dist, ep);
-        lower_bound = top_candidates->Top().first;
+
+    // =========================================================
+    // 多入口点初始化
+    // =========================================================
+    // 收集所有入口点（兼容单入口点和多入口点）
+    Vector<InnerIdType> entry_points(alloc);
+
+    // 优先使用 eps（多入口点列表），否则退回使用单个 ep
+    if (not inner_search_param.eps.empty()) {
+        for (auto ep_id : inner_search_param.eps) {
+            // 去重：跳过已访问的入口点
+            if (not vl->Get(ep_id)) {
+                entry_points.push_back(ep_id);
+            }
+        }
+    } else {
+        entry_points.push_back(inner_search_param.ep);
     }
-    if constexpr (mode == InnerSearchMode::RANGE_SEARCH) {
-        if (dist > inner_search_param.radius and not top_candidates->Empty()) {
-            top_candidates->Pop();
+
+    // flatten->Query(&dist, computer, &ep, 1, alloc);
+    // ++dist_cmp;
+    // if (check_func(ep)) {
+    //     top_candidates->Push(dist, ep);
+    //     lower_bound = top_candidates->Top().first;
+    // }
+    // if constexpr (mode == InnerSearchMode::RANGE_SEARCH) {
+    //     if (dist > inner_search_param.radius and not top_candidates->Empty()) {
+    //         top_candidates->Pop();
+    //     }
+    // }
+    // candidate_set->Push(-dist, ep);
+    // vl->Set(ep);
+
+
+    // 改用eps
+    // 批量计算所有入口点的距离
+    Vector<float> ep_dists(entry_points.size(), alloc);
+    flatten->Query(ep_dists.data(), computer, entry_points.data(),
+                   static_cast<uint32_t>(entry_points.size()), alloc);
+    dist_cmp += static_cast<uint32_t>(entry_points.size());
+
+    for (size_t i = 0; i < entry_points.size(); ++i) {
+        auto ep_id = entry_points[i];
+        dist = ep_dists[i];
+
+        vl->Set(ep_id);
+        candidate_set->Push(-dist, ep_id);
+
+        if (check_func(ep_id)) {
+            top_candidates->Push(dist, ep_id);
+        }
+
+        if constexpr (mode == InnerSearchMode::RANGE_SEARCH) {
+            if (dist > inner_search_param.radius and not top_candidates->Empty()) {
+                if (top_candidates->Top().second == ep_id) {
+                    top_candidates->Pop();
+                }
+            }
         }
     }
-    candidate_set->Push(-dist, ep);
-    vl->Set(ep);
+
+    if (not top_candidates->Empty()) {
+        lower_bound = top_candidates->Top().first;
+    }
+
 
     while (not candidate_set->Empty()) {
         ++hops;

@@ -38,6 +38,7 @@ public:
     int64_t topk{0};
     float radius{0.0F};
     InnerIdType ep{0};
+    std::vector<InnerIdType> eps;
     uint64_t ef{10};
     FilterPtr is_inner_id_allowed{nullptr};
     float skip_ratio{0.8F};
@@ -73,6 +74,7 @@ public:
             topk = other.topk;
             radius = other.radius;
             ep = other.ep;
+            eps = other.eps;
             ef = other.ef;
             skip_ratio = other.skip_ratio;
             search_mode = other.search_mode;

@@ -284,7 +284,32 @@ HybridIndex::KnnSearch(const DatasetPtr& query,
     search_param.topk = k;
     search_param.search_mode = KNN_SEARCH;
     // search_param.ep = entry_point_id_;
-    search_param.ep = parsed_search_param["entry_point"].GetInt();
+    // search_param.ep = parsed_search_param["entry_point"].GetInt();
+
+    // 支持多入口点和单入口点，两种方式兼容
+    if (parsed_search_param.Contains("entry_points") &&
+        parsed_search_param["entry_points"].IsArray()) {
+        // 多入口点：从 JSON 数组解析
+        // 格式：{"entry_points": [1, 2, 3, ...]}
+        const auto& ep_array = parsed_search_param["entry_points"].GetVector();
+        for (int i = 0; i < ep_array.size(); ++i) {
+            // JSON 中存的是 label id，需要转换为 inner id
+            int64_t label_id = ep_array[i];
+            auto inner_id = label_table_->GetIdByLabel(label_id);
+            search_param.eps.push_back(inner_id);
+        }
+        // eps 为空时（全部 label 无效）退回默认入口点
+        if (search_param.eps.empty()) {
+            search_param.ep = entry_point_id_;
+        }
+        } else if (parsed_search_param.Contains("entry_point")) {
+            // 单入口点（保持向后兼容）
+            search_param.ep = parsed_search_param["entry_point"].GetInt();
+        } else {
+            // 没有指定入口点，使用默认
+            search_param.ep = entry_point_id_;
+        }
+
 
     auto search_alpha_ = parsed_search_param["alpha"].GetFloat();
     hybrid_codes_->SetHybridWeight(search_alpha_, 1-search_alpha_);

@@ -159,6 +159,7 @@ SearchEvalCase::do_knn_search() {
         monitor->Start();
 
         omp_set_num_threads(config_.num_threads_searching);
+        float total_recall = 0;
 #pragma omp parallel for schedule(dynamic)
         for (int64_t id = 0; id < min_query; ++id) {
             auto i = id % query_count;
@@ -186,6 +187,23 @@ SearchEvalCase::do_knn_search() {
             }
             const int64_t* neighbors = result.value()->GetIds();
             int64_t* ground_truth_neighbors = dataset_ptr_->GetNeighbors(i);
+
+            //
+            std::unordered_set<int64_t> neighbor_u;
+            // std::cout << "result VS gt: " << std::endl;
+
+            for (int x = 0; x < topk; ++x) {
+                // std::cout << x << ": " << neighbors[x] << "  " << ground_truth_neighbors[x] << std::endl;
+                neighbor_u.insert(neighbors[x]);
+                neighbor_u.insert(ground_truth_neighbors[x]);
+            }
+
+            float cur_recall = (float)(2 * topk - neighbor_u.size()) / topk;
+            std::cout << std::endl << "query: " << id << std::endl;
+            std::cout << "cur_recall: " << cur_recall << std::endl;
+            total_recall += cur_recall;
+            //
+
             auto record = std::make_tuple(neighbors,
                                           ground_truth_neighbors,
                                           dataset_ptr_.get(),
@@ -193,6 +211,7 @@ SearchEvalCase::do_knn_search() {
                                           result.value()->GetDim());
             monitor->Record(&record);
         }
+        std::cout << "total_recall: " << total_recall << std::endl;
         monitor->Stop();
     }
 }

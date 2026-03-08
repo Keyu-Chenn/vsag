@@ -346,23 +346,23 @@ main(int argc, char** argv) {
             auto sparse_top_id = result_sparse->GetIds()[0];
 
             /******************* KnnSearch For HGraph Index *****************/
-            // auto hgraph_search_parameters = R"(
-            // {
-            //     "hgraph": {
-            //         "ef_search": 100,
-            //         "entry_point": )" + std::to_string(sparse_top_id) + R"(
-            //     }
-            // }
-            // )";
-
             auto hgraph_search_parameters = R"(
             {
                 "hgraph": {
                     "ef_search": 100,
-                    "entry_point": 6325
+                    "entry_point": )" + std::to_string(sparse_top_id) + R"(
                 }
             }
             )";
+
+            // auto hgraph_search_parameters = R"(
+            // {
+            //     "hgraph": {
+            //         "ef_search": 100,
+            //         "entry_point": 6325
+            //     }
+            // }
+            // )";
 
             // std::cout << hgraph_search_parameters << std::endl;
             auto result_dense = index_hgraph->KnnSearch(q_test, k, hgraph_search_parameters).value();

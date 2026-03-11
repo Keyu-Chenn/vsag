@@ -297,7 +297,9 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
                 entry_points.push_back(ep_id);
             }
         }
+        // std::cout << "using eps" << std::endl;
     } else {
+        // std::cout << "using ep" << std::endl;
         entry_points.push_back(inner_search_param.ep);
     }
 
@@ -318,7 +320,10 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
 
     // 改用eps
     // 批量计算所有入口点的距离
+
     Vector<float> ep_dists(entry_points.size(), alloc);
+    if (inner_search_param.is_hybrid)
+        ep_dists[0] = 100;
     flatten->Query(ep_dists.data(), computer, entry_points.data(),
                    static_cast<uint32_t>(entry_points.size()), alloc);
     dist_cmp += static_cast<uint32_t>(entry_points.size());
@@ -346,7 +351,6 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
     if (not top_candidates->Empty()) {
         lower_bound = top_candidates->Top().first;
     }
-
 
     while (not candidate_set->Empty()) {
         ++hops;
@@ -377,6 +381,9 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
                                  to_be_visited_rid,
                                  to_be_visited_id,
                                  neighbors);
+
+        if (inner_search_param.is_hybrid)
+            line_dists[0] = lower_bound;
 
         flatten->Query(
             line_dists.data(), computer, to_be_visited_id.data(), count_no_visited, alloc);

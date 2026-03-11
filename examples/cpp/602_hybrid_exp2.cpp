@@ -257,8 +257,8 @@ main(int argc, char** argv) {
             "dim": 1024,
             "index_param": {
                 "base_quantization_type": "sq8",
-                "max_degree": 26,
-                "ef_construction": 100,
+                "max_degree": 64,
+                "ef_construction": 200,
                 "alpha":1.2
             }
         }
@@ -334,14 +334,14 @@ main(int argc, char** argv) {
             auto result_sparse = index_sindi->KnnSearch(q_test, k, sindi_search_params).value();
 
             // check sparse result
-            for (int j = 0; j < k; j++) {
-                auto cur_id = result_sparse->GetIds()[j];
-                auto cur_dist = 1 - result_sparse->GetDistances()[j];
-                std::cout << "top" << j + 1 << ":" << std::endl;
-                std::cout << "id: " << cur_id << std::endl;
-                std::cout << "dist: " << cur_dist << std::endl;
-                std::cout << std::endl;
-            }
+            // for (int j = 0; j < k; j++) {
+            //     auto cur_id = result_sparse->GetIds()[j];
+            //     auto cur_dist = 1 - result_sparse->GetDistances()[j];
+            //     std::cout << "top" << j + 1 << ":" << std::endl;
+            //     std::cout << "id: " << cur_id << std::endl;
+            //     std::cout << "dist: " << cur_dist << std::endl;
+            //     std::cout << std::endl;
+            // }
 
             auto sparse_top_id = result_sparse->GetIds()[0];
 
@@ -349,7 +349,7 @@ main(int argc, char** argv) {
             auto hgraph_search_parameters = R"(
             {
                 "hgraph": {
-                    "ef_search": 100,
+                    "ef_search": 200,
                     "entry_point": )" + std::to_string(sparse_top_id) + R"(
                 }
             }
@@ -358,7 +358,7 @@ main(int argc, char** argv) {
             // auto hgraph_search_parameters = R"(
             // {
             //     "hgraph": {
-            //         "ef_search": 100,
+            //         "ef_search": 200,
             //         "entry_point": 6325
             //     }
             // }
@@ -370,14 +370,14 @@ main(int argc, char** argv) {
 
 
             // check dense result
-            for (int j = 0; j < k; j++) {
-                std::cout << "top" << j + 1 << ":" << std::endl;
-                std::cout << "id:";
-                std::cout << result_dense->GetIds()[j] << std::endl;
-                std::cout << "dist:";
-                std::cout << 1 - result_dense->GetDistances()[j] << std::endl;
-                std::cout << std::endl;
-            }
+            // for (int j = 0; j < k; j++) {
+            //     std::cout << "top" << j + 1 << ":" << std::endl;
+            //     std::cout << "id:";
+            //     std::cout << result_dense->GetIds()[j] << std::endl;
+            //     std::cout << "dist:";
+            //     std::cout << 1 - result_dense->GetDistances()[j] << std::endl;
+            //     std::cout << std::endl;
+            // }
             auto stats = result_dense->GetStatistics();
             // std::cout << stats << std::endl;
             auto stats_js = nlohmann::json::parse(stats);

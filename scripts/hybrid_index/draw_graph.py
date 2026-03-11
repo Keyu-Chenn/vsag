@@ -1,49 +1,50 @@
 import matplotlib.pyplot as plt
+import numpy as np
 
-# alpha = 1 混合图数据
-hybrid_ef     = [200, 100, 50, 25, 10]
-hybrid_recall = [0.999469, 0.998969, 0.995875, 0.98968, 0.9334]
-hybrid_qps    = [244, 406, 683, 1074, 1771]
+# ── 数据 ──────────────────────────────────────────────────────────────
+recall_sindi  = [0.996312, 0.993594, 0.987688, 0.965125]
+qps_sindi     = [154,      204,      290,      481     ]
 
-# baseline (4k) 数据
-base4k_ef     = [200, 100, 50, 25, 10]
-base4k_recall = [0.984375, 0.973625, 0.973625, 0.973375, 0.973906]
-base4k_qps    = [406, 496, 499, 495, 482]
+recall_random = [0.982625, 0.975344, 0.963,    0.930094]
+qps_random    = [171,      226,      313,      529     ]
 
-# baseline (2k) 数据
-base2k_ef     = [200, 100, 50, 25, 10]
-base2k_recall = [0.983719, 0.963437, 0.939844, 0.940375, 0.940125]
-base2k_qps    = [493, 675, 761, 786, 798]
+recall_base   = [0.990531, 0.993625, 0.994719, 0.99675,  0.998156]
+qps_base      = [379,      352,      309,      232,      229     ]
 
+# ── 绘图 ──────────────────────────────────────────────────────────────
+fig, ax = plt.subplots(figsize=(9, 6))
 
-fig, ax = plt.subplots(figsize=(10, 6))
+datasets = [
+        ("sindi eps",  recall_sindi,  qps_sindi,  "#E74C3C", "o", "-"),
+        ("random ep",  recall_random, qps_random, "#3498DB", "s", "--"),
+        ("baseline",   recall_base,   qps_base,   "#2ECC71", "^", "-."),
+]
 
-# 绘制三条曲线
-ax.plot(hybrid_recall, hybrid_qps,
-        'o-', color='tomato', linewidth=2, markersize=6,
-        label='Hybrid (alpha=1)')
+for label, recall, qps, color, marker, ls in datasets:
+        # 按 QPS 升序排列，曲线走向从左到右
+        order  = np.argsort(qps)
+        r_sort = np.array(recall)[order]
+        q_sort = np.array(qps)[order]
 
-ax.plot(base4k_recall, base4k_qps,
-        's--', color='steelblue', linewidth=2, markersize=6,
-        label='Baseline (4k)')
+        ax.plot(q_sort, r_sort,
+                color=color, marker=marker, linestyle=ls,
+                linewidth=2, markersize=8, label=label)
 
-ax.plot(base2k_recall, base2k_qps,
-        '^-.', color='seagreen', linewidth=2, markersize=6,
-        label='Baseline (2k)')
+        # 标注每个点
+        for r, q in zip(recall, qps):
+                ax.annotate(f"({q}, {r:.4f})",
+                            xy=(q, r), xytext=(6, -13),
+                            textcoords="offset points",
+                            fontsize=7.5, color=color)
 
-
-# 坐标轴设置
-ax.set_xlabel('Recall@10', fontsize=13)
-ax.set_ylabel('QPS (queries/sec)', fontsize=13)
-ax.set_title('QPS-Recall Curve: Hybrid(alpha=1) vs Baseline(4k) vs Baseline(2k)', fontsize=13)
-
-ax.set_xlim(0.65, 1.005)
-ax.set_ylim(0, 2000)
-
-ax.xaxis.set_major_formatter(plt.FormatStrFormatter('%.3f'))
-ax.grid(True, linestyle='--', alpha=0.5)
-ax.legend(fontsize=12)
+ax.set_xlabel("QPS (Queries Per Second)", fontsize=12)
+ax.set_ylabel("Recall", fontsize=12)
+ax.set_title("Recall vs QPS (alpha = 0.4)", fontsize=14, fontweight="bold")
+ax.legend(fontsize=11)
+ax.grid(True, linestyle="--", alpha=0.5)
+ax.set_ylim(0.92, 1.005)
 
 plt.tight_layout()
-plt.savefig('qps_recall_alpha1.png', dpi=150)
+plt.savefig("recall_vs_qps.png", dpi=150, bbox_inches="tight")
 plt.show()
+print("✓ 图片已保存为 recall_vs_qps.png")

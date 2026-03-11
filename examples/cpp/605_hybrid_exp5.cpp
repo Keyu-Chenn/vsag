@@ -268,6 +268,7 @@ int main(int argc, char** argv) {
         std::cout << "Hybrid index built, elements: "
                   << hybrid_index->GetNumElements() << std::endl;
 
+
         /******************* 4. 检索：sindi → hybrid_index（以 sindi 结果为入口点） *****************/
         int actual_num_queries = (params.num_queries > 0)
             ? std::min(params.num_queries, (int)num_test)
@@ -355,6 +356,13 @@ int main(int argc, char** argv) {
         std::cout << "qps:           " << qps                  << std::endl;
         std::cout << "total_time(s): " << elapsed_seconds      << std::endl;
 
+
+
+
+
+
+
+
         /******************* 6. 对比实验：hybrid_index 不使用 sindi 入口点 *****************/
         std::cout << "\n=== Baseline (hybrid_index only, single entry point) ===" << std::endl;
 
@@ -390,9 +398,13 @@ int main(int argc, char** argv) {
                 ground_truth.begin() + query_idx * k_gt,
                 ground_truth.begin() + query_idx * k_gt + gt_k);
 
+            // std::cout << std::endl << "query: " << query_idx << std::endl;
             // std::cout << "result VS gt: " << std::endl;
             // for (int x = 0; x < params.k; x++) {
             // std::cout << x << ": " << search_results[x] << "  " << gt[x] << std::endl;
+            // }
+            // for (int x = 0; x < params.k; x++) {
+            //     std::cout << x << ": " << hybrid_result->GetDistances()[x] << std::endl;
             // }
             auto cur_recall = CalculateRecall(search_results, gt);
             // std::cout << std::endl << "query: " << query_idx << std::endl;

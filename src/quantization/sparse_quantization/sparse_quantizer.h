@@ -173,6 +173,7 @@ SparseQuantizer<metric>::ComputeImpl(const uint8_t* codes1, const uint8_t* codes
     const auto* entries2 = reinterpret_cast<const BufferEntry*>(codes2 + sizeof(uint32_t));
     float inner_product = 0.0f;
     uint32_t idx1 = 0, idx2 = 0;
+
     while (idx1 < len1 && idx2 < len2) {
         if (entries1[idx1].id < entries2[idx2].id) {
             idx1++;

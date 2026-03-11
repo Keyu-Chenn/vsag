@@ -165,6 +165,284 @@ void SaveNeighborsToHDF5(const std::string& filename,
     }
 }
 
+void AddReverseEdgesForced(
+    std::vector<std::vector<int64_t>>& graph,
+    const std::vector<float>& train_dense,
+    const std::vector<vsag::SparseVector>& train_sparse,
+    int dense_dim,
+    int max_degree)
+{
+    int n = graph.size();
+
+    for (int i = 0; i < n; i++) {
+        for (int64_t j : graph[i]) {
+            if (j < 0 || j >= n) continue;
+
+            auto& jlist = graph[j];
+            bool exists = std::find(
+                jlist.begin(), jlist.end(), (int64_t)i) != jlist.end();
+            if (exists) continue;
+
+            if ((int)jlist.size() < max_degree) {
+                // 出度未满，直接加
+                jlist.push_back(i);
+            } else {
+                // 出度已满，找最远的邻居替换
+                // 用alpha=0.5的hybrid距离衡量重要性
+                float worst_dist = std::numeric_limits<float>::max();
+                int worst_idx = -1;
+
+                for (int k = 0; k < (int)jlist.size(); k++) {
+                    float dd = CalDenseIp(
+                        train_dense.data() + j * dense_dim,
+                        train_dense.data() + jlist[k] * dense_dim,
+                        dense_dim);
+                    float sd = CalSparseIp(
+                        train_sparse[j], train_sparse[jlist[k]]);
+                    float hd = 0.5f * dd + 0.5f * sd;
+                    // IP距离：越小越远
+                    if (hd < worst_dist) {
+                        worst_dist = hd;
+                        worst_idx = k;
+                    }
+                }
+
+                // 检查i是否比最差邻居更近
+                float i_dd = CalDenseIp(
+                    train_dense.data() + j * dense_dim,
+                    train_dense.data() + i * dense_dim, dense_dim);
+                float i_sd = CalSparseIp(train_sparse[j], train_sparse[i]);
+                float i_hd = 0.5f * i_dd + 0.5f * i_sd;
+
+                if (i_hd > worst_dist && worst_idx >= 0) {
+                    jlist[worst_idx] = i;
+                }
+                // 若i比最差邻居还远，跳过（不强制替换）
+            }
+        }
+    }
+}
+
+// 新增函数，放在 AddReverseEdgesForced 之前（AddReverseEdgesForced 可以整个删掉）
+
+// inline计算hybrid距离（IP模式下越大越近，转为dist取负）
+inline float HybridDist(
+    int id_a, int id_b,
+    const std::vector<float>& train_dense,
+    const std::vector<vsag::SparseVector>& train_sparse,
+    int dense_dim, float alpha)
+{
+    float dd = CalDenseIp(
+        train_dense.data() + id_a * dense_dim,
+        train_dense.data() + id_b * dense_dim, dense_dim);
+    float sd = CalSparseIp(train_sparse[id_a], train_sparse[id_b]);
+    // IP越大越近 → dist取负
+    return -(alpha * dd + (1.0f - alpha) * sd);
+}
+
+// RNG剪枝：去掉被已选邻居"支配"的候选点
+// alpha_eval: 用哪个alpha评估距离（建议传0.5或你的目标alpha）
+// alpha_rng:  支配阈值系数，>1表示允许保留一定冗余（DiskANN默认1.2）
+std::vector<int64_t> PruneNeighborsByRNG(
+    int query_id,
+    const std::vector<int64_t>& candidates,
+    const std::vector<float>& train_dense,
+    const std::vector<vsag::SparseVector>& train_sparse,
+    int dense_dim,
+    int max_degree,
+    float alpha_eval = 0.5f,
+    float alpha_rng  = 1.2f)
+{
+    struct Cand {
+        int64_t id;
+        float   dist; // 越小越近
+    };
+
+    // 按距离从近到远排序
+    std::vector<Cand> sorted_cands;
+    sorted_cands.reserve(candidates.size());
+    for (int64_t cid : candidates) {
+        if (cid == query_id) continue; // 排除自己
+        float d = HybridDist(query_id, (int)cid,
+                             train_dense, train_sparse,
+                             dense_dim, alpha_eval);
+        sorted_cands.push_back({cid, d});
+    }
+    std::sort(sorted_cands.begin(), sorted_cands.end(),
+              [](const Cand& a, const Cand& b){ return a.dist < b.dist; });
+
+    std::vector<int64_t> result;
+    result.reserve(max_degree);
+
+    for (auto& cand : sorted_cands) {
+        if ((int)result.size() >= max_degree) break;
+
+        bool dominated = false;
+        for (int64_t sel_id : result) {
+            // dist(selected, cand) < alpha_rng * dist(query, cand) → 被支配
+            float dist_sc = HybridDist((int)sel_id, (int)cand.id,
+                                       train_dense, train_sparse,
+                                       dense_dim, alpha_eval);
+            if (dist_sc < alpha_rng * cand.dist) {
+                dominated = true;
+                break;
+            }
+        }
+        if (!dominated) {
+            result.push_back(cand.id);
+        }
+    }
+    return result;
+}
+
+
+//原来的 AddReverseEdgesForced，替换为：
+void AddReverseEdgesWithPrune(
+    std::vector<std::vector<int64_t>>& graph,
+    const std::vector<float>& train_dense,
+    const std::vector<vsag::SparseVector>& train_sparse,
+    int dense_dim,
+    int max_degree,
+    float alpha_eval = 0.5f,
+    float alpha_rng  = 1.2f)
+{
+    int n = (int)graph.size();
+
+    // 第一步：收集每个节点需要接收的反向边候选
+    std::vector<std::vector<int64_t>> reverse_candidates(n);
+    for (int i = 0; i < n; i++) {
+        for (int64_t j : graph[i]) {
+            if (j < 0 || j >= n) continue;
+            reverse_candidates[j].push_back((int64_t)i);
+        }
+    }
+
+    // 第二步：合并正向邻居 + 反向候选，重新RNG剪枝
+    for (int j = 0; j < n; j++) {
+        if (reverse_candidates[j].empty()) continue;
+
+        // 合并去重
+        std::unordered_set<int64_t> merged(graph[j].begin(), graph[j].end());
+        for (int64_t rc : reverse_candidates[j]) {
+            merged.insert(rc);
+        }
+
+        // RNG剪枝后写回
+        graph[j] = PruneNeighborsByRNG(
+            j,
+            std::vector<int64_t>(merged.begin(), merged.end()),
+            train_dense, train_sparse,
+            dense_dim, max_degree,
+            alpha_eval, alpha_rng);
+    }
+}
+
+// ===== DFS 兜底连通 =====
+void EnsureConnectivity(
+    std::vector<std::vector<int64_t>>& graph,
+    const std::vector<float>& train_dense,
+    const std::vector<vsag::SparseVector>& train_sparse,
+    int dense_dim,
+    int max_degree,
+    float alpha_eval = 0.5f)
+{
+    int n = (int)graph.size();
+    if (n == 0) return;
+
+    // Step 1: 选择入口节点（这里选 0，也可以选度数最大的）
+    int entry = 0;
+
+    // Step 2: DFS 找出所有可达节点
+    std::vector<bool> visited(n, false);
+    std::vector<int> stack;
+    stack.push_back(entry);
+    visited[entry] = true;
+    int visited_count = 1;
+
+    while (!stack.empty()) {
+        int cur = stack.back();
+        stack.pop_back();
+        for (int64_t nb : graph[cur]) {
+            if (nb >= 0 && nb < n && !visited[nb]) {
+                visited[nb] = true;
+                visited_count++;
+                stack.push_back((int)nb);
+            }
+        }
+    }
+
+    std::cout << "[DFS] Reachable from entry " << entry
+              << ": " << visited_count << " / " << n << std::endl;
+
+    if (visited_count == n) {
+        std::cout << "[DFS] Graph is already fully connected." << std::endl;
+        return;
+    }
+
+    // Step 3: 对不可达节点，找已连通集合中最近的节点，强制连边
+    int fixed_count = 0;
+    for (int i = 0; i < n; i++) {
+        if (visited[i]) continue;
+
+        // 在已访问节点中找距离最近的节点（暴力扫描，可优化）
+        float best_dist = std::numeric_limits<float>::max();
+        int best_j = entry; // 兜底用 entry
+
+        // 为避免全量扫描，只扫已连通节点的样本（可调整采样比例）
+        for (int j = 0; j < n; j++) {
+            if (!visited[j]) continue;
+            float d = HybridDist(i, j, train_dense, train_sparse,
+                                 dense_dim, alpha_eval);
+            if (d < best_dist) {
+                best_dist = d;
+                best_j = j;
+            }
+        }
+
+        // 强制添加双向边
+        // i → best_j
+        if (std::find(graph[i].begin(), graph[i].end(), (int64_t)best_j)
+            == graph[i].end()) {
+            if ((int)graph[i].size() < max_degree) {
+                graph[i].push_back(best_j);
+            } else {
+                graph[i][0] = best_j; // 兜底强制替换第一个
+            }
+        }
+
+        // best_j → i（反向边）
+        if (std::find(graph[best_j].begin(), graph[best_j].end(), (int64_t)i)
+            == graph[best_j].end()) {
+            if ((int)graph[best_j].size() < max_degree) {
+                graph[best_j].push_back(i);
+            } else {
+                graph[best_j][0] = i; // 兜底强制替换
+            }
+        }
+
+        // 将 i 标记为已连通，并 DFS 扩展
+        visited[i] = true;
+        visited_count++;
+        stack.push_back(i);
+        while (!stack.empty()) {
+            int cur = stack.back(); stack.pop_back();
+            for (int64_t nb : graph[cur]) {
+                if (nb >= 0 && nb < n && !visited[nb]) {
+                    visited[nb] = true;
+                    visited_count++;
+                    stack.push_back((int)nb);
+                }
+            }
+        }
+
+        fixed_count++;
+    }
+
+    std::cout << "[DFS] Fixed " << fixed_count << " disconnected nodes." << std::endl;
+    std::cout << "[DFS] Final reachable: " << visited_count << " / " << n << std::endl;
+}
+
+
 int
 main(int argc, char** argv) {
     vsag::init();
@@ -230,8 +508,8 @@ main(int argc, char** argv) {
             "dim": 1024,
             "index_param": {
                 "base_quantization_type": "sq8",
-                "max_degree": 26,
-                "ef_construction": 100,
+                "max_degree": 64,
+                "ef_construction": 200,
                 "alpha":1.2
             }
         }
@@ -297,7 +575,7 @@ main(int argc, char** argv) {
                 ->SparseVectors(train_sparse.data() + i)
                 ->Owner(false);
 
-            auto hgraph_search_parameters = R"({"hgraph": {"ef_search": 100}})";
+            auto hgraph_search_parameters = R"({"hgraph": {"ef_search": 400}})";
             auto result_dense = index_hgraph->KnnSearch(q_train, ak, hgraph_search_parameters).value();
 
             auto sindi_search_params = R"({"sindi": {"query_prune_ratio": 0, "term_prune_ratio": 0, "n_candidate": 0}})";
@@ -356,6 +634,13 @@ main(int argc, char** argv) {
             std::vector<int64_t> neighbors_vec(all_neighbors.begin(), all_neighbors.end());
             std::sort(neighbors_vec.begin(), neighbors_vec.end());  // 排序便于后续使用
             all_points_neighbors[i] = neighbors_vec;
+            // std::vector<int64_t> cands(all_neighbors.begin(), all_neighbors.end());
+            // all_points_neighbors[i] = PruneNeighborsByRNG(
+            //     i, cands, train_dense, train_sparse,
+            //     dense_dim,
+            //     96,     // max_degree，和后面AddReverse保持一致
+            //     0.5f,   // alpha_eval
+            //     1.2f);  // alpha_rng
 
             std::vector<int64_t> neighbors_0_1_vec(neighbors_0_1.begin(), neighbors_0_1.end());
             std::sort(neighbors_0_1_vec.begin(), neighbors_0_1_vec.end());
@@ -389,6 +674,23 @@ main(int argc, char** argv) {
         std::cout << "max_neighbor_num: " << max_neighbor_num << std::endl;
 
         std::cout << "Average neighbors per point: " << avg_total_neighbor_num / tt_num << std::endl;
+
+        // AddReverseEdgesForced(all_points_neighbors, train_dense, train_sparse, dense_dim, 96);
+        AddReverseEdgesWithPrune(
+            all_points_neighbors,
+            train_dense, train_sparse,
+            dense_dim,
+            96,    // max_degree
+            0.5f,  // alpha_eval
+            1.2f); // alpha_rng
+
+        // ====== 新增：DFS 兜底连通 ======
+        EnsureConnectivity(
+            all_points_neighbors,
+            train_dense, train_sparse,
+            (int)dense_dim,
+            96,    // max_degree
+            0.5f); // alpha_eval
 
         /******************* Save Results *****************/
         // 保存邻居到HDF5

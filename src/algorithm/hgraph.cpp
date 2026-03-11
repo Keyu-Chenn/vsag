@@ -504,6 +504,7 @@ HGraph::search_one_graph(const void* query,
         result = this->parallel_searcher_->Search(
             graph, flatten, visited_list, query, inner_search_param);
     } else {
+        // usually use this one
         result = this->searcher_->Search(
             graph, flatten, visited_list, query, inner_search_param, this->label_table_, stats);
     }
@@ -1935,8 +1936,14 @@ HGraph::SearchWithRequest(const SearchRequest& request) const {
     InnerSearchParam search_param;
     // search_param.ep = this->entry_point_id_;
     search_param.ep = params.entry_point;
+    // search_param.eps = params.entry_points;
+    // std::cout << "hgraph entry point: " << params.entry_point;
+
     search_param.topk = 1;
     search_param.ef = 1;
+    // search_param.topk = k;
+    // search_param.ef = k;
+
     search_param.is_inner_id_allowed = nullptr;
     search_param.search_alloc = search_allocator;
 
@@ -1949,6 +1956,12 @@ HGraph::SearchWithRequest(const SearchRequest& request) const {
         auto result = this->search_one_graph(
             raw_query, this->route_graphs_[i], this->basic_flatten_codes_, search_param, vt, stats);
         search_param.ep = result->Top().second;
+        // add eps
+        // search_param.eps = std::vector<InnerIdType>();
+        // for (int x = 0; x < k; x++) {
+        //     search_param.eps.push_back(result->Top().second);
+        //     result->Pop();
+        // }
     }
 
     FilterPtr ft = nullptr;

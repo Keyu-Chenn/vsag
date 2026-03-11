@@ -278,11 +278,22 @@ HybridIndex::KnnSearch(const DatasetPtr& query,
                       int64_t k,
                       const std::string& parameters,
                       const FilterPtr& filter) const {
+
+    //
+    // auto sparsevec = query->GetSparseVectors()[0];
+    // std::cout << "ids: ";
+    // for (int lk = 0; lk < sparsevec.len_; ++lk) {
+    //     std::cout << sparsevec.ids_[lk] << "  ";
+    // }
+    // std::cout << std::endl;
+
+
     auto parsed_search_param = JsonType::Parse(parameters);
     InnerSearchParam search_param;
     search_param.ef = parsed_search_param["ef_search"].GetInt();
     search_param.topk = k;
     search_param.search_mode = KNN_SEARCH;
+    search_param.is_hybrid = true;
     // search_param.ep = entry_point_id_;
     // search_param.ep = parsed_search_param["entry_point"].GetInt();
 
@@ -338,8 +349,8 @@ HybridIndex::KnnSearch(const DatasetPtr& query,
 
     for (auto j = result_size - 1; j >= 0; --j) {
         if (j < result_size) {
-            dists[j] = 1 - search_results->Top().first;
-            ids[j] = label_table_->GetLabelById(search_results->Top().second);
+            dists[j] = search_results->Top().first;
+            ids[j]= label_table_->GetLabelById(search_results->Top().second);
         }
         search_results->Pop();
     }

@@ -54,11 +54,16 @@ public:
         return sparse_computer_;
     }
 
+    void
+    SetLowerBound(float lb) {
+        lower_bound_ = lb;
+    }
 private:
     ComputerInterfacePtr dense_computer_;
     ComputerInterfacePtr sparse_computer_;
     float dense_weight_;
     float sparse_weight_;
+    float lower_bound_{1};
 };
 
 

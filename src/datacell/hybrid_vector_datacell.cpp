@@ -78,19 +78,92 @@ HybridVectorDataCell::query(float* result_dists,
     Allocator* search_alloc = allocator == nullptr ? allocator_ : allocator;
     Vector<float> dense_dists(id_count, 0.0f, search_alloc);
     Vector<float> sparse_dists(id_count, 0.0f, search_alloc);
+    float lower_bound = result_dists[0];
 
-    // Query dense cell
-    dense_cell_->Query(dense_dists.data(), hybrid_comp->GetDenseComputer(),
-                      idx, id_count, search_alloc);
+    // // prune sparse compute
+    // // Query dense cell
+    // if (std::abs(dense_weight_) > 1e-5)
+    // dense_cell_->Query(dense_dists.data(), hybrid_comp->GetDenseComputer(),
+    //                   idx, id_count, search_alloc);
+    //
+    // std::vector<InnerIdType> idx_sparse;
+    // InnerIdType id_count_sparse = 0;
+    // float threshold = 0.8;
+    // for (InnerIdType i = 0; i < id_count; i ++) {
+    //     if (dense_weight_ * dense_dists[i] + (1 - dense_weight_) * threshold * dense_dists[i] < lower_bound) {
+    //         idx_sparse.push_back(idx[i]);
+    //         id_count_sparse++;
+    //     }
+    // }
+    //
+    //
+    // // Query sparse cell
+    // // sparse_cell_->Query(sparse_dists.data(), hybrid_comp->GetSparseComputer(),
+    // //                    idx, id_count, search_alloc);
+    // if (std::abs(dense_weight_ - 1) > 1e-5)
+    // sparse_cell_->Query(sparse_dists.data(), hybrid_comp->GetSparseComputer(),
+    //                    idx_sparse.data(), id_count_sparse, search_alloc);
+    //
+    // // Combine results with weights
+    // InnerIdType j = 0;
+    // for (InnerIdType i = 0; i < id_count; ++i) {
+    //     if (j < idx_sparse.size() && idx[i] == idx_sparse[j]) {
+    //         result_dists[i] = dense_weight_ * dense_dists[i] + sparse_weight_ * sparse_dists[j];
+    //         j++;
+    //     }
+    //     else {
+    //         result_dists[i] = dense_weight_ * dense_dists[i];
+    //     }
+    // }
+    // // for (InnerIdType i = 0; i < id_count; i++) {
+    // //     result_dists[i] = dense_weight_ * dense_dists[i] + sparse_weight_ * sparse_dists[i];
+    // //     // if (sparse_dists[i] < 0)
+    // //     // std::cout << "sparse_dist: " << sparse_dists[i] << "  ";
+    // // }
+
+
+
+
+    // prune dense compute
 
     // Query sparse cell
-    sparse_cell_->Query(sparse_dists.data(), hybrid_comp->GetSparseComputer(),
-                       idx, id_count, search_alloc);
+    // sparse_cell_->Query(sparse_dists.data(), hybrid_comp->GetSparseComputer(),
+    //                    idx, id_count, search_alloc);
+    if (std::abs(dense_weight_ - 1) > 1e-5)
+        sparse_cell_->Query(sparse_dists.data(), hybrid_comp->GetSparseComputer(),
+                           idx, id_count, search_alloc);
+
+
+    std::vector<InnerIdType> idx_dense;
+    InnerIdType id_count_dense = 0;
+    float threshold = 0;
+    for (InnerIdType i = 0; i < id_count; i ++) {
+        if ((1 - dense_weight_) * sparse_dists[i] + dense_weight_ * threshold * sparse_dists[i] < lower_bound) {
+            idx_dense.push_back(idx[i]);
+            id_count_dense++;
+        }
+    }
+
+
+
+
+    // Query dense cell
+    if (std::abs(dense_weight_) > 1e-5)
+        dense_cell_->Query(dense_dists.data(), hybrid_comp->GetDenseComputer(),
+                          idx_dense.data(), id_count_dense, search_alloc);
 
     // Combine results with weights
+    InnerIdType j = 0;
     for (InnerIdType i = 0; i < id_count; ++i) {
-        result_dists[i] = dense_weight_ * dense_dists[i] + sparse_weight_ * sparse_dists[i];
+        if (j < idx_dense.size() && idx[i] == idx_dense[j]) {
+            result_dists[i] = dense_weight_ * dense_dists[j] + sparse_weight_ * sparse_dists[i];
+            j++;
+        }
+        else {
+            result_dists[i] = (1 - dense_weight_) * sparse_dists[i];
+        }
     }
+
 }
 
 ComputerInterfacePtr

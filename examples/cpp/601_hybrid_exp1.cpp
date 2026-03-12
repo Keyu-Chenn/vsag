@@ -675,22 +675,22 @@ main(int argc, char** argv) {
 
         std::cout << "Average neighbors per point: " << avg_total_neighbor_num / tt_num << std::endl;
 
-        // AddReverseEdgesForced(all_points_neighbors, train_dense, train_sparse, dense_dim, 96);
-        AddReverseEdgesWithPrune(
-            all_points_neighbors,
-            train_dense, train_sparse,
-            dense_dim,
-            96,    // max_degree
-            0.5f,  // alpha_eval
-            1.2f); // alpha_rng
-
-        // ====== 新增：DFS 兜底连通 ======
-        EnsureConnectivity(
-            all_points_neighbors,
-            train_dense, train_sparse,
-            (int)dense_dim,
-            96,    // max_degree
-            0.5f); // alpha_eval
+        // // AddReverseEdgesForced(all_points_neighbors, train_dense, train_sparse, dense_dim, 96);
+        // AddReverseEdgesWithPrune(
+        //     all_points_neighbors,
+        //     train_dense, train_sparse,
+        //     dense_dim,
+        //     96,    // max_degree
+        //     0.5f,  // alpha_eval
+        //     1.2f); // alpha_rng
+        //
+        // // ====== 新增：DFS 兜底连通 ======
+        // EnsureConnectivity(
+        //     all_points_neighbors,
+        //     train_dense, train_sparse,
+        //     (int)dense_dim,
+        //     96,    // max_degree
+        //     0.5f); // alpha_eval
 
         /******************* Save Results *****************/
         // 保存邻居到HDF5

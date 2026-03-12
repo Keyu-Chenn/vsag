@@ -382,8 +382,14 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
                                  to_be_visited_id,
                                  neighbors);
 
-        if (inner_search_param.is_hybrid)
-            line_dists[0] = lower_bound;
+        if (inner_search_param.is_hybrid) {
+            if (top_candidates->Size() < ef) {
+                line_dists[0] = 100;
+            }
+            else {
+                line_dists[0] = lower_bound;
+            }
+        }
 
         flatten->Query(
             line_dists.data(), computer, to_be_visited_id.data(), count_no_visited, alloc);

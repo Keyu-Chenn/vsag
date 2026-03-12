@@ -80,6 +80,27 @@ HybridVectorDataCell::query(float* result_dists,
     Vector<float> sparse_dists(id_count, 0.0f, search_alloc);
     float lower_bound = result_dists[0];
 
+    // // no prune
+    // // Query dense cell
+    // if (std::abs(dense_weight_) > 1e-5)
+    // dense_cell_->Query(dense_dists.data(), hybrid_comp->GetDenseComputer(),
+    //                   idx, id_count, search_alloc);
+    //
+    //
+    //
+    // // Query sparse cell
+    // if (std::abs(dense_weight_ - 1) > 1e-5)
+    // sparse_cell_->Query(sparse_dists.data(), hybrid_comp->GetSparseComputer(),
+    //                    idx, id_count, search_alloc);
+    //
+    // for (InnerIdType i = 0; i < id_count; i++) {
+    //     result_dists[i] = dense_weight_ * dense_dists[i] + sparse_weight_ * sparse_dists[i];
+    //     // if (sparse_dists[i] < 0)
+    //     // std::cout << "sparse_dist: " << sparse_dists[i] << "  ";
+    // }
+
+
+
     // // prune sparse compute
     // // Query dense cell
     // if (std::abs(dense_weight_) > 1e-5)
@@ -163,6 +184,8 @@ HybridVectorDataCell::query(float* result_dists,
             result_dists[i] = (1 - dense_weight_) * sparse_dists[i];
         }
     }
+
+
 
 }
 

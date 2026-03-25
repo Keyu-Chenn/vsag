@@ -1,3 +1,7 @@
+//
+// Created by root on 2026/3/12.
+//
+
 #include <H5Cpp.h>
 #include <vsag/vsag.h>
 
@@ -124,7 +128,7 @@ void PrintUsage(const char* program_name) {
               << "  --bk <int>                 Set both bk_dense and bk_sparse to the same value\n"
               << "  --alpha <float>            Weight for dense score in hybrid scoring (default: 0.5)\n"
               << "  --num_queries <int>        Number of test queries to process (default: all)\n"
-              << "  --ef_search <int>          Search parameter for dense index (default: 200)\n"
+              << "  --ef_search <int>          Search parameter for hnsw index (default: 200)\n"
               << "  --help, -h                 Show this help message\n"
               << "\nExample:\n"
               << "  " << program_name << " dataset.h5 -k 10 --bk 200 --alpha 0.5\n"
@@ -138,7 +142,7 @@ struct SearchParams {
     int bk_dense = 100;
     int bk_sparse = 100;
     float alpha = 0.5;
-    int num_queries = -1;  // -1 表示处理所有查询
+    int num_queries = -1;
     int ef_search = 200;
 };
 
@@ -181,7 +185,6 @@ SearchParams ParseCommandLine(int argc, char** argv) {
         }
     }
 
-    // 参数验证
     if (params.k <= 0 || params.bk_dense <= 0 || params.bk_sparse <= 0) {
         std::cerr << "Error: k, bk_dense, bk_sparse must be positive\n";
         exit(1);
@@ -246,7 +249,7 @@ int main(int argc, char** argv) {
         test_sparse_dataset.read(test_sparse_blob.data(), H5::PredType::NATIVE_UINT8);
         auto test_sparse = ParseSparseVectors(test_sparse_blob);
 
-        // 加载ground truth
+        // 加载 ground truth
         H5::DataSet gt_dataset = file.openDataSet("neighbors");
         H5::DataSpace gt_dataspace = gt_dataset.getSpace();
         hsize_t gt_dims[2];
@@ -257,42 +260,45 @@ int main(int argc, char** argv) {
         std::vector<int64_t> ground_truth(num_gt_queries * k_gt);
         gt_dataset.read(ground_truth.data(), H5::PredType::NATIVE_INT64);
 
-        /******************* 2. 构建密集向量索引 *****************/
-        std::string hgraph_build_params = R"(
+        vsag::Resource resource(vsag::Engine::CreateDefaultAllocator(), nullptr);
+        vsag::Engine engine(&resource);
+
+        /******************* 2. 构建密集向量索引（hnsw） *****************/
+        std::string hnsw_dense_params = R"(
         {
             "dtype": "float32",
             "metric_type": "ip",
             "dim": )" + std::to_string(dense_dim) + R"(,
-            "index_param": {
-                "base_quantization_type": "sq8",
+            "hnsw": {
                 "max_degree": 64,
                 "ef_construction": 200
             }
         })";
 
-        vsag::Resource resource(vsag::Engine::CreateDefaultAllocator(), nullptr);
-        vsag::Engine engine(&resource);
-
-        auto base_dataset = vsag::Dataset::Make();
-        base_dataset->NumElements(num_train)
+        auto base_dense_dataset = vsag::Dataset::Make();
+        base_dense_dataset->NumElements(num_train)
             ->Dim(dense_dim)
             ->Ids(train_labels.data())
             ->Float32Vectors(train_dense.data())
             ->Owner(false);
 
-        auto dense_index = engine.CreateIndex("hgraph", hgraph_build_params).value();
-        if (!dense_index->Build(base_dataset).has_value()) {
-            std::cerr << "Failed to build dense index" << std::endl;
+        std::cout << "begin create hnsw" << std::endl;
+        auto dense_index = vsag::Factory::CreateIndex("hnsw", hnsw_dense_params).value();
+        std::cout << "begin build hnsw" << std::endl;
+        if (!dense_index->Build(base_dense_dataset).has_value()) {
+            std::cerr << "Failed to build dense hnsw index" << std::endl;
             return -1;
         }
 
-        /******************* 3. 构建稀疏向量索引 *****************/
-        std::string sindi_build_params = R"(
+        std::cout << "dense hnsw index built" << std::endl;
+
+        /******************* 3. 构建稀疏向量索引（sparse_index） *****************/
+        std::string sparse_index_params = R"(
         {
             "dtype": "sparse",
             "metric_type": "ip",
-            "index_param": {
-                "use_reorder": false
+            "sparse_index": {
+                "need_sort": true
             }
         })";
 
@@ -302,65 +308,65 @@ int main(int argc, char** argv) {
             ->SparseVectors(train_sparse.data())
             ->Owner(false);
 
-        auto sparse_index = vsag::Factory::CreateIndex("sindi", sindi_build_params).value();
-        if (!sparse_index->Build(base_sparse_dataset).has_value()) {
-            std::cerr << "Failed to build sparse index" << std::endl;
+        auto sparse_idx = vsag::Factory::CreateIndex("sparse_index", sparse_index_params).value();
+        if (!sparse_idx->Build(base_sparse_dataset).has_value()) {
+            std::cerr << "Failed to build sparse_index" << std::endl;
             return -1;
         }
+
+        std::cout << "sparse_index built" << std::endl;
 
         /******************* 4. 混合检索并计算召回率 *****************/
         int actual_num_queries = (params.num_queries > 0) ?
                                  std::min(params.num_queries, (int)num_test) :
                                  (int)num_test;
 
-        float total_recall = 0.0;
+        float total_recall = 0.0f;
 
-        // 用于保存最后一个query的详细信息
-        std::vector<int64_t> last_dense_top_bk_ids;
-        std::vector<int64_t> last_sparse_top_bk_ids;
-        std::vector<int64_t> last_ground_truth_top_k;
-        int last_query_idx = -1;
-
-        // ========== 计时开始 ==========
         auto search_start = std::chrono::high_resolution_clock::now();
-        // ==============================
 
         for (int query_idx = 0; query_idx < actual_num_queries; query_idx++) {
             if ((query_idx + 1) % 100 == 0) {
-                std::cout << "Processing query " << query_idx + 1 << "/" << actual_num_queries << "..." << std::endl;
+                std::cout << "Processing query " << query_idx + 1
+                          << "/" << actual_num_queries << "..." << std::endl;
             }
 
-            // 准备查询数据
-            auto query = vsag::Dataset::Make();
-            query->NumElements(1)
+            // ── 4.1 密集向量召回（hnsw）──────────────────────────────────────
+            auto dense_query = vsag::Dataset::Make();
+            dense_query->NumElements(1)
                 ->Dim(dense_dim)
                 ->Float32Vectors(test_dense.data() + query_idx * dense_dim)
+                ->Owner(false);
+
+            std::string dense_search_params =
+                R"({"hnsw": {"ef_search": )" +
+                std::to_string(params.ef_search) + "}}";
+
+            auto dense_results = dense_index->KnnSearch(
+                dense_query, params.bk_dense, dense_search_params).value();
+
+            // ── 4.2 稀疏向量召回（sparse_index）──────────────────────────────
+            auto sparse_query = vsag::Dataset::Make();
+            sparse_query->NumElements(1)
                 ->SparseVectors(test_sparse.data() + query_idx)
                 ->Owner(false);
 
-            // 密集向量召回
-            std::string dense_search_params = R"({"hgraph": {"ef_search": )" +
-                                             std::to_string(params.ef_search) + "}}";
-            auto dense_results = dense_index->KnnSearch(query, params.bk_dense,
-                                                       dense_search_params).value();
+            std::string sparse_search_params = R"({"sparse_index": {}})";
 
-            // 稀疏向量召回
-            auto sparse_search_params = R"({"sindi": {}})";
-            auto sparse_results = sparse_index->KnnSearch(query, params.bk_sparse,
-                                                         sparse_search_params).value();
+            auto sparse_results = sparse_idx->KnnSearch(
+                sparse_query, params.bk_sparse, sparse_search_params).value();
 
-            // 合并两路召回结果（只收集ID，去重）
+            // ── 4.3 合并两路召回结果（去重）────────────────────────────────
             std::unordered_set<int64_t> candidate_ids;
 
             for (int i = 0; i < dense_results->GetDim(); i++) {
                 candidate_ids.insert(dense_results->GetIds()[i]);
             }
-
             for (int i = 0; i < sparse_results->GetDim(); i++) {
                 candidate_ids.insert(sparse_results->GetIds()[i]);
             }
 
-            // 统一重新计算所有候选的距离
+            // ── 4.4 统一重新计算所有候选的距离并重排序 ───────────────────
             std::vector<HybridResult> results;
             results.reserve(candidate_ids.size());
 
@@ -368,115 +374,59 @@ int main(int argc, char** argv) {
                 HybridResult result;
                 result.id = id;
 
-                // 重新计算密集向量距离
                 result.dense_score = ComputeDenseIP(
                     test_dense.data() + query_idx * dense_dim,
                     train_dense.data() + id * dense_dim,
                     dense_dim
                 );
 
-                // 重新计算稀疏向量距离
                 result.sparse_score = ComputeSparseIP(
                     test_sparse[query_idx],
                     train_sparse[id]
                 );
 
-                // 计算混合分数
                 result.ComputeHybridScore(params.alpha);
-
                 results.push_back(result);
             }
 
-            // 重排序：选出top-k
+            // ── 4.5 partial_sort 取 top-k ─────────────────────────────────
             int actual_k = std::min(params.k, (int)results.size());
             std::partial_sort(results.begin(),
-                            results.begin() + actual_k,
-                            results.end(),
-                            std::greater<HybridResult>());
+                              results.begin() + actual_k,
+                              results.end(),
+                              std::greater<HybridResult>());
 
-            // 提取top-k的ID
             std::vector<int64_t> search_results;
+            search_results.reserve(actual_k);
             for (int i = 0; i < actual_k; i++) {
                 search_results.push_back(results[i].id);
             }
 
-
-            // // pure dense(hgraph)
-            // std::vector<int64_t> search_results;
-            // for (int i = 0; i < params.k; i++) {
-            //     search_results.push_back(dense_results->GetIds()[i]);
-            // }
-
-
-
-
-
-            // 获取ground truth（取前k个）
+            // ── 4.6 计算召回率 ───────────────────────────────────────────
             int gt_k = std::min(params.k, (int)k_gt);
-            std::vector<int64_t> gt(ground_truth.begin() + query_idx * k_gt,
-                                   ground_truth.begin() + query_idx * k_gt + gt_k);
+            std::vector<int64_t> gt(
+                ground_truth.begin() + query_idx * k_gt,
+                ground_truth.begin() + query_idx * k_gt + gt_k);
 
-            // 计算召回率
-            float recall = CalculateRecall(search_results, gt);
-            total_recall += recall;
-
-            // // 保存最后一个query的详细信息
-            // last_dense_top_bk_ids.clear();
-            // for (int i = 0; i < dense_results->GetDim(); i++) {
-            //     last_dense_top_bk_ids.push_back(dense_results->GetIds()[i]);
-            // }
-            //
-            // last_sparse_top_bk_ids.clear();
-            // for (int i = 0; i < sparse_results->GetDim(); i++) {
-            //     last_sparse_top_bk_ids.push_back(sparse_results->GetIds()[i]);
-            // }
-            //
-            // last_ground_truth_top_k = gt;
-            // last_query_idx = query_idx;
+            total_recall += CalculateRecall(search_results, gt);
         }
 
-        // ========== 计时结束 ==========
         auto search_end = std::chrono::high_resolution_clock::now();
-        double elapsed_seconds = std::chrono::duration<double>(
-                                     search_end - search_start).count();
+        double elapsed_seconds =
+            std::chrono::duration<double>(search_end - search_start).count();
         double qps = actual_num_queries / elapsed_seconds;
-        // ==============================
 
-        // 计算平均召回率
         float avg_recall = total_recall / actual_num_queries;
 
         /******************* 5. 输出结果 *****************/
         std::cout << "\n=== Results ===" << std::endl;
-        std::cout << "k: " << params.k << std::endl;
-        std::cout << "bk_dense: " << params.bk_dense << std::endl;
-        std::cout << "bk_sparse: " << params.bk_sparse << std::endl;
-        std::cout << "alpha: " << params.alpha << std::endl;
-        std::cout << "num_queries: " << actual_num_queries << std::endl;
-        std::cout << "avg_recall: " << avg_recall << std::endl;
-        std::cout << "qps: " << qps << std::endl;
-
-        // // 输出最后一个query的详细信息
-        // if (last_query_idx >= 0) {
-        //     std::cout << "\n=== Last Query (idx=" << last_query_idx << ") Details ===" << std::endl;
-        //
-        //     std::cout << "\nDense top bk IDs (" << last_dense_top_bk_ids.size() << " items):" << std::endl;
-        //     for (size_t i = 0; i < last_dense_top_bk_ids.size(); i++) {
-        //         std::cout << last_dense_top_bk_ids[i] << ",";
-        //     }
-        //     std::cout << std::endl;
-        //
-        //     std::cout << "\nSparse top bk IDs (" << last_sparse_top_bk_ids.size() << " items):" << std::endl;
-        //     for (size_t i = 0; i < last_sparse_top_bk_ids.size(); i++) {
-        //         std::cout << last_sparse_top_bk_ids[i] << ",";
-        //     }
-        //     std::cout << std::endl;
-        //
-        //     std::cout << "\nGround truth top k IDs (" << last_ground_truth_top_k.size() << " items):" << std::endl;
-        //     for (size_t i = 0; i < last_ground_truth_top_k.size(); i++) {
-        //         std::cout << last_ground_truth_top_k[i] << ",";
-        //     }
-        //     std::cout << std::endl;
-        // }
+        std::cout << "k:           " << params.k           << std::endl;
+        std::cout << "bk_dense:    " << params.bk_dense    << std::endl;
+        std::cout << "bk_sparse:   " << params.bk_sparse   << std::endl;
+        std::cout << "alpha:       " << params.alpha        << std::endl;
+        std::cout << "num_queries: " << actual_num_queries  << std::endl;
+        std::cout << "avg_recall:  " << avg_recall          << std::endl;
+        std::cout << "qps:         " << qps                 << std::endl;
 
         /******************* 6. 清理资源 *****************/
         FreeSparseVectors(train_sparse);

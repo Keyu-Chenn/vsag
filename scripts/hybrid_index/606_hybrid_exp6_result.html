@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>606_hybrid_exp6 baseline ID check</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f5f6fa;
+      color: #333;
+      padding: 32px;
+    }
+    h1 { font-size: 20px; margin-bottom: 6px; color: #222; }
+    .meta {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 20px;
+      font-family: monospace;
+    }
+
+    /* ── 统计卡片 ── */
+    .stats {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .stat-card {
+      background: white;
+      border-radius: 8px;
+      padding: 12px 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+      min-width: 110px;
+      text-align: center;
+    }
+    .stat-card .val  { font-size: 26px; font-weight: 700; }
+    .stat-card .pct  { font-size: 12px; color: #999; }
+    .stat-card .lbl  { font-size: 12px; color: #888; margin-top: 2px; }
+    .c-both    { border-top: 3px solid #5cb85c; }
+    .c-dense   { border-top: 3px solid #5b9bd5; }
+    .c-sparse  { border-top: 3px solid #f0a830; }
+    .c-neither { border-top: 3px solid #aaa; }
+    .c-total   { border-top: 3px solid #555; }
+
+    /* ── 图例 ── */
+    .legend {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+      align-items: center;
+      font-size: 13px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-dot  { width: 13px; height: 13px; border-radius: 3px; }
+
+    /* ── 表格 ── */
+    .table-wrap {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 1px 6px rgba(0,0,0,.08);
+      overflow: hidden;
+      display: inline-block;
+      min-width: 360px;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { background: #2c3e50; color: white; }
+    thead th { padding: 11px 24px; text-align: center; font-size: 13px; letter-spacing: .4px; }
+    tbody tr { border-bottom: 1px solid #eee; transition: filter .12s; }
+    tbody tr:hover { filter: brightness(.93); }
+    tbody td { padding: 9px 24px; text-align: center; font-size: 14px; }
+    code { font-family: 'Courier New', monospace; font-size: 13px; }
+
+    /* ── 行颜色 ── */
+    tr.both    { background: #d6f0d6; }
+    tr.dense   { background: #cce0ff; }
+    tr.sparse  { background: #ffe8b0; }
+    tr.neither { background: #efefef; }
+
+    /* ── 来源标签 ── */
+    .tag {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .tag-both    { background: #82c882; color: #1a5c1a; }
+    .tag-dense   { background: #80b0e8; color: #0d2d6e; }
+    .tag-sparse  { background: #f0a830; color: #6b3d00; }
+    .tag-neither { background: #c0c0c0; color: #444;    }
+  </style>
+</head>
+<body>
+  <h1>🔍 606_hybrid_exp6 baseline ID check</h1>
+  <div class="meta">k=100, bk_dense=400, bk_sparse=400, alpha=0.4</div>
+
+  <!-- 统计卡片 -->
+  <div class="stats">
+    <div class="stat-card c-total">
+      <div class="val">100</div>
+      <div class="lbl">Top-K</div>
+    </div>
+    <div class="stat-card c-both">
+      <div class="val" style="color:#3a7a3a">55</div>
+      <div class="pct">55.0%</div>
+      <div class="lbl">dense ∩ sparse</div>
+    </div>
+    <div class="stat-card c-dense">
+      <div class="val" style="color:#1a4a8a">36</div>
+      <div class="pct">36.0%</div>
+      <div class="lbl">dense only</div>
+    </div>
+    <div class="stat-card c-sparse">
+      <div class="val" style="color:#7a4a00">9</div>
+      <div class="pct">9.0%</div>
+      <div class="lbl">sparse only</div>
+    </div>
+    <div class="stat-card c-neither">
+      <div class="val" style="color:#555">0</div>
+      <div class="pct">0.0%</div>
+      <div class="lbl">neither</div>
+    </div>
+  </div>
+
+  <!-- 图例 -->
+  <div class="legend">
+    <span style="color:#666">图例：</span>
+    <div class="legend-item"><div class="legend-dot" style="background:#82c882"></div>dense ∩ sparse（两路都召回）</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#80b0e8"></div>dense only</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f0a830"></div>sparse only</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#c0c0c0"></div>neither（两路均未召回）</div>
+  </div>
+
+  <!-- 表格 -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>ID</th>
+          <th>来源</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+        <tr class="both">
+            <td>1</td>
+            <td><code>29254</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>2</td>
+            <td><code>37455</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>3</td>
+            <td><code>53698</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>4</td>
+            <td><code>26825</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>5</td>
+            <td><code>69137</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>6</td>
+            <td><code>7478</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>7</td>
+            <td><code>5827</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>8</td>
+            <td><code>57490</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>9</td>
+            <td><code>77626</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>10</td>
+            <td><code>67257</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>11</td>
+            <td><code>56326</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>12</td>
+            <td><code>67657</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>13</td>
+            <td><code>39506</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>14</td>
+            <td><code>25658</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>15</td>
+            <td><code>44414</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>16</td>
+            <td><code>16220</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>17</td>
+            <td><code>60685</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>18</td>
+            <td><code>62216</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>19</td>
+            <td><code>67147</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>20</td>
+            <td><code>24026</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>21</td>
+            <td><code>71443</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="sparse">
+            <td>22</td>
+            <td><code>27008</code></td>
+            <td><span class="tag tag-sparse">sparse only</span></td>
+        </tr>
+        <tr class="both">
+            <td>23</td>
+            <td><code>73666</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>24</td>
+            <td><code>60728</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>25</td>
+            <td><code>38918</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>26</td>
+            <td><code>76346</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>27</td>
+            <td><code>41048</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>28</td>
+            <td><code>37869</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>29</td>
+            <td><code>73722</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>30</td>
+            <td><code>40265</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>31</td>
+            <td><code>74511</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>32</td>
+            <td><code>19137</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>33</td>
+            <td><code>30475</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>34</td>
+            <td><code>28404</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>35</td>
+            <td><code>67622</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>36</td>
+            <td><code>40897</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>37</td>
+            <td><code>38210</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>38</td>
+            <td><code>34031</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>39</td>
+            <td><code>45908</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>40</td>
+            <td><code>14477</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>41</td>
+            <td><code>40724</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>42</td>
+            <td><code>6353</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>43</td>
+            <td><code>36361</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>44</td>
+            <td><code>75901</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>45</td>
+            <td><code>6140</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>46</td>
+            <td><code>75175</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="dense">
+            <td>47</td>
+            <td><code>74857</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>48</td>
+            <td><code>74651</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>49</td>
+            <td><code>22190</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>50</td>
+            <td><code>43385</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="dense">
+            <td>51</td>
+            <td><code>76076</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="dense">
+            <td>52</td>
+            <td><code>79615</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="dense">
+            <td>53</td>
+            <td><code>2613</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="dense">
+            <td>54</td>
+            <td><code>4786</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>55</td>
+            <td><code>45008</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>56</td>
+            <td><code>53121</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>57</td>
+            <td><code>47020</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>58</td>
+            <td><code>4405</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>59</td>
+            <td><code>40551</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>60</td>
+            <td><code>60147</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="dense">
+            <td>61</td>
+            <td><code>66923</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="sparse">
+            <td>62</td>
+            <td><code>59324</code></td>
+            <td><span class="tag tag-sparse">sparse only</span></td>
+        </tr>
+        <tr class="both">
+            <td>63</td>
+            <td><code>77108</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>64</td>
+            <td><code>21151</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>65</td>
+            <td><code>64130</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="sparse">
+            <td>66</td>
+            <td><code>66710</code></td>
+            <td><span class="tag tag-sparse">sparse only</span></td>
+        </tr>
+        <tr class="dense">
+            <td>67</td>
+            <td><code>45874</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="dense">
+            <td>68</td>
+            <td><code>15216</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>69</td>
+            <td><code>70409</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>70</td>
+            <td><code>50330</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="dense">
+            <td>71</td>
+            <td><code>27063</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>72</td>
+            <td><code>54247</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>73</td>
+            <td><code>52067</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>74</td>
+            <td><code>51510</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>75</td>
+            <td><code>31541</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="dense">
+            <td>76</td>
+            <td><code>60112</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>77</td>
+            <td><code>47189</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>78</td>
+            <td><code>50560</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>79</td>
+            <td><code>73864</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="dense">
+            <td>80</td>
+            <td><code>62336</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="sparse">
+            <td>81</td>
+            <td><code>68856</code></td>
+            <td><span class="tag tag-sparse">sparse only</span></td>
+        </tr>
+        <tr class="dense">
+            <td>82</td>
+            <td><code>21538</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>83</td>
+            <td><code>32486</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>84</td>
+            <td><code>13201</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>85</td>
+            <td><code>39915</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="sparse">
+            <td>86</td>
+            <td><code>52527</code></td>
+            <td><span class="tag tag-sparse">sparse only</span></td>
+        </tr>
+        <tr class="both">
+            <td>87</td>
+            <td><code>38545</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>88</td>
+            <td><code>67182</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="sparse">
+            <td>89</td>
+            <td><code>41164</code></td>
+            <td><span class="tag tag-sparse">sparse only</span></td>
+        </tr>
+        <tr class="both">
+            <td>90</td>
+            <td><code>8980</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="dense">
+            <td>91</td>
+            <td><code>39809</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>92</td>
+            <td><code>26213</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="both">
+            <td>93</td>
+            <td><code>17222</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="sparse">
+            <td>94</td>
+            <td><code>26236</code></td>
+            <td><span class="tag tag-sparse">sparse only</span></td>
+        </tr>
+        <tr class="sparse">
+            <td>95</td>
+            <td><code>1608</code></td>
+            <td><span class="tag tag-sparse">sparse only</span></td>
+        </tr>
+        <tr class="dense">
+            <td>96</td>
+            <td><code>66434</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="dense">
+            <td>97</td>
+            <td><code>59196</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="dense">
+            <td>98</td>
+            <td><code>78714</code></td>
+            <td><span class="tag tag-dense">dense only</span></td>
+        </tr>
+        <tr class="both">
+            <td>99</td>
+            <td><code>22225</code></td>
+            <td><span class="tag tag-both">dense ∩ sparse</span></td>
+        </tr>
+        <tr class="sparse">
+            <td>100</td>
+            <td><code>37819</code></td>
+            <td><span class="tag tag-sparse">sparse only</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</body>
+</html>

@@ -58,7 +58,9 @@ HybridVectorDataCell::HybridVectorDataCell(const FlattenInterfaceParamPtr& dense
     dense_cell_ = FlattenInterface::MakeInstance(dense_param, common_param);
 
     // Create sparse cell
-    sparse_cell_ = FlattenInterface::MakeInstance(sparse_param, common_param);
+    IndexCommonParam common_param_sparse = common_param;
+    common_param_sparse.dim_ = 4096;
+    sparse_cell_ = FlattenInterface::MakeInstance(sparse_param, common_param_sparse);
 
 }
 

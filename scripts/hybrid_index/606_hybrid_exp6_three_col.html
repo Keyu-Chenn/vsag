@@ -1,0 +1,4592 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>606_hybrid_exp6 baseline ID check</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f0f2f5;
+      color: #333;
+      padding: 28px;
+    }
+    h1   { font-size: 20px; margin-bottom: 6px; }
+    .meta {
+      font-size: 13px; color: #666;
+      margin-bottom: 18px; font-family: monospace;
+    }
+
+    /* ── 统计卡片 ── */
+    .stats {
+      display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;
+    }
+    .stat-card {
+      background: white; border-radius: 8px;
+      padding: 10px 18px; box-shadow: 0 1px 4px rgba(0,0,0,.08);
+      min-width: 110px; text-align: center;
+    }
+    .stat-card .val { font-size: 24px; font-weight: 700; }
+    .stat-card .pct { font-size: 11px; color: #999; }
+    .stat-card .lbl { font-size: 11px; color: #888; margin-top: 2px; }
+
+    /* ── 图例 ── */
+    .legend {
+      display: flex; gap: 12px; flex-wrap: wrap;
+      align-items: center; font-size: 12px; margin-bottom: 16px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-dot  { width: 12px; height: 12px; border-radius: 3px; }
+
+    /* ── 三列布局 ── */
+    .three-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1.6fr;   /* rerank 列稍宽 */
+      gap: 16px;
+      align-items: start;
+    }
+    .col-wrap {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 1px 6px rgba(0,0,0,.08);
+      overflow: hidden;
+    }
+    .col-header {
+      padding: 12px 16px;
+      font-size: 14px; font-weight: 700;
+      color: white; text-align: center;
+    }
+    .h-dense  { background: #2c5f9e; }
+    .h-sparse { background: #9e6a00; }
+    .h-rerank { background: #2c3e50; }
+
+    .scroll-body { max-height: 75vh; overflow-y: auto; }
+
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      padding: 8px 10px; text-align: center;
+      font-size: 12px; color: #555;
+      position: sticky; top: 0; z-index: 1;
+      background: #eef2f7;
+      border-bottom: 1px solid #dde3ec;
+    }
+    tbody tr { border-bottom: 1px solid #f0f0f0; transition: filter .12s; }
+    tbody tr:hover { filter: brightness(.93); }
+    tbody td { padding: 7px 10px; text-align: center; font-size: 13px; }
+    td.rank  { color: #bbb; font-size: 11px; width: 32px; }
+    code { font-family: 'Courier New', monospace; font-size: 12px; }
+
+    /* ── Rerank 行颜色 ── */
+    tr.row-both    { background: #d4edda; }
+    tr.row-dense   { background: #cce0ff; }
+    tr.row-sparse  { background: #ffe8b0; }
+    tr.row-neither { background: #f0f0f0; }
+
+    /* ── 来源标签 ── */
+    .tag {
+      display: inline-block; padding: 2px 8px;
+      border-radius: 10px; font-size: 11px; font-weight: 600;
+    }
+    .tag-both    { background: #82c882; color: #1a5c1a; }
+    .tag-dense   { background: #80b0e8; color: #0d2d6e; }
+    .tag-sparse  { background: #f0a830; color: #6b3d00; }
+    .tag-neither { background: #c0c0c0; color: #444;    }
+
+    /* ── Rank 徽章 ── */
+    .rank-cell { white-space: nowrap; }
+    .rank-badge {
+      display: inline-block; margin: 1px 3px;
+      padding: 2px 7px; border-radius: 8px;
+      font-size: 11px; font-weight: 600;
+    }
+    .rank-d  { background: #cce0ff; color: #0d2d6e; }
+    .rank-s  { background: #ffe8b0; color: #6b3d00; }
+    .rank-na { background: #eee;    color: #999;    }
+  </style>
+</head>
+<body>
+  <h1>🔍 606_hybrid_exp6 baseline ID check</h1>
+  <div class="meta">k=100, bk_dense=400, bk_sparse=400, alpha=0.4</div>
+
+  <!-- 统计卡片（针对 rerank top-k） -->
+  <div class="stats">
+    <div class="stat-card" style="border-top:3px solid #555">
+      <div class="val">200</div><div class="lbl">Rerank Top-K</div>
+    </div>
+    <div class="stat-card" style="border-top:3px solid #5cb85c">
+      <div class="val" style="color:#3a7a3a">84</div>
+      <div class="pct">42.0%</div>
+      <div class="lbl">dense ∩ sparse</div>
+    </div>
+    <div class="stat-card" style="border-top:3px solid #5b9bd5">
+      <div class="val" style="color:#1a4a8a">84</div>
+      <div class="pct">42.0%</div>
+      <div class="lbl">dense only</div>
+    </div>
+    <div class="stat-card" style="border-top:3px solid #f0a830">
+      <div class="val" style="color:#7a4a00">25</div>
+      <div class="pct">12.5%</div>
+      <div class="lbl">sparse only</div>
+    </div>
+    <div class="stat-card" style="border-top:3px solid #aaa">
+      <div class="val" style="color:#555">7</div>
+      <div class="pct">3.5%</div>
+      <div class="lbl">neither</div>
+    </div>
+  </div>
+
+  <!-- 图例 -->
+  <div class="legend">
+    <span style="color:#666">Rerank 颜色：</span>
+    <div class="legend-item"><div class="legend-dot" style="background:#82c882"></div>dense ∩ sparse</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#80b0e8"></div>dense only</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f0a830"></div>sparse only</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#c0c0c0"></div>neither</div>
+    <span style="color:#666; margin-left:10px">Rank 标注：</span>
+    <div class="legend-item"><span class="rank-badge rank-d">D#n</span>在 dense 中的排名</div>
+    <div class="legend-item"><span class="rank-badge rank-s">S#n</span>在 sparse 中的排名</div>
+  </div>
+
+  <!-- 三列 -->
+  <div class="three-col">
+
+    <!-- Dense（纯列表） -->
+    <div class="col-wrap">
+      <div class="col-header h-dense">🔵 Dense Top-400</div>
+      <div class="scroll-body">
+        <table>
+          <thead><tr><th>#</th><th>ID</th></tr></thead>
+          <tbody><tr>
+          <td class="rank">1</td>
+          <td><code>57490</code></td>
+        </tr>
+<tr>
+          <td class="rank">2</td>
+          <td><code>56326</code></td>
+        </tr>
+<tr>
+          <td class="rank">3</td>
+          <td><code>37455</code></td>
+        </tr>
+<tr>
+          <td class="rank">4</td>
+          <td><code>25658</code></td>
+        </tr>
+<tr>
+          <td class="rank">5</td>
+          <td><code>29254</code></td>
+        </tr>
+<tr>
+          <td class="rank">6</td>
+          <td><code>26825</code></td>
+        </tr>
+<tr>
+          <td class="rank">7</td>
+          <td><code>7478</code></td>
+        </tr>
+<tr>
+          <td class="rank">8</td>
+          <td><code>77626</code></td>
+        </tr>
+<tr>
+          <td class="rank">9</td>
+          <td><code>40265</code></td>
+        </tr>
+<tr>
+          <td class="rank">10</td>
+          <td><code>69137</code></td>
+        </tr>
+<tr>
+          <td class="rank">11</td>
+          <td><code>37869</code></td>
+        </tr>
+<tr>
+          <td class="rank">12</td>
+          <td><code>24026</code></td>
+        </tr>
+<tr>
+          <td class="rank">13</td>
+          <td><code>53698</code></td>
+        </tr>
+<tr>
+          <td class="rank">14</td>
+          <td><code>62216</code></td>
+        </tr>
+<tr>
+          <td class="rank">15</td>
+          <td><code>67257</code></td>
+        </tr>
+<tr>
+          <td class="rank">16</td>
+          <td><code>67657</code></td>
+        </tr>
+<tr>
+          <td class="rank">17</td>
+          <td><code>76346</code></td>
+        </tr>
+<tr>
+          <td class="rank">18</td>
+          <td><code>75175</code></td>
+        </tr>
+<tr>
+          <td class="rank">19</td>
+          <td><code>44414</code></td>
+        </tr>
+<tr>
+          <td class="rank">20</td>
+          <td><code>60685</code></td>
+        </tr>
+<tr>
+          <td class="rank">21</td>
+          <td><code>5827</code></td>
+        </tr>
+<tr>
+          <td class="rank">22</td>
+          <td><code>43385</code></td>
+        </tr>
+<tr>
+          <td class="rank">23</td>
+          <td><code>75901</code></td>
+        </tr>
+<tr>
+          <td class="rank">24</td>
+          <td><code>38210</code></td>
+        </tr>
+<tr>
+          <td class="rank">25</td>
+          <td><code>39506</code></td>
+        </tr>
+<tr>
+          <td class="rank">26</td>
+          <td><code>67147</code></td>
+        </tr>
+<tr>
+          <td class="rank">27</td>
+          <td><code>2613</code></td>
+        </tr>
+<tr>
+          <td class="rank">28</td>
+          <td><code>14477</code></td>
+        </tr>
+<tr>
+          <td class="rank">29</td>
+          <td><code>74857</code></td>
+        </tr>
+<tr>
+          <td class="rank">30</td>
+          <td><code>60147</code></td>
+        </tr>
+<tr>
+          <td class="rank">31</td>
+          <td><code>66923</code></td>
+        </tr>
+<tr>
+          <td class="rank">32</td>
+          <td><code>41048</code></td>
+        </tr>
+<tr>
+          <td class="rank">33</td>
+          <td><code>6353</code></td>
+        </tr>
+<tr>
+          <td class="rank">34</td>
+          <td><code>45874</code></td>
+        </tr>
+<tr>
+          <td class="rank">35</td>
+          <td><code>53121</code></td>
+        </tr>
+<tr>
+          <td class="rank">36</td>
+          <td><code>47962</code></td>
+        </tr>
+<tr>
+          <td class="rank">37</td>
+          <td><code>4405</code></td>
+        </tr>
+<tr>
+          <td class="rank">38</td>
+          <td><code>76076</code></td>
+        </tr>
+<tr>
+          <td class="rank">39</td>
+          <td><code>15216</code></td>
+        </tr>
+<tr>
+          <td class="rank">40</td>
+          <td><code>27063</code></td>
+        </tr>
+<tr>
+          <td class="rank">41</td>
+          <td><code>4786</code></td>
+        </tr>
+<tr>
+          <td class="rank">42</td>
+          <td><code>78714</code></td>
+        </tr>
+<tr>
+          <td class="rank">43</td>
+          <td><code>64130</code></td>
+        </tr>
+<tr>
+          <td class="rank">44</td>
+          <td><code>31541</code></td>
+        </tr>
+<tr>
+          <td class="rank">45</td>
+          <td><code>74511</code></td>
+        </tr>
+<tr>
+          <td class="rank">46</td>
+          <td><code>45908</code></td>
+        </tr>
+<tr>
+          <td class="rank">47</td>
+          <td><code>62336</code></td>
+        </tr>
+<tr>
+          <td class="rank">48</td>
+          <td><code>60112</code></td>
+        </tr>
+<tr>
+          <td class="rank">49</td>
+          <td><code>67182</code></td>
+        </tr>
+<tr>
+          <td class="rank">50</td>
+          <td><code>79615</code></td>
+        </tr>
+<tr>
+          <td class="rank">51</td>
+          <td><code>71443</code></td>
+        </tr>
+<tr>
+          <td class="rank">52</td>
+          <td><code>66434</code></td>
+        </tr>
+<tr>
+          <td class="rank">53</td>
+          <td><code>60019</code></td>
+        </tr>
+<tr>
+          <td class="rank">54</td>
+          <td><code>77108</code></td>
+        </tr>
+<tr>
+          <td class="rank">55</td>
+          <td><code>21538</code></td>
+        </tr>
+<tr>
+          <td class="rank">56</td>
+          <td><code>52368</code></td>
+        </tr>
+<tr>
+          <td class="rank">57</td>
+          <td><code>39809</code></td>
+        </tr>
+<tr>
+          <td class="rank">58</td>
+          <td><code>50330</code></td>
+        </tr>
+<tr>
+          <td class="rank">59</td>
+          <td><code>36361</code></td>
+        </tr>
+<tr>
+          <td class="rank">60</td>
+          <td><code>40522</code></td>
+        </tr>
+<tr>
+          <td class="rank">61</td>
+          <td><code>78874</code></td>
+        </tr>
+<tr>
+          <td class="rank">62</td>
+          <td><code>38918</code></td>
+        </tr>
+<tr>
+          <td class="rank">63</td>
+          <td><code>73864</code></td>
+        </tr>
+<tr>
+          <td class="rank">64</td>
+          <td><code>45008</code></td>
+        </tr>
+<tr>
+          <td class="rank">65</td>
+          <td><code>66968</code></td>
+        </tr>
+<tr>
+          <td class="rank">66</td>
+          <td><code>42128</code></td>
+        </tr>
+<tr>
+          <td class="rank">67</td>
+          <td><code>45728</code></td>
+        </tr>
+<tr>
+          <td class="rank">68</td>
+          <td><code>69311</code></td>
+        </tr>
+<tr>
+          <td class="rank">69</td>
+          <td><code>13201</code></td>
+        </tr>
+<tr>
+          <td class="rank">70</td>
+          <td><code>59196</code></td>
+        </tr>
+<tr>
+          <td class="rank">71</td>
+          <td><code>52067</code></td>
+        </tr>
+<tr>
+          <td class="rank">72</td>
+          <td><code>78936</code></td>
+        </tr>
+<tr>
+          <td class="rank">73</td>
+          <td><code>23842</code></td>
+        </tr>
+<tr>
+          <td class="rank">74</td>
+          <td><code>16220</code></td>
+        </tr>
+<tr>
+          <td class="rank">75</td>
+          <td><code>74334</code></td>
+        </tr>
+<tr>
+          <td class="rank">76</td>
+          <td><code>73231</code></td>
+        </tr>
+<tr>
+          <td class="rank">77</td>
+          <td><code>47189</code></td>
+        </tr>
+<tr>
+          <td class="rank">78</td>
+          <td><code>28404</code></td>
+        </tr>
+<tr>
+          <td class="rank">79</td>
+          <td><code>74651</code></td>
+        </tr>
+<tr>
+          <td class="rank">80</td>
+          <td><code>73666</code></td>
+        </tr>
+<tr>
+          <td class="rank">81</td>
+          <td><code>34031</code></td>
+        </tr>
+<tr>
+          <td class="rank">82</td>
+          <td><code>53765</code></td>
+        </tr>
+<tr>
+          <td class="rank">83</td>
+          <td><code>70409</code></td>
+        </tr>
+<tr>
+          <td class="rank">84</td>
+          <td><code>15245</code></td>
+        </tr>
+<tr>
+          <td class="rank">85</td>
+          <td><code>31113</code></td>
+        </tr>
+<tr>
+          <td class="rank">86</td>
+          <td><code>34810</code></td>
+        </tr>
+<tr>
+          <td class="rank">87</td>
+          <td><code>59401</code></td>
+        </tr>
+<tr>
+          <td class="rank">88</td>
+          <td><code>11292</code></td>
+        </tr>
+<tr>
+          <td class="rank">89</td>
+          <td><code>27017</code></td>
+        </tr>
+<tr>
+          <td class="rank">90</td>
+          <td><code>39915</code></td>
+        </tr>
+<tr>
+          <td class="rank">91</td>
+          <td><code>76168</code></td>
+        </tr>
+<tr>
+          <td class="rank">92</td>
+          <td><code>52928</code></td>
+        </tr>
+<tr>
+          <td class="rank">93</td>
+          <td><code>17222</code></td>
+        </tr>
+<tr>
+          <td class="rank">94</td>
+          <td><code>12617</code></td>
+        </tr>
+<tr>
+          <td class="rank">95</td>
+          <td><code>4576</code></td>
+        </tr>
+<tr>
+          <td class="rank">96</td>
+          <td><code>52388</code></td>
+        </tr>
+<tr>
+          <td class="rank">97</td>
+          <td><code>1148</code></td>
+        </tr>
+<tr>
+          <td class="rank">98</td>
+          <td><code>19245</code></td>
+        </tr>
+<tr>
+          <td class="rank">99</td>
+          <td><code>43828</code></td>
+        </tr>
+<tr>
+          <td class="rank">100</td>
+          <td><code>75628</code></td>
+        </tr>
+<tr>
+          <td class="rank">101</td>
+          <td><code>35620</code></td>
+        </tr>
+<tr>
+          <td class="rank">102</td>
+          <td><code>38545</code></td>
+        </tr>
+<tr>
+          <td class="rank">103</td>
+          <td><code>10215</code></td>
+        </tr>
+<tr>
+          <td class="rank">104</td>
+          <td><code>76574</code></td>
+        </tr>
+<tr>
+          <td class="rank">105</td>
+          <td><code>32089</code></td>
+        </tr>
+<tr>
+          <td class="rank">106</td>
+          <td><code>10610</code></td>
+        </tr>
+<tr>
+          <td class="rank">107</td>
+          <td><code>3009</code></td>
+        </tr>
+<tr>
+          <td class="rank">108</td>
+          <td><code>77945</code></td>
+        </tr>
+<tr>
+          <td class="rank">109</td>
+          <td><code>79590</code></td>
+        </tr>
+<tr>
+          <td class="rank">110</td>
+          <td><code>75217</code></td>
+        </tr>
+<tr>
+          <td class="rank">111</td>
+          <td><code>73922</code></td>
+        </tr>
+<tr>
+          <td class="rank">112</td>
+          <td><code>49615</code></td>
+        </tr>
+<tr>
+          <td class="rank">113</td>
+          <td><code>43798</code></td>
+        </tr>
+<tr>
+          <td class="rank">114</td>
+          <td><code>40897</code></td>
+        </tr>
+<tr>
+          <td class="rank">115</td>
+          <td><code>75190</code></td>
+        </tr>
+<tr>
+          <td class="rank">116</td>
+          <td><code>40551</code></td>
+        </tr>
+<tr>
+          <td class="rank">117</td>
+          <td><code>6140</code></td>
+        </tr>
+<tr>
+          <td class="rank">118</td>
+          <td><code>56727</code></td>
+        </tr>
+<tr>
+          <td class="rank">119</td>
+          <td><code>35127</code></td>
+        </tr>
+<tr>
+          <td class="rank">120</td>
+          <td><code>61825</code></td>
+        </tr>
+<tr>
+          <td class="rank">121</td>
+          <td><code>30623</code></td>
+        </tr>
+<tr>
+          <td class="rank">122</td>
+          <td><code>37403</code></td>
+        </tr>
+<tr>
+          <td class="rank">123</td>
+          <td><code>60728</code></td>
+        </tr>
+<tr>
+          <td class="rank">124</td>
+          <td><code>21151</code></td>
+        </tr>
+<tr>
+          <td class="rank">125</td>
+          <td><code>30836</code></td>
+        </tr>
+<tr>
+          <td class="rank">126</td>
+          <td><code>56834</code></td>
+        </tr>
+<tr>
+          <td class="rank">127</td>
+          <td><code>4896</code></td>
+        </tr>
+<tr>
+          <td class="rank">128</td>
+          <td><code>34811</code></td>
+        </tr>
+<tr>
+          <td class="rank">129</td>
+          <td><code>19137</code></td>
+        </tr>
+<tr>
+          <td class="rank">130</td>
+          <td><code>56908</code></td>
+        </tr>
+<tr>
+          <td class="rank">131</td>
+          <td><code>31987</code></td>
+        </tr>
+<tr>
+          <td class="rank">132</td>
+          <td><code>20636</code></td>
+        </tr>
+<tr>
+          <td class="rank">133</td>
+          <td><code>14794</code></td>
+        </tr>
+<tr>
+          <td class="rank">134</td>
+          <td><code>40874</code></td>
+        </tr>
+<tr>
+          <td class="rank">135</td>
+          <td><code>29577</code></td>
+        </tr>
+<tr>
+          <td class="rank">136</td>
+          <td><code>44692</code></td>
+        </tr>
+<tr>
+          <td class="rank">137</td>
+          <td><code>76149</code></td>
+        </tr>
+<tr>
+          <td class="rank">138</td>
+          <td><code>73722</code></td>
+        </tr>
+<tr>
+          <td class="rank">139</td>
+          <td><code>8980</code></td>
+        </tr>
+<tr>
+          <td class="rank">140</td>
+          <td><code>14461</code></td>
+        </tr>
+<tr>
+          <td class="rank">141</td>
+          <td><code>57465</code></td>
+        </tr>
+<tr>
+          <td class="rank">142</td>
+          <td><code>46103</code></td>
+        </tr>
+<tr>
+          <td class="rank">143</td>
+          <td><code>43663</code></td>
+        </tr>
+<tr>
+          <td class="rank">144</td>
+          <td><code>28769</code></td>
+        </tr>
+<tr>
+          <td class="rank">145</td>
+          <td><code>9674</code></td>
+        </tr>
+<tr>
+          <td class="rank">146</td>
+          <td><code>69226</code></td>
+        </tr>
+<tr>
+          <td class="rank">147</td>
+          <td><code>51567</code></td>
+        </tr>
+<tr>
+          <td class="rank">148</td>
+          <td><code>15389</code></td>
+        </tr>
+<tr>
+          <td class="rank">149</td>
+          <td><code>2723</code></td>
+        </tr>
+<tr>
+          <td class="rank">150</td>
+          <td><code>7856</code></td>
+        </tr>
+<tr>
+          <td class="rank">151</td>
+          <td><code>13203</code></td>
+        </tr>
+<tr>
+          <td class="rank">152</td>
+          <td><code>4569</code></td>
+        </tr>
+<tr>
+          <td class="rank">153</td>
+          <td><code>1801</code></td>
+        </tr>
+<tr>
+          <td class="rank">154</td>
+          <td><code>71009</code></td>
+        </tr>
+<tr>
+          <td class="rank">155</td>
+          <td><code>19575</code></td>
+        </tr>
+<tr>
+          <td class="rank">156</td>
+          <td><code>30153</code></td>
+        </tr>
+<tr>
+          <td class="rank">157</td>
+          <td><code>49410</code></td>
+        </tr>
+<tr>
+          <td class="rank">158</td>
+          <td><code>30475</code></td>
+        </tr>
+<tr>
+          <td class="rank">159</td>
+          <td><code>16703</code></td>
+        </tr>
+<tr>
+          <td class="rank">160</td>
+          <td><code>26322</code></td>
+        </tr>
+<tr>
+          <td class="rank">161</td>
+          <td><code>32909</code></td>
+        </tr>
+<tr>
+          <td class="rank">162</td>
+          <td><code>69909</code></td>
+        </tr>
+<tr>
+          <td class="rank">163</td>
+          <td><code>51752</code></td>
+        </tr>
+<tr>
+          <td class="rank">164</td>
+          <td><code>6499</code></td>
+        </tr>
+<tr>
+          <td class="rank">165</td>
+          <td><code>60594</code></td>
+        </tr>
+<tr>
+          <td class="rank">166</td>
+          <td><code>21862</code></td>
+        </tr>
+<tr>
+          <td class="rank">167</td>
+          <td><code>500</code></td>
+        </tr>
+<tr>
+          <td class="rank">168</td>
+          <td><code>14167</code></td>
+        </tr>
+<tr>
+          <td class="rank">169</td>
+          <td><code>49249</code></td>
+        </tr>
+<tr>
+          <td class="rank">170</td>
+          <td><code>18869</code></td>
+        </tr>
+<tr>
+          <td class="rank">171</td>
+          <td><code>46655</code></td>
+        </tr>
+<tr>
+          <td class="rank">172</td>
+          <td><code>4573</code></td>
+        </tr>
+<tr>
+          <td class="rank">173</td>
+          <td><code>40967</code></td>
+        </tr>
+<tr>
+          <td class="rank">174</td>
+          <td><code>49574</code></td>
+        </tr>
+<tr>
+          <td class="rank">175</td>
+          <td><code>13779</code></td>
+        </tr>
+<tr>
+          <td class="rank">176</td>
+          <td><code>47020</code></td>
+        </tr>
+<tr>
+          <td class="rank">177</td>
+          <td><code>33687</code></td>
+        </tr>
+<tr>
+          <td class="rank">178</td>
+          <td><code>17785</code></td>
+        </tr>
+<tr>
+          <td class="rank">179</td>
+          <td><code>19371</code></td>
+        </tr>
+<tr>
+          <td class="rank">180</td>
+          <td><code>41196</code></td>
+        </tr>
+<tr>
+          <td class="rank">181</td>
+          <td><code>36714</code></td>
+        </tr>
+<tr>
+          <td class="rank">182</td>
+          <td><code>10437</code></td>
+        </tr>
+<tr>
+          <td class="rank">183</td>
+          <td><code>67622</code></td>
+        </tr>
+<tr>
+          <td class="rank">184</td>
+          <td><code>54247</code></td>
+        </tr>
+<tr>
+          <td class="rank">185</td>
+          <td><code>76037</code></td>
+        </tr>
+<tr>
+          <td class="rank">186</td>
+          <td><code>12272</code></td>
+        </tr>
+<tr>
+          <td class="rank">187</td>
+          <td><code>46407</code></td>
+        </tr>
+<tr>
+          <td class="rank">188</td>
+          <td><code>26213</code></td>
+        </tr>
+<tr>
+          <td class="rank">189</td>
+          <td><code>78743</code></td>
+        </tr>
+<tr>
+          <td class="rank">190</td>
+          <td><code>31100</code></td>
+        </tr>
+<tr>
+          <td class="rank">191</td>
+          <td><code>74427</code></td>
+        </tr>
+<tr>
+          <td class="rank">192</td>
+          <td><code>73698</code></td>
+        </tr>
+<tr>
+          <td class="rank">193</td>
+          <td><code>53448</code></td>
+        </tr>
+<tr>
+          <td class="rank">194</td>
+          <td><code>63470</code></td>
+        </tr>
+<tr>
+          <td class="rank">195</td>
+          <td><code>68663</code></td>
+        </tr>
+<tr>
+          <td class="rank">196</td>
+          <td><code>7845</code></td>
+        </tr>
+<tr>
+          <td class="rank">197</td>
+          <td><code>43819</code></td>
+        </tr>
+<tr>
+          <td class="rank">198</td>
+          <td><code>65147</code></td>
+        </tr>
+<tr>
+          <td class="rank">199</td>
+          <td><code>38018</code></td>
+        </tr>
+<tr>
+          <td class="rank">200</td>
+          <td><code>67588</code></td>
+        </tr>
+<tr>
+          <td class="rank">201</td>
+          <td><code>24086</code></td>
+        </tr>
+<tr>
+          <td class="rank">202</td>
+          <td><code>52413</code></td>
+        </tr>
+<tr>
+          <td class="rank">203</td>
+          <td><code>62440</code></td>
+        </tr>
+<tr>
+          <td class="rank">204</td>
+          <td><code>2305</code></td>
+        </tr>
+<tr>
+          <td class="rank">205</td>
+          <td><code>32664</code></td>
+        </tr>
+<tr>
+          <td class="rank">206</td>
+          <td><code>53785</code></td>
+        </tr>
+<tr>
+          <td class="rank">207</td>
+          <td><code>74682</code></td>
+        </tr>
+<tr>
+          <td class="rank">208</td>
+          <td><code>55261</code></td>
+        </tr>
+<tr>
+          <td class="rank">209</td>
+          <td><code>41370</code></td>
+        </tr>
+<tr>
+          <td class="rank">210</td>
+          <td><code>8338</code></td>
+        </tr>
+<tr>
+          <td class="rank">211</td>
+          <td><code>43772</code></td>
+        </tr>
+<tr>
+          <td class="rank">212</td>
+          <td><code>42776</code></td>
+        </tr>
+<tr>
+          <td class="rank">213</td>
+          <td><code>36836</code></td>
+        </tr>
+<tr>
+          <td class="rank">214</td>
+          <td><code>47012</code></td>
+        </tr>
+<tr>
+          <td class="rank">215</td>
+          <td><code>1319</code></td>
+        </tr>
+<tr>
+          <td class="rank">216</td>
+          <td><code>7625</code></td>
+        </tr>
+<tr>
+          <td class="rank">217</td>
+          <td><code>35664</code></td>
+        </tr>
+<tr>
+          <td class="rank">218</td>
+          <td><code>71519</code></td>
+        </tr>
+<tr>
+          <td class="rank">219</td>
+          <td><code>15661</code></td>
+        </tr>
+<tr>
+          <td class="rank">220</td>
+          <td><code>18015</code></td>
+        </tr>
+<tr>
+          <td class="rank">221</td>
+          <td><code>4723</code></td>
+        </tr>
+<tr>
+          <td class="rank">222</td>
+          <td><code>52270</code></td>
+        </tr>
+<tr>
+          <td class="rank">223</td>
+          <td><code>39063</code></td>
+        </tr>
+<tr>
+          <td class="rank">224</td>
+          <td><code>61720</code></td>
+        </tr>
+<tr>
+          <td class="rank">225</td>
+          <td><code>35443</code></td>
+        </tr>
+<tr>
+          <td class="rank">226</td>
+          <td><code>28810</code></td>
+        </tr>
+<tr>
+          <td class="rank">227</td>
+          <td><code>50959</code></td>
+        </tr>
+<tr>
+          <td class="rank">228</td>
+          <td><code>40724</code></td>
+        </tr>
+<tr>
+          <td class="rank">229</td>
+          <td><code>21005</code></td>
+        </tr>
+<tr>
+          <td class="rank">230</td>
+          <td><code>40267</code></td>
+        </tr>
+<tr>
+          <td class="rank">231</td>
+          <td><code>64871</code></td>
+        </tr>
+<tr>
+          <td class="rank">232</td>
+          <td><code>55383</code></td>
+        </tr>
+<tr>
+          <td class="rank">233</td>
+          <td><code>62933</code></td>
+        </tr>
+<tr>
+          <td class="rank">234</td>
+          <td><code>46516</code></td>
+        </tr>
+<tr>
+          <td class="rank">235</td>
+          <td><code>54312</code></td>
+        </tr>
+<tr>
+          <td class="rank">236</td>
+          <td><code>17559</code></td>
+        </tr>
+<tr>
+          <td class="rank">237</td>
+          <td><code>36376</code></td>
+        </tr>
+<tr>
+          <td class="rank">238</td>
+          <td><code>78953</code></td>
+        </tr>
+<tr>
+          <td class="rank">239</td>
+          <td><code>17720</code></td>
+        </tr>
+<tr>
+          <td class="rank">240</td>
+          <td><code>65171</code></td>
+        </tr>
+<tr>
+          <td class="rank">241</td>
+          <td><code>17890</code></td>
+        </tr>
+<tr>
+          <td class="rank">242</td>
+          <td><code>35877</code></td>
+        </tr>
+<tr>
+          <td class="rank">243</td>
+          <td><code>59762</code></td>
+        </tr>
+<tr>
+          <td class="rank">244</td>
+          <td><code>64234</code></td>
+        </tr>
+<tr>
+          <td class="rank">245</td>
+          <td><code>31773</code></td>
+        </tr>
+<tr>
+          <td class="rank">246</td>
+          <td><code>62337</code></td>
+        </tr>
+<tr>
+          <td class="rank">247</td>
+          <td><code>42321</code></td>
+        </tr>
+<tr>
+          <td class="rank">248</td>
+          <td><code>33111</code></td>
+        </tr>
+<tr>
+          <td class="rank">249</td>
+          <td><code>354</code></td>
+        </tr>
+<tr>
+          <td class="rank">250</td>
+          <td><code>11034</code></td>
+        </tr>
+<tr>
+          <td class="rank">251</td>
+          <td><code>51510</code></td>
+        </tr>
+<tr>
+          <td class="rank">252</td>
+          <td><code>51190</code></td>
+        </tr>
+<tr>
+          <td class="rank">253</td>
+          <td><code>7473</code></td>
+        </tr>
+<tr>
+          <td class="rank">254</td>
+          <td><code>57276</code></td>
+        </tr>
+<tr>
+          <td class="rank">255</td>
+          <td><code>23640</code></td>
+        </tr>
+<tr>
+          <td class="rank">256</td>
+          <td><code>20841</code></td>
+        </tr>
+<tr>
+          <td class="rank">257</td>
+          <td><code>69696</code></td>
+        </tr>
+<tr>
+          <td class="rank">258</td>
+          <td><code>78909</code></td>
+        </tr>
+<tr>
+          <td class="rank">259</td>
+          <td><code>66568</code></td>
+        </tr>
+<tr>
+          <td class="rank">260</td>
+          <td><code>29289</code></td>
+        </tr>
+<tr>
+          <td class="rank">261</td>
+          <td><code>49115</code></td>
+        </tr>
+<tr>
+          <td class="rank">262</td>
+          <td><code>35715</code></td>
+        </tr>
+<tr>
+          <td class="rank">263</td>
+          <td><code>50629</code></td>
+        </tr>
+<tr>
+          <td class="rank">264</td>
+          <td><code>71119</code></td>
+        </tr>
+<tr>
+          <td class="rank">265</td>
+          <td><code>31442</code></td>
+        </tr>
+<tr>
+          <td class="rank">266</td>
+          <td><code>22193</code></td>
+        </tr>
+<tr>
+          <td class="rank">267</td>
+          <td><code>11518</code></td>
+        </tr>
+<tr>
+          <td class="rank">268</td>
+          <td><code>66360</code></td>
+        </tr>
+<tr>
+          <td class="rank">269</td>
+          <td><code>58323</code></td>
+        </tr>
+<tr>
+          <td class="rank">270</td>
+          <td><code>3173</code></td>
+        </tr>
+<tr>
+          <td class="rank">271</td>
+          <td><code>38739</code></td>
+        </tr>
+<tr>
+          <td class="rank">272</td>
+          <td><code>28508</code></td>
+        </tr>
+<tr>
+          <td class="rank">273</td>
+          <td><code>13200</code></td>
+        </tr>
+<tr>
+          <td class="rank">274</td>
+          <td><code>36396</code></td>
+        </tr>
+<tr>
+          <td class="rank">275</td>
+          <td><code>57685</code></td>
+        </tr>
+<tr>
+          <td class="rank">276</td>
+          <td><code>30255</code></td>
+        </tr>
+<tr>
+          <td class="rank">277</td>
+          <td><code>77684</code></td>
+        </tr>
+<tr>
+          <td class="rank">278</td>
+          <td><code>22225</code></td>
+        </tr>
+<tr>
+          <td class="rank">279</td>
+          <td><code>482</code></td>
+        </tr>
+<tr>
+          <td class="rank">280</td>
+          <td><code>37146</code></td>
+        </tr>
+<tr>
+          <td class="rank">281</td>
+          <td><code>32486</code></td>
+        </tr>
+<tr>
+          <td class="rank">282</td>
+          <td><code>36956</code></td>
+        </tr>
+<tr>
+          <td class="rank">283</td>
+          <td><code>74283</code></td>
+        </tr>
+<tr>
+          <td class="rank">284</td>
+          <td><code>17984</code></td>
+        </tr>
+<tr>
+          <td class="rank">285</td>
+          <td><code>2153</code></td>
+        </tr>
+<tr>
+          <td class="rank">286</td>
+          <td><code>7910</code></td>
+        </tr>
+<tr>
+          <td class="rank">287</td>
+          <td><code>35005</code></td>
+        </tr>
+<tr>
+          <td class="rank">288</td>
+          <td><code>16570</code></td>
+        </tr>
+<tr>
+          <td class="rank">289</td>
+          <td><code>59223</code></td>
+        </tr>
+<tr>
+          <td class="rank">290</td>
+          <td><code>76130</code></td>
+        </tr>
+<tr>
+          <td class="rank">291</td>
+          <td><code>22190</code></td>
+        </tr>
+<tr>
+          <td class="rank">292</td>
+          <td><code>3821</code></td>
+        </tr>
+<tr>
+          <td class="rank">293</td>
+          <td><code>77408</code></td>
+        </tr>
+<tr>
+          <td class="rank">294</td>
+          <td><code>33661</code></td>
+        </tr>
+<tr>
+          <td class="rank">295</td>
+          <td><code>40623</code></td>
+        </tr>
+<tr>
+          <td class="rank">296</td>
+          <td><code>10229</code></td>
+        </tr>
+<tr>
+          <td class="rank">297</td>
+          <td><code>15912</code></td>
+        </tr>
+<tr>
+          <td class="rank">298</td>
+          <td><code>49255</code></td>
+        </tr>
+<tr>
+          <td class="rank">299</td>
+          <td><code>55648</code></td>
+        </tr>
+<tr>
+          <td class="rank">300</td>
+          <td><code>32280</code></td>
+        </tr>
+<tr>
+          <td class="rank">301</td>
+          <td><code>5264</code></td>
+        </tr>
+<tr>
+          <td class="rank">302</td>
+          <td><code>50466</code></td>
+        </tr>
+<tr>
+          <td class="rank">303</td>
+          <td><code>34000</code></td>
+        </tr>
+<tr>
+          <td class="rank">304</td>
+          <td><code>51530</code></td>
+        </tr>
+<tr>
+          <td class="rank">305</td>
+          <td><code>31693</code></td>
+        </tr>
+<tr>
+          <td class="rank">306</td>
+          <td><code>51428</code></td>
+        </tr>
+<tr>
+          <td class="rank">307</td>
+          <td><code>62301</code></td>
+        </tr>
+<tr>
+          <td class="rank">308</td>
+          <td><code>71623</code></td>
+        </tr>
+<tr>
+          <td class="rank">309</td>
+          <td><code>57793</code></td>
+        </tr>
+<tr>
+          <td class="rank">310</td>
+          <td><code>32405</code></td>
+        </tr>
+<tr>
+          <td class="rank">311</td>
+          <td><code>38629</code></td>
+        </tr>
+<tr>
+          <td class="rank">312</td>
+          <td><code>24663</code></td>
+        </tr>
+<tr>
+          <td class="rank">313</td>
+          <td><code>55775</code></td>
+        </tr>
+<tr>
+          <td class="rank">314</td>
+          <td><code>74593</code></td>
+        </tr>
+<tr>
+          <td class="rank">315</td>
+          <td><code>44626</code></td>
+        </tr>
+<tr>
+          <td class="rank">316</td>
+          <td><code>48722</code></td>
+        </tr>
+<tr>
+          <td class="rank">317</td>
+          <td><code>10957</code></td>
+        </tr>
+<tr>
+          <td class="rank">318</td>
+          <td><code>46542</code></td>
+        </tr>
+<tr>
+          <td class="rank">319</td>
+          <td><code>9919</code></td>
+        </tr>
+<tr>
+          <td class="rank">320</td>
+          <td><code>68473</code></td>
+        </tr>
+<tr>
+          <td class="rank">321</td>
+          <td><code>65439</code></td>
+        </tr>
+<tr>
+          <td class="rank">322</td>
+          <td><code>12662</code></td>
+        </tr>
+<tr>
+          <td class="rank">323</td>
+          <td><code>30293</code></td>
+        </tr>
+<tr>
+          <td class="rank">324</td>
+          <td><code>3897</code></td>
+        </tr>
+<tr>
+          <td class="rank">325</td>
+          <td><code>33893</code></td>
+        </tr>
+<tr>
+          <td class="rank">326</td>
+          <td><code>60325</code></td>
+        </tr>
+<tr>
+          <td class="rank">327</td>
+          <td><code>44732</code></td>
+        </tr>
+<tr>
+          <td class="rank">328</td>
+          <td><code>60406</code></td>
+        </tr>
+<tr>
+          <td class="rank">329</td>
+          <td><code>57380</code></td>
+        </tr>
+<tr>
+          <td class="rank">330</td>
+          <td><code>72925</code></td>
+        </tr>
+<tr>
+          <td class="rank">331</td>
+          <td><code>6832</code></td>
+        </tr>
+<tr>
+          <td class="rank">332</td>
+          <td><code>44568</code></td>
+        </tr>
+<tr>
+          <td class="rank">333</td>
+          <td><code>57162</code></td>
+        </tr>
+<tr>
+          <td class="rank">334</td>
+          <td><code>22133</code></td>
+        </tr>
+<tr>
+          <td class="rank">335</td>
+          <td><code>24048</code></td>
+        </tr>
+<tr>
+          <td class="rank">336</td>
+          <td><code>10214</code></td>
+        </tr>
+<tr>
+          <td class="rank">337</td>
+          <td><code>48841</code></td>
+        </tr>
+<tr>
+          <td class="rank">338</td>
+          <td><code>63567</code></td>
+        </tr>
+<tr>
+          <td class="rank">339</td>
+          <td><code>61266</code></td>
+        </tr>
+<tr>
+          <td class="rank">340</td>
+          <td><code>9275</code></td>
+        </tr>
+<tr>
+          <td class="rank">341</td>
+          <td><code>74762</code></td>
+        </tr>
+<tr>
+          <td class="rank">342</td>
+          <td><code>40797</code></td>
+        </tr>
+<tr>
+          <td class="rank">343</td>
+          <td><code>79426</code></td>
+        </tr>
+<tr>
+          <td class="rank">344</td>
+          <td><code>40266</code></td>
+        </tr>
+<tr>
+          <td class="rank">345</td>
+          <td><code>58776</code></td>
+        </tr>
+<tr>
+          <td class="rank">346</td>
+          <td><code>39373</code></td>
+        </tr>
+<tr>
+          <td class="rank">347</td>
+          <td><code>38955</code></td>
+        </tr>
+<tr>
+          <td class="rank">348</td>
+          <td><code>73677</code></td>
+        </tr>
+<tr>
+          <td class="rank">349</td>
+          <td><code>57920</code></td>
+        </tr>
+<tr>
+          <td class="rank">350</td>
+          <td><code>73886</code></td>
+        </tr>
+<tr>
+          <td class="rank">351</td>
+          <td><code>4652</code></td>
+        </tr>
+<tr>
+          <td class="rank">352</td>
+          <td><code>8030</code></td>
+        </tr>
+<tr>
+          <td class="rank">353</td>
+          <td><code>75895</code></td>
+        </tr>
+<tr>
+          <td class="rank">354</td>
+          <td><code>33030</code></td>
+        </tr>
+<tr>
+          <td class="rank">355</td>
+          <td><code>43656</code></td>
+        </tr>
+<tr>
+          <td class="rank">356</td>
+          <td><code>2517</code></td>
+        </tr>
+<tr>
+          <td class="rank">357</td>
+          <td><code>56110</code></td>
+        </tr>
+<tr>
+          <td class="rank">358</td>
+          <td><code>66255</code></td>
+        </tr>
+<tr>
+          <td class="rank">359</td>
+          <td><code>42327</code></td>
+        </tr>
+<tr>
+          <td class="rank">360</td>
+          <td><code>19412</code></td>
+        </tr>
+<tr>
+          <td class="rank">361</td>
+          <td><code>39392</code></td>
+        </tr>
+<tr>
+          <td class="rank">362</td>
+          <td><code>16497</code></td>
+        </tr>
+<tr>
+          <td class="rank">363</td>
+          <td><code>56221</code></td>
+        </tr>
+<tr>
+          <td class="rank">364</td>
+          <td><code>65010</code></td>
+        </tr>
+<tr>
+          <td class="rank">365</td>
+          <td><code>72852</code></td>
+        </tr>
+<tr>
+          <td class="rank">366</td>
+          <td><code>2959</code></td>
+        </tr>
+<tr>
+          <td class="rank">367</td>
+          <td><code>68801</code></td>
+        </tr>
+<tr>
+          <td class="rank">368</td>
+          <td><code>44266</code></td>
+        </tr>
+<tr>
+          <td class="rank">369</td>
+          <td><code>51435</code></td>
+        </tr>
+<tr>
+          <td class="rank">370</td>
+          <td><code>41987</code></td>
+        </tr>
+<tr>
+          <td class="rank">371</td>
+          <td><code>37075</code></td>
+        </tr>
+<tr>
+          <td class="rank">372</td>
+          <td><code>75450</code></td>
+        </tr>
+<tr>
+          <td class="rank">373</td>
+          <td><code>8380</code></td>
+        </tr>
+<tr>
+          <td class="rank">374</td>
+          <td><code>40342</code></td>
+        </tr>
+<tr>
+          <td class="rank">375</td>
+          <td><code>17502</code></td>
+        </tr>
+<tr>
+          <td class="rank">376</td>
+          <td><code>68709</code></td>
+        </tr>
+<tr>
+          <td class="rank">377</td>
+          <td><code>50691</code></td>
+        </tr>
+<tr>
+          <td class="rank">378</td>
+          <td><code>40562</code></td>
+        </tr>
+<tr>
+          <td class="rank">379</td>
+          <td><code>50560</code></td>
+        </tr>
+<tr>
+          <td class="rank">380</td>
+          <td><code>27747</code></td>
+        </tr>
+<tr>
+          <td class="rank">381</td>
+          <td><code>19594</code></td>
+        </tr>
+<tr>
+          <td class="rank">382</td>
+          <td><code>37233</code></td>
+        </tr>
+<tr>
+          <td class="rank">383</td>
+          <td><code>47236</code></td>
+        </tr>
+<tr>
+          <td class="rank">384</td>
+          <td><code>41934</code></td>
+        </tr>
+<tr>
+          <td class="rank">385</td>
+          <td><code>13434</code></td>
+        </tr>
+<tr>
+          <td class="rank">386</td>
+          <td><code>13402</code></td>
+        </tr>
+<tr>
+          <td class="rank">387</td>
+          <td><code>52959</code></td>
+        </tr>
+<tr>
+          <td class="rank">388</td>
+          <td><code>13173</code></td>
+        </tr>
+<tr>
+          <td class="rank">389</td>
+          <td><code>50200</code></td>
+        </tr>
+<tr>
+          <td class="rank">390</td>
+          <td><code>59255</code></td>
+        </tr>
+<tr>
+          <td class="rank">391</td>
+          <td><code>37275</code></td>
+        </tr>
+<tr>
+          <td class="rank">392</td>
+          <td><code>54366</code></td>
+        </tr>
+<tr>
+          <td class="rank">393</td>
+          <td><code>41193</code></td>
+        </tr>
+<tr>
+          <td class="rank">394</td>
+          <td><code>77544</code></td>
+        </tr>
+<tr>
+          <td class="rank">395</td>
+          <td><code>79826</code></td>
+        </tr>
+<tr>
+          <td class="rank">396</td>
+          <td><code>45971</code></td>
+        </tr>
+<tr>
+          <td class="rank">397</td>
+          <td><code>45404</code></td>
+        </tr>
+<tr>
+          <td class="rank">398</td>
+          <td><code>69074</code></td>
+        </tr>
+<tr>
+          <td class="rank">399</td>
+          <td><code>47119</code></td>
+        </tr>
+<tr>
+          <td class="rank">400</td>
+          <td><code>16944</code></td>
+        </tr>
+</tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Sparse（纯列表） -->
+    <div class="col-wrap">
+      <div class="col-header h-sparse">🟡 Sparse Top-400</div>
+      <div class="scroll-body">
+        <table>
+          <thead><tr><th>#</th><th>ID</th></tr></thead>
+          <tbody><tr>
+          <td class="rank">1</td>
+          <td><code>29254</code></td>
+        </tr>
+<tr>
+          <td class="rank">2</td>
+          <td><code>53698</code></td>
+        </tr>
+<tr>
+          <td class="rank">3</td>
+          <td><code>69137</code></td>
+        </tr>
+<tr>
+          <td class="rank">4</td>
+          <td><code>16220</code></td>
+        </tr>
+<tr>
+          <td class="rank">5</td>
+          <td><code>5827</code></td>
+        </tr>
+<tr>
+          <td class="rank">6</td>
+          <td><code>37455</code></td>
+        </tr>
+<tr>
+          <td class="rank">7</td>
+          <td><code>27008</code></td>
+        </tr>
+<tr>
+          <td class="rank">8</td>
+          <td><code>26825</code></td>
+        </tr>
+<tr>
+          <td class="rank">9</td>
+          <td><code>7478</code></td>
+        </tr>
+<tr>
+          <td class="rank">10</td>
+          <td><code>59324</code></td>
+        </tr>
+<tr>
+          <td class="rank">11</td>
+          <td><code>67622</code></td>
+        </tr>
+<tr>
+          <td class="rank">12</td>
+          <td><code>40724</code></td>
+        </tr>
+<tr>
+          <td class="rank">13</td>
+          <td><code>30475</code></td>
+        </tr>
+<tr>
+          <td class="rank">14</td>
+          <td><code>67257</code></td>
+        </tr>
+<tr>
+          <td class="rank">15</td>
+          <td><code>22190</code></td>
+        </tr>
+<tr>
+          <td class="rank">16</td>
+          <td><code>60728</code></td>
+        </tr>
+<tr>
+          <td class="rank">17</td>
+          <td><code>73722</code></td>
+        </tr>
+<tr>
+          <td class="rank">18</td>
+          <td><code>19137</code></td>
+        </tr>
+<tr>
+          <td class="rank">19</td>
+          <td><code>66710</code></td>
+        </tr>
+<tr>
+          <td class="rank">20</td>
+          <td><code>73666</code></td>
+        </tr>
+<tr>
+          <td class="rank">21</td>
+          <td><code>31338</code></td>
+        </tr>
+<tr>
+          <td class="rank">22</td>
+          <td><code>39506</code></td>
+        </tr>
+<tr>
+          <td class="rank">23</td>
+          <td><code>40897</code></td>
+        </tr>
+<tr>
+          <td class="rank">24</td>
+          <td><code>68856</code></td>
+        </tr>
+<tr>
+          <td class="rank">25</td>
+          <td><code>26236</code></td>
+        </tr>
+<tr>
+          <td class="rank">26</td>
+          <td><code>1608</code></td>
+        </tr>
+<tr>
+          <td class="rank">27</td>
+          <td><code>50560</code></td>
+        </tr>
+<tr>
+          <td class="rank">28</td>
+          <td><code>41164</code></td>
+        </tr>
+<tr>
+          <td class="rank">29</td>
+          <td><code>67657</code></td>
+        </tr>
+<tr>
+          <td class="rank">30</td>
+          <td><code>18834</code></td>
+        </tr>
+<tr>
+          <td class="rank">31</td>
+          <td><code>59221</code></td>
+        </tr>
+<tr>
+          <td class="rank">32</td>
+          <td><code>28404</code></td>
+        </tr>
+<tr>
+          <td class="rank">33</td>
+          <td><code>47020</code></td>
+        </tr>
+<tr>
+          <td class="rank">34</td>
+          <td><code>37819</code></td>
+        </tr>
+<tr>
+          <td class="rank">35</td>
+          <td><code>44414</code></td>
+        </tr>
+<tr>
+          <td class="rank">36</td>
+          <td><code>77626</code></td>
+        </tr>
+<tr>
+          <td class="rank">37</td>
+          <td><code>71443</code></td>
+        </tr>
+<tr>
+          <td class="rank">38</td>
+          <td><code>3980</code></td>
+        </tr>
+<tr>
+          <td class="rank">39</td>
+          <td><code>27604</code></td>
+        </tr>
+<tr>
+          <td class="rank">40</td>
+          <td><code>38918</code></td>
+        </tr>
+<tr>
+          <td class="rank">41</td>
+          <td><code>51510</code></td>
+        </tr>
+<tr>
+          <td class="rank">42</td>
+          <td><code>34824</code></td>
+        </tr>
+<tr>
+          <td class="rank">43</td>
+          <td><code>60685</code></td>
+        </tr>
+<tr>
+          <td class="rank">44</td>
+          <td><code>22215</code></td>
+        </tr>
+<tr>
+          <td class="rank">45</td>
+          <td><code>34031</code></td>
+        </tr>
+<tr>
+          <td class="rank">46</td>
+          <td><code>1646</code></td>
+        </tr>
+<tr>
+          <td class="rank">47</td>
+          <td><code>32486</code></td>
+        </tr>
+<tr>
+          <td class="rank">48</td>
+          <td><code>6140</code></td>
+        </tr>
+<tr>
+          <td class="rank">49</td>
+          <td><code>8509</code></td>
+        </tr>
+<tr>
+          <td class="rank">50</td>
+          <td><code>44266</code></td>
+        </tr>
+<tr>
+          <td class="rank">51</td>
+          <td><code>52527</code></td>
+        </tr>
+<tr>
+          <td class="rank">52</td>
+          <td><code>67147</code></td>
+        </tr>
+<tr>
+          <td class="rank">53</td>
+          <td><code>51258</code></td>
+        </tr>
+<tr>
+          <td class="rank">54</td>
+          <td><code>34017</code></td>
+        </tr>
+<tr>
+          <td class="rank">55</td>
+          <td><code>3426</code></td>
+        </tr>
+<tr>
+          <td class="rank">56</td>
+          <td><code>55717</code></td>
+        </tr>
+<tr>
+          <td class="rank">57</td>
+          <td><code>54247</code></td>
+        </tr>
+<tr>
+          <td class="rank">58</td>
+          <td><code>51740</code></td>
+        </tr>
+<tr>
+          <td class="rank">59</td>
+          <td><code>40551</code></td>
+        </tr>
+<tr>
+          <td class="rank">60</td>
+          <td><code>22225</code></td>
+        </tr>
+<tr>
+          <td class="rank">61</td>
+          <td><code>43282</code></td>
+        </tr>
+<tr>
+          <td class="rank">62</td>
+          <td><code>21151</code></td>
+        </tr>
+<tr>
+          <td class="rank">63</td>
+          <td><code>60987</code></td>
+        </tr>
+<tr>
+          <td class="rank">64</td>
+          <td><code>48841</code></td>
+        </tr>
+<tr>
+          <td class="rank">65</td>
+          <td><code>52599</code></td>
+        </tr>
+<tr>
+          <td class="rank">66</td>
+          <td><code>72008</code></td>
+        </tr>
+<tr>
+          <td class="rank">67</td>
+          <td><code>50466</code></td>
+        </tr>
+<tr>
+          <td class="rank">68</td>
+          <td><code>74651</code></td>
+        </tr>
+<tr>
+          <td class="rank">69</td>
+          <td><code>50629</code></td>
+        </tr>
+<tr>
+          <td class="rank">70</td>
+          <td><code>15652</code></td>
+        </tr>
+<tr>
+          <td class="rank">71</td>
+          <td><code>1506</code></td>
+        </tr>
+<tr>
+          <td class="rank">72</td>
+          <td><code>3173</code></td>
+        </tr>
+<tr>
+          <td class="rank">73</td>
+          <td><code>74511</code></td>
+        </tr>
+<tr>
+          <td class="rank">74</td>
+          <td><code>43765</code></td>
+        </tr>
+<tr>
+          <td class="rank">75</td>
+          <td><code>62216</code></td>
+        </tr>
+<tr>
+          <td class="rank">76</td>
+          <td><code>60837</code></td>
+        </tr>
+<tr>
+          <td class="rank">77</td>
+          <td><code>70626</code></td>
+        </tr>
+<tr>
+          <td class="rank">78</td>
+          <td><code>26213</code></td>
+        </tr>
+<tr>
+          <td class="rank">79</td>
+          <td><code>68343</code></td>
+        </tr>
+<tr>
+          <td class="rank">80</td>
+          <td><code>58334</code></td>
+        </tr>
+<tr>
+          <td class="rank">81</td>
+          <td><code>11518</code></td>
+        </tr>
+<tr>
+          <td class="rank">82</td>
+          <td><code>14592</code></td>
+        </tr>
+<tr>
+          <td class="rank">83</td>
+          <td><code>39535</code></td>
+        </tr>
+<tr>
+          <td class="rank">84</td>
+          <td><code>7974</code></td>
+        </tr>
+<tr>
+          <td class="rank">85</td>
+          <td><code>18697</code></td>
+        </tr>
+<tr>
+          <td class="rank">86</td>
+          <td><code>3367</code></td>
+        </tr>
+<tr>
+          <td class="rank">87</td>
+          <td><code>36361</code></td>
+        </tr>
+<tr>
+          <td class="rank">88</td>
+          <td><code>78055</code></td>
+        </tr>
+<tr>
+          <td class="rank">89</td>
+          <td><code>79144</code></td>
+        </tr>
+<tr>
+          <td class="rank">90</td>
+          <td><code>65171</code></td>
+        </tr>
+<tr>
+          <td class="rank">91</td>
+          <td><code>20691</code></td>
+        </tr>
+<tr>
+          <td class="rank">92</td>
+          <td><code>78450</code></td>
+        </tr>
+<tr>
+          <td class="rank">93</td>
+          <td><code>45908</code></td>
+        </tr>
+<tr>
+          <td class="rank">94</td>
+          <td><code>56202</code></td>
+        </tr>
+<tr>
+          <td class="rank">95</td>
+          <td><code>34919</code></td>
+        </tr>
+<tr>
+          <td class="rank">96</td>
+          <td><code>45008</code></td>
+        </tr>
+<tr>
+          <td class="rank">97</td>
+          <td><code>52609</code></td>
+        </tr>
+<tr>
+          <td class="rank">98</td>
+          <td><code>34134</code></td>
+        </tr>
+<tr>
+          <td class="rank">99</td>
+          <td><code>40070</code></td>
+        </tr>
+<tr>
+          <td class="rank">100</td>
+          <td><code>11715</code></td>
+        </tr>
+<tr>
+          <td class="rank">101</td>
+          <td><code>2946</code></td>
+        </tr>
+<tr>
+          <td class="rank">102</td>
+          <td><code>60982</code></td>
+        </tr>
+<tr>
+          <td class="rank">103</td>
+          <td><code>8980</code></td>
+        </tr>
+<tr>
+          <td class="rank">104</td>
+          <td><code>44708</code></td>
+        </tr>
+<tr>
+          <td class="rank">105</td>
+          <td><code>39741</code></td>
+        </tr>
+<tr>
+          <td class="rank">106</td>
+          <td><code>25526</code></td>
+        </tr>
+<tr>
+          <td class="rank">107</td>
+          <td><code>1410</code></td>
+        </tr>
+<tr>
+          <td class="rank">108</td>
+          <td><code>60203</code></td>
+        </tr>
+<tr>
+          <td class="rank">109</td>
+          <td><code>74627</code></td>
+        </tr>
+<tr>
+          <td class="rank">110</td>
+          <td><code>72033</code></td>
+        </tr>
+<tr>
+          <td class="rank">111</td>
+          <td><code>60052</code></td>
+        </tr>
+<tr>
+          <td class="rank">112</td>
+          <td><code>51895</code></td>
+        </tr>
+<tr>
+          <td class="rank">113</td>
+          <td><code>68709</code></td>
+        </tr>
+<tr>
+          <td class="rank">114</td>
+          <td><code>34467</code></td>
+        </tr>
+<tr>
+          <td class="rank">115</td>
+          <td><code>14912</code></td>
+        </tr>
+<tr>
+          <td class="rank">116</td>
+          <td><code>40963</code></td>
+        </tr>
+<tr>
+          <td class="rank">117</td>
+          <td><code>19355</code></td>
+        </tr>
+<tr>
+          <td class="rank">118</td>
+          <td><code>53284</code></td>
+        </tr>
+<tr>
+          <td class="rank">119</td>
+          <td><code>21583</code></td>
+        </tr>
+<tr>
+          <td class="rank">120</td>
+          <td><code>28434</code></td>
+        </tr>
+<tr>
+          <td class="rank">121</td>
+          <td><code>20164</code></td>
+        </tr>
+<tr>
+          <td class="rank">122</td>
+          <td><code>6089</code></td>
+        </tr>
+<tr>
+          <td class="rank">123</td>
+          <td><code>72852</code></td>
+        </tr>
+<tr>
+          <td class="rank">124</td>
+          <td><code>11459</code></td>
+        </tr>
+<tr>
+          <td class="rank">125</td>
+          <td><code>5967</code></td>
+        </tr>
+<tr>
+          <td class="rank">126</td>
+          <td><code>42776</code></td>
+        </tr>
+<tr>
+          <td class="rank">127</td>
+          <td><code>42395</code></td>
+        </tr>
+<tr>
+          <td class="rank">128</td>
+          <td><code>41719</code></td>
+        </tr>
+<tr>
+          <td class="rank">129</td>
+          <td><code>34588</code></td>
+        </tr>
+<tr>
+          <td class="rank">130</td>
+          <td><code>41048</code></td>
+        </tr>
+<tr>
+          <td class="rank">131</td>
+          <td><code>17059</code></td>
+        </tr>
+<tr>
+          <td class="rank">132</td>
+          <td><code>33655</code></td>
+        </tr>
+<tr>
+          <td class="rank">133</td>
+          <td><code>19849</code></td>
+        </tr>
+<tr>
+          <td class="rank">134</td>
+          <td><code>28977</code></td>
+        </tr>
+<tr>
+          <td class="rank">135</td>
+          <td><code>76741</code></td>
+        </tr>
+<tr>
+          <td class="rank">136</td>
+          <td><code>31632</code></td>
+        </tr>
+<tr>
+          <td class="rank">137</td>
+          <td><code>78374</code></td>
+        </tr>
+<tr>
+          <td class="rank">138</td>
+          <td><code>62646</code></td>
+        </tr>
+<tr>
+          <td class="rank">139</td>
+          <td><code>17559</code></td>
+        </tr>
+<tr>
+          <td class="rank">140</td>
+          <td><code>61366</code></td>
+        </tr>
+<tr>
+          <td class="rank">141</td>
+          <td><code>54019</code></td>
+        </tr>
+<tr>
+          <td class="rank">142</td>
+          <td><code>70409</code></td>
+        </tr>
+<tr>
+          <td class="rank">143</td>
+          <td><code>17443</code></td>
+        </tr>
+<tr>
+          <td class="rank">144</td>
+          <td><code>67434</code></td>
+        </tr>
+<tr>
+          <td class="rank">145</td>
+          <td><code>4136</code></td>
+        </tr>
+<tr>
+          <td class="rank">146</td>
+          <td><code>63198</code></td>
+        </tr>
+<tr>
+          <td class="rank">147</td>
+          <td><code>66051</code></td>
+        </tr>
+<tr>
+          <td class="rank">148</td>
+          <td><code>62211</code></td>
+        </tr>
+<tr>
+          <td class="rank">149</td>
+          <td><code>4305</code></td>
+        </tr>
+<tr>
+          <td class="rank">150</td>
+          <td><code>12454</code></td>
+        </tr>
+<tr>
+          <td class="rank">151</td>
+          <td><code>8556</code></td>
+        </tr>
+<tr>
+          <td class="rank">152</td>
+          <td><code>45354</code></td>
+        </tr>
+<tr>
+          <td class="rank">153</td>
+          <td><code>31115</code></td>
+        </tr>
+<tr>
+          <td class="rank">154</td>
+          <td><code>4246</code></td>
+        </tr>
+<tr>
+          <td class="rank">155</td>
+          <td><code>58938</code></td>
+        </tr>
+<tr>
+          <td class="rank">156</td>
+          <td><code>25848</code></td>
+        </tr>
+<tr>
+          <td class="rank">157</td>
+          <td><code>65147</code></td>
+        </tr>
+<tr>
+          <td class="rank">158</td>
+          <td><code>64617</code></td>
+        </tr>
+<tr>
+          <td class="rank">159</td>
+          <td><code>64876</code></td>
+        </tr>
+<tr>
+          <td class="rank">160</td>
+          <td><code>41352</code></td>
+        </tr>
+<tr>
+          <td class="rank">161</td>
+          <td><code>35936</code></td>
+        </tr>
+<tr>
+          <td class="rank">162</td>
+          <td><code>71492</code></td>
+        </tr>
+<tr>
+          <td class="rank">163</td>
+          <td><code>46542</code></td>
+        </tr>
+<tr>
+          <td class="rank">164</td>
+          <td><code>9919</code></td>
+        </tr>
+<tr>
+          <td class="rank">165</td>
+          <td><code>49313</code></td>
+        </tr>
+<tr>
+          <td class="rank">166</td>
+          <td><code>63787</code></td>
+        </tr>
+<tr>
+          <td class="rank">167</td>
+          <td><code>22613</code></td>
+        </tr>
+<tr>
+          <td class="rank">168</td>
+          <td><code>37618</code></td>
+        </tr>
+<tr>
+          <td class="rank">169</td>
+          <td><code>4239</code></td>
+        </tr>
+<tr>
+          <td class="rank">170</td>
+          <td><code>16253</code></td>
+        </tr>
+<tr>
+          <td class="rank">171</td>
+          <td><code>79664</code></td>
+        </tr>
+<tr>
+          <td class="rank">172</td>
+          <td><code>68825</code></td>
+        </tr>
+<tr>
+          <td class="rank">173</td>
+          <td><code>56275</code></td>
+        </tr>
+<tr>
+          <td class="rank">174</td>
+          <td><code>31118</code></td>
+        </tr>
+<tr>
+          <td class="rank">175</td>
+          <td><code>38545</code></td>
+        </tr>
+<tr>
+          <td class="rank">176</td>
+          <td><code>69909</code></td>
+        </tr>
+<tr>
+          <td class="rank">177</td>
+          <td><code>16481</code></td>
+        </tr>
+<tr>
+          <td class="rank">178</td>
+          <td><code>26777</code></td>
+        </tr>
+<tr>
+          <td class="rank">179</td>
+          <td><code>38534</code></td>
+        </tr>
+<tr>
+          <td class="rank">180</td>
+          <td><code>59469</code></td>
+        </tr>
+<tr>
+          <td class="rank">181</td>
+          <td><code>10591</code></td>
+        </tr>
+<tr>
+          <td class="rank">182</td>
+          <td><code>28150</code></td>
+        </tr>
+<tr>
+          <td class="rank">183</td>
+          <td><code>16140</code></td>
+        </tr>
+<tr>
+          <td class="rank">184</td>
+          <td><code>52950</code></td>
+        </tr>
+<tr>
+          <td class="rank">185</td>
+          <td><code>38255</code></td>
+        </tr>
+<tr>
+          <td class="rank">186</td>
+          <td><code>69195</code></td>
+        </tr>
+<tr>
+          <td class="rank">187</td>
+          <td><code>11474</code></td>
+        </tr>
+<tr>
+          <td class="rank">188</td>
+          <td><code>51428</code></td>
+        </tr>
+<tr>
+          <td class="rank">189</td>
+          <td><code>4303</code></td>
+        </tr>
+<tr>
+          <td class="rank">190</td>
+          <td><code>41788</code></td>
+        </tr>
+<tr>
+          <td class="rank">191</td>
+          <td><code>31511</code></td>
+        </tr>
+<tr>
+          <td class="rank">192</td>
+          <td><code>576</code></td>
+        </tr>
+<tr>
+          <td class="rank">193</td>
+          <td><code>57545</code></td>
+        </tr>
+<tr>
+          <td class="rank">194</td>
+          <td><code>4605</code></td>
+        </tr>
+<tr>
+          <td class="rank">195</td>
+          <td><code>49115</code></td>
+        </tr>
+<tr>
+          <td class="rank">196</td>
+          <td><code>48416</code></td>
+        </tr>
+<tr>
+          <td class="rank">197</td>
+          <td><code>36677</code></td>
+        </tr>
+<tr>
+          <td class="rank">198</td>
+          <td><code>33414</code></td>
+        </tr>
+<tr>
+          <td class="rank">199</td>
+          <td><code>57908</code></td>
+        </tr>
+<tr>
+          <td class="rank">200</td>
+          <td><code>32254</code></td>
+        </tr>
+<tr>
+          <td class="rank">201</td>
+          <td><code>28167</code></td>
+        </tr>
+<tr>
+          <td class="rank">202</td>
+          <td><code>16660</code></td>
+        </tr>
+<tr>
+          <td class="rank">203</td>
+          <td><code>66882</code></td>
+        </tr>
+<tr>
+          <td class="rank">204</td>
+          <td><code>76683</code></td>
+        </tr>
+<tr>
+          <td class="rank">205</td>
+          <td><code>16829</code></td>
+        </tr>
+<tr>
+          <td class="rank">206</td>
+          <td><code>51557</code></td>
+        </tr>
+<tr>
+          <td class="rank">207</td>
+          <td><code>61551</code></td>
+        </tr>
+<tr>
+          <td class="rank">208</td>
+          <td><code>1753</code></td>
+        </tr>
+<tr>
+          <td class="rank">209</td>
+          <td><code>59096</code></td>
+        </tr>
+<tr>
+          <td class="rank">210</td>
+          <td><code>52067</code></td>
+        </tr>
+<tr>
+          <td class="rank">211</td>
+          <td><code>57980</code></td>
+        </tr>
+<tr>
+          <td class="rank">212</td>
+          <td><code>47189</code></td>
+        </tr>
+<tr>
+          <td class="rank">213</td>
+          <td><code>51887</code></td>
+        </tr>
+<tr>
+          <td class="rank">214</td>
+          <td><code>18799</code></td>
+        </tr>
+<tr>
+          <td class="rank">215</td>
+          <td><code>67703</code></td>
+        </tr>
+<tr>
+          <td class="rank">216</td>
+          <td><code>7786</code></td>
+        </tr>
+<tr>
+          <td class="rank">217</td>
+          <td><code>43344</code></td>
+        </tr>
+<tr>
+          <td class="rank">218</td>
+          <td><code>64077</code></td>
+        </tr>
+<tr>
+          <td class="rank">219</td>
+          <td><code>12104</code></td>
+        </tr>
+<tr>
+          <td class="rank">220</td>
+          <td><code>7539</code></td>
+        </tr>
+<tr>
+          <td class="rank">221</td>
+          <td><code>28480</code></td>
+        </tr>
+<tr>
+          <td class="rank">222</td>
+          <td><code>20689</code></td>
+        </tr>
+<tr>
+          <td class="rank">223</td>
+          <td><code>2142</code></td>
+        </tr>
+<tr>
+          <td class="rank">224</td>
+          <td><code>23054</code></td>
+        </tr>
+<tr>
+          <td class="rank">225</td>
+          <td><code>23608</code></td>
+        </tr>
+<tr>
+          <td class="rank">226</td>
+          <td><code>6832</code></td>
+        </tr>
+<tr>
+          <td class="rank">227</td>
+          <td><code>17958</code></td>
+        </tr>
+<tr>
+          <td class="rank">228</td>
+          <td><code>50465</code></td>
+        </tr>
+<tr>
+          <td class="rank">229</td>
+          <td><code>21052</code></td>
+        </tr>
+<tr>
+          <td class="rank">230</td>
+          <td><code>7555</code></td>
+        </tr>
+<tr>
+          <td class="rank">231</td>
+          <td><code>71474</code></td>
+        </tr>
+<tr>
+          <td class="rank">232</td>
+          <td><code>56159</code></td>
+        </tr>
+<tr>
+          <td class="rank">233</td>
+          <td><code>16043</code></td>
+        </tr>
+<tr>
+          <td class="rank">234</td>
+          <td><code>55470</code></td>
+        </tr>
+<tr>
+          <td class="rank">235</td>
+          <td><code>36800</code></td>
+        </tr>
+<tr>
+          <td class="rank">236</td>
+          <td><code>31490</code></td>
+        </tr>
+<tr>
+          <td class="rank">237</td>
+          <td><code>42745</code></td>
+        </tr>
+<tr>
+          <td class="rank">238</td>
+          <td><code>24026</code></td>
+        </tr>
+<tr>
+          <td class="rank">239</td>
+          <td><code>67976</code></td>
+        </tr>
+<tr>
+          <td class="rank">240</td>
+          <td><code>19264</code></td>
+        </tr>
+<tr>
+          <td class="rank">241</td>
+          <td><code>39915</code></td>
+        </tr>
+<tr>
+          <td class="rank">242</td>
+          <td><code>66830</code></td>
+        </tr>
+<tr>
+          <td class="rank">243</td>
+          <td><code>24374</code></td>
+        </tr>
+<tr>
+          <td class="rank">244</td>
+          <td><code>79856</code></td>
+        </tr>
+<tr>
+          <td class="rank">245</td>
+          <td><code>40325</code></td>
+        </tr>
+<tr>
+          <td class="rank">246</td>
+          <td><code>27596</code></td>
+        </tr>
+<tr>
+          <td class="rank">247</td>
+          <td><code>12922</code></td>
+        </tr>
+<tr>
+          <td class="rank">248</td>
+          <td><code>17904</code></td>
+        </tr>
+<tr>
+          <td class="rank">249</td>
+          <td><code>78381</code></td>
+        </tr>
+<tr>
+          <td class="rank">250</td>
+          <td><code>8091</code></td>
+        </tr>
+<tr>
+          <td class="rank">251</td>
+          <td><code>16783</code></td>
+        </tr>
+<tr>
+          <td class="rank">252</td>
+          <td><code>15134</code></td>
+        </tr>
+<tr>
+          <td class="rank">253</td>
+          <td><code>6285</code></td>
+        </tr>
+<tr>
+          <td class="rank">254</td>
+          <td><code>29746</code></td>
+        </tr>
+<tr>
+          <td class="rank">255</td>
+          <td><code>11340</code></td>
+        </tr>
+<tr>
+          <td class="rank">256</td>
+          <td><code>57425</code></td>
+        </tr>
+<tr>
+          <td class="rank">257</td>
+          <td><code>6717</code></td>
+        </tr>
+<tr>
+          <td class="rank">258</td>
+          <td><code>76136</code></td>
+        </tr>
+<tr>
+          <td class="rank">259</td>
+          <td><code>57685</code></td>
+        </tr>
+<tr>
+          <td class="rank">260</td>
+          <td><code>60406</code></td>
+        </tr>
+<tr>
+          <td class="rank">261</td>
+          <td><code>15026</code></td>
+        </tr>
+<tr>
+          <td class="rank">262</td>
+          <td><code>77108</code></td>
+        </tr>
+<tr>
+          <td class="rank">263</td>
+          <td><code>11671</code></td>
+        </tr>
+<tr>
+          <td class="rank">264</td>
+          <td><code>20296</code></td>
+        </tr>
+<tr>
+          <td class="rank">265</td>
+          <td><code>10888</code></td>
+        </tr>
+<tr>
+          <td class="rank">266</td>
+          <td><code>39711</code></td>
+        </tr>
+<tr>
+          <td class="rank">267</td>
+          <td><code>72674</code></td>
+        </tr>
+<tr>
+          <td class="rank">268</td>
+          <td><code>77810</code></td>
+        </tr>
+<tr>
+          <td class="rank">269</td>
+          <td><code>60348</code></td>
+        </tr>
+<tr>
+          <td class="rank">270</td>
+          <td><code>65466</code></td>
+        </tr>
+<tr>
+          <td class="rank">271</td>
+          <td><code>24086</code></td>
+        </tr>
+<tr>
+          <td class="rank">272</td>
+          <td><code>67588</code></td>
+        </tr>
+<tr>
+          <td class="rank">273</td>
+          <td><code>59738</code></td>
+        </tr>
+<tr>
+          <td class="rank">274</td>
+          <td><code>42150</code></td>
+        </tr>
+<tr>
+          <td class="rank">275</td>
+          <td><code>69713</code></td>
+        </tr>
+<tr>
+          <td class="rank">276</td>
+          <td><code>78333</code></td>
+        </tr>
+<tr>
+          <td class="rank">277</td>
+          <td><code>71285</code></td>
+        </tr>
+<tr>
+          <td class="rank">278</td>
+          <td><code>7405</code></td>
+        </tr>
+<tr>
+          <td class="rank">279</td>
+          <td><code>17994</code></td>
+        </tr>
+<tr>
+          <td class="rank">280</td>
+          <td><code>43377</code></td>
+        </tr>
+<tr>
+          <td class="rank">281</td>
+          <td><code>31775</code></td>
+        </tr>
+<tr>
+          <td class="rank">282</td>
+          <td><code>38561</code></td>
+        </tr>
+<tr>
+          <td class="rank">283</td>
+          <td><code>16120</code></td>
+        </tr>
+<tr>
+          <td class="rank">284</td>
+          <td><code>33329</code></td>
+        </tr>
+<tr>
+          <td class="rank">285</td>
+          <td><code>74597</code></td>
+        </tr>
+<tr>
+          <td class="rank">286</td>
+          <td><code>22110</code></td>
+        </tr>
+<tr>
+          <td class="rank">287</td>
+          <td><code>29189</code></td>
+        </tr>
+<tr>
+          <td class="rank">288</td>
+          <td><code>31740</code></td>
+        </tr>
+<tr>
+          <td class="rank">289</td>
+          <td><code>62933</code></td>
+        </tr>
+<tr>
+          <td class="rank">290</td>
+          <td><code>30393</code></td>
+        </tr>
+<tr>
+          <td class="rank">291</td>
+          <td><code>65705</code></td>
+        </tr>
+<tr>
+          <td class="rank">292</td>
+          <td><code>26944</code></td>
+        </tr>
+<tr>
+          <td class="rank">293</td>
+          <td><code>1341</code></td>
+        </tr>
+<tr>
+          <td class="rank">294</td>
+          <td><code>11664</code></td>
+        </tr>
+<tr>
+          <td class="rank">295</td>
+          <td><code>29216</code></td>
+        </tr>
+<tr>
+          <td class="rank">296</td>
+          <td><code>77951</code></td>
+        </tr>
+<tr>
+          <td class="rank">297</td>
+          <td><code>63035</code></td>
+        </tr>
+<tr>
+          <td class="rank">298</td>
+          <td><code>556</code></td>
+        </tr>
+<tr>
+          <td class="rank">299</td>
+          <td><code>55682</code></td>
+        </tr>
+<tr>
+          <td class="rank">300</td>
+          <td><code>52608</code></td>
+        </tr>
+<tr>
+          <td class="rank">301</td>
+          <td><code>59223</code></td>
+        </tr>
+<tr>
+          <td class="rank">302</td>
+          <td><code>72716</code></td>
+        </tr>
+<tr>
+          <td class="rank">303</td>
+          <td><code>45576</code></td>
+        </tr>
+<tr>
+          <td class="rank">304</td>
+          <td><code>18480</code></td>
+        </tr>
+<tr>
+          <td class="rank">305</td>
+          <td><code>22084</code></td>
+        </tr>
+<tr>
+          <td class="rank">306</td>
+          <td><code>55821</code></td>
+        </tr>
+<tr>
+          <td class="rank">307</td>
+          <td><code>69783</code></td>
+        </tr>
+<tr>
+          <td class="rank">308</td>
+          <td><code>62938</code></td>
+        </tr>
+<tr>
+          <td class="rank">309</td>
+          <td><code>10839</code></td>
+        </tr>
+<tr>
+          <td class="rank">310</td>
+          <td><code>3797</code></td>
+        </tr>
+<tr>
+          <td class="rank">311</td>
+          <td><code>58651</code></td>
+        </tr>
+<tr>
+          <td class="rank">312</td>
+          <td><code>55418</code></td>
+        </tr>
+<tr>
+          <td class="rank">313</td>
+          <td><code>24258</code></td>
+        </tr>
+<tr>
+          <td class="rank">314</td>
+          <td><code>25926</code></td>
+        </tr>
+<tr>
+          <td class="rank">315</td>
+          <td><code>76743</code></td>
+        </tr>
+<tr>
+          <td class="rank">316</td>
+          <td><code>37793</code></td>
+        </tr>
+<tr>
+          <td class="rank">317</td>
+          <td><code>19916</code></td>
+        </tr>
+<tr>
+          <td class="rank">318</td>
+          <td><code>65989</code></td>
+        </tr>
+<tr>
+          <td class="rank">319</td>
+          <td><code>55261</code></td>
+        </tr>
+<tr>
+          <td class="rank">320</td>
+          <td><code>28519</code></td>
+        </tr>
+<tr>
+          <td class="rank">321</td>
+          <td><code>78930</code></td>
+        </tr>
+<tr>
+          <td class="rank">322</td>
+          <td><code>12280</code></td>
+        </tr>
+<tr>
+          <td class="rank">323</td>
+          <td><code>39093</code></td>
+        </tr>
+<tr>
+          <td class="rank">324</td>
+          <td><code>14721</code></td>
+        </tr>
+<tr>
+          <td class="rank">325</td>
+          <td><code>58348</code></td>
+        </tr>
+<tr>
+          <td class="rank">326</td>
+          <td><code>41921</code></td>
+        </tr>
+<tr>
+          <td class="rank">327</td>
+          <td><code>78339</code></td>
+        </tr>
+<tr>
+          <td class="rank">328</td>
+          <td><code>46416</code></td>
+        </tr>
+<tr>
+          <td class="rank">329</td>
+          <td><code>14434</code></td>
+        </tr>
+<tr>
+          <td class="rank">330</td>
+          <td><code>32757</code></td>
+        </tr>
+<tr>
+          <td class="rank">331</td>
+          <td><code>20619</code></td>
+        </tr>
+<tr>
+          <td class="rank">332</td>
+          <td><code>13779</code></td>
+        </tr>
+<tr>
+          <td class="rank">333</td>
+          <td><code>17222</code></td>
+        </tr>
+<tr>
+          <td class="rank">334</td>
+          <td><code>71239</code></td>
+        </tr>
+<tr>
+          <td class="rank">335</td>
+          <td><code>77173</code></td>
+        </tr>
+<tr>
+          <td class="rank">336</td>
+          <td><code>68044</code></td>
+        </tr>
+<tr>
+          <td class="rank">337</td>
+          <td><code>53030</code></td>
+        </tr>
+<tr>
+          <td class="rank">338</td>
+          <td><code>22066</code></td>
+        </tr>
+<tr>
+          <td class="rank">339</td>
+          <td><code>77623</code></td>
+        </tr>
+<tr>
+          <td class="rank">340</td>
+          <td><code>40222</code></td>
+        </tr>
+<tr>
+          <td class="rank">341</td>
+          <td><code>41764</code></td>
+        </tr>
+<tr>
+          <td class="rank">342</td>
+          <td><code>50495</code></td>
+        </tr>
+<tr>
+          <td class="rank">343</td>
+          <td><code>77886</code></td>
+        </tr>
+<tr>
+          <td class="rank">344</td>
+          <td><code>28636</code></td>
+        </tr>
+<tr>
+          <td class="rank">345</td>
+          <td><code>29097</code></td>
+        </tr>
+<tr>
+          <td class="rank">346</td>
+          <td><code>23959</code></td>
+        </tr>
+<tr>
+          <td class="rank">347</td>
+          <td><code>26322</code></td>
+        </tr>
+<tr>
+          <td class="rank">348</td>
+          <td><code>7625</code></td>
+        </tr>
+<tr>
+          <td class="rank">349</td>
+          <td><code>75574</code></td>
+        </tr>
+<tr>
+          <td class="rank">350</td>
+          <td><code>21150</code></td>
+        </tr>
+<tr>
+          <td class="rank">351</td>
+          <td><code>68107</code></td>
+        </tr>
+<tr>
+          <td class="rank">352</td>
+          <td><code>6530</code></td>
+        </tr>
+<tr>
+          <td class="rank">353</td>
+          <td><code>43153</code></td>
+        </tr>
+<tr>
+          <td class="rank">354</td>
+          <td><code>13745</code></td>
+        </tr>
+<tr>
+          <td class="rank">355</td>
+          <td><code>19215</code></td>
+        </tr>
+<tr>
+          <td class="rank">356</td>
+          <td><code>639</code></td>
+        </tr>
+<tr>
+          <td class="rank">357</td>
+          <td><code>78870</code></td>
+        </tr>
+<tr>
+          <td class="rank">358</td>
+          <td><code>5478</code></td>
+        </tr>
+<tr>
+          <td class="rank">359</td>
+          <td><code>29207</code></td>
+        </tr>
+<tr>
+          <td class="rank">360</td>
+          <td><code>31773</code></td>
+        </tr>
+<tr>
+          <td class="rank">361</td>
+          <td><code>26023</code></td>
+        </tr>
+<tr>
+          <td class="rank">362</td>
+          <td><code>26176</code></td>
+        </tr>
+<tr>
+          <td class="rank">363</td>
+          <td><code>76711</code></td>
+        </tr>
+<tr>
+          <td class="rank">364</td>
+          <td><code>39994</code></td>
+        </tr>
+<tr>
+          <td class="rank">365</td>
+          <td><code>64364</code></td>
+        </tr>
+<tr>
+          <td class="rank">366</td>
+          <td><code>6894</code></td>
+        </tr>
+<tr>
+          <td class="rank">367</td>
+          <td><code>17889</code></td>
+        </tr>
+<tr>
+          <td class="rank">368</td>
+          <td><code>2305</code></td>
+        </tr>
+<tr>
+          <td class="rank">369</td>
+          <td><code>71660</code></td>
+        </tr>
+<tr>
+          <td class="rank">370</td>
+          <td><code>43175</code></td>
+        </tr>
+<tr>
+          <td class="rank">371</td>
+          <td><code>33579</code></td>
+        </tr>
+<tr>
+          <td class="rank">372</td>
+          <td><code>20529</code></td>
+        </tr>
+<tr>
+          <td class="rank">373</td>
+          <td><code>23733</code></td>
+        </tr>
+<tr>
+          <td class="rank">374</td>
+          <td><code>52662</code></td>
+        </tr>
+<tr>
+          <td class="rank">375</td>
+          <td><code>16691</code></td>
+        </tr>
+<tr>
+          <td class="rank">376</td>
+          <td><code>63683</code></td>
+        </tr>
+<tr>
+          <td class="rank">377</td>
+          <td><code>14461</code></td>
+        </tr>
+<tr>
+          <td class="rank">378</td>
+          <td><code>32943</code></td>
+        </tr>
+<tr>
+          <td class="rank">379</td>
+          <td><code>18705</code></td>
+        </tr>
+<tr>
+          <td class="rank">380</td>
+          <td><code>71324</code></td>
+        </tr>
+<tr>
+          <td class="rank">381</td>
+          <td><code>49410</code></td>
+        </tr>
+<tr>
+          <td class="rank">382</td>
+          <td><code>55795</code></td>
+        </tr>
+<tr>
+          <td class="rank">383</td>
+          <td><code>63983</code></td>
+        </tr>
+<tr>
+          <td class="rank">384</td>
+          <td><code>44757</code></td>
+        </tr>
+<tr>
+          <td class="rank">385</td>
+          <td><code>26925</code></td>
+        </tr>
+<tr>
+          <td class="rank">386</td>
+          <td><code>57490</code></td>
+        </tr>
+<tr>
+          <td class="rank">387</td>
+          <td><code>10881</code></td>
+        </tr>
+<tr>
+          <td class="rank">388</td>
+          <td><code>13423</code></td>
+        </tr>
+<tr>
+          <td class="rank">389</td>
+          <td><code>9246</code></td>
+        </tr>
+<tr>
+          <td class="rank">390</td>
+          <td><code>40651</code></td>
+        </tr>
+<tr>
+          <td class="rank">391</td>
+          <td><code>66108</code></td>
+        </tr>
+<tr>
+          <td class="rank">392</td>
+          <td><code>35239</code></td>
+        </tr>
+<tr>
+          <td class="rank">393</td>
+          <td><code>73567</code></td>
+        </tr>
+<tr>
+          <td class="rank">394</td>
+          <td><code>74968</code></td>
+        </tr>
+<tr>
+          <td class="rank">395</td>
+          <td><code>12543</code></td>
+        </tr>
+<tr>
+          <td class="rank">396</td>
+          <td><code>12335</code></td>
+        </tr>
+<tr>
+          <td class="rank">397</td>
+          <td><code>73730</code></td>
+        </tr>
+<tr>
+          <td class="rank">398</td>
+          <td><code>63703</code></td>
+        </tr>
+<tr>
+          <td class="rank">399</td>
+          <td><code>417</code></td>
+        </tr>
+<tr>
+          <td class="rank">400</td>
+          <td><code>45606</code></td>
+        </tr>
+</tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Rerank（高亮 + rank 标注） -->
+    <div class="col-wrap">
+      <div class="col-header h-rerank">🏆 Rerank Top-200</div>
+      <div class="scroll-body">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>ID</th><th>来源</th><th>原始排名</th>
+            </tr>
+          </thead>
+          <tbody><tr class="row-both">
+          <td class="rank">1</td>
+          <td><code>29254</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#5</span><span class="rank-badge rank-s">S#1</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">2</td>
+          <td><code>37455</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#3</span><span class="rank-badge rank-s">S#6</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">3</td>
+          <td><code>53698</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#13</span><span class="rank-badge rank-s">S#2</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">4</td>
+          <td><code>26825</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#6</span><span class="rank-badge rank-s">S#8</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">5</td>
+          <td><code>69137</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#10</span><span class="rank-badge rank-s">S#3</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">6</td>
+          <td><code>7478</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#7</span><span class="rank-badge rank-s">S#9</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">7</td>
+          <td><code>5827</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#21</span><span class="rank-badge rank-s">S#5</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">8</td>
+          <td><code>57490</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#1</span><span class="rank-badge rank-s">S#386</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">9</td>
+          <td><code>77626</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#8</span><span class="rank-badge rank-s">S#36</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">10</td>
+          <td><code>67257</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#15</span><span class="rank-badge rank-s">S#14</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">11</td>
+          <td><code>56326</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#2</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">12</td>
+          <td><code>67657</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#16</span><span class="rank-badge rank-s">S#29</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">13</td>
+          <td><code>39506</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#25</span><span class="rank-badge rank-s">S#22</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">14</td>
+          <td><code>25658</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#4</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">15</td>
+          <td><code>44414</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#19</span><span class="rank-badge rank-s">S#35</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">16</td>
+          <td><code>16220</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#74</span><span class="rank-badge rank-s">S#4</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">17</td>
+          <td><code>60685</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#20</span><span class="rank-badge rank-s">S#43</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">18</td>
+          <td><code>62216</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#14</span><span class="rank-badge rank-s">S#75</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">19</td>
+          <td><code>67147</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#26</span><span class="rank-badge rank-s">S#52</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">20</td>
+          <td><code>24026</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#12</span><span class="rank-badge rank-s">S#238</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">21</td>
+          <td><code>71443</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#51</span><span class="rank-badge rank-s">S#37</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">22</td>
+          <td><code>27008</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#7</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">23</td>
+          <td><code>73666</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#80</span><span class="rank-badge rank-s">S#20</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">24</td>
+          <td><code>60728</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#123</span><span class="rank-badge rank-s">S#16</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">25</td>
+          <td><code>38918</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#62</span><span class="rank-badge rank-s">S#40</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">26</td>
+          <td><code>76346</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#17</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">27</td>
+          <td><code>41048</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#32</span><span class="rank-badge rank-s">S#130</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">28</td>
+          <td><code>37869</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#11</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">29</td>
+          <td><code>73722</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#138</span><span class="rank-badge rank-s">S#17</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">30</td>
+          <td><code>40265</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#9</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">31</td>
+          <td><code>74511</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#45</span><span class="rank-badge rank-s">S#73</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">32</td>
+          <td><code>19137</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#129</span><span class="rank-badge rank-s">S#18</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">33</td>
+          <td><code>30475</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#158</span><span class="rank-badge rank-s">S#13</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">34</td>
+          <td><code>28404</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#78</span><span class="rank-badge rank-s">S#32</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">35</td>
+          <td><code>67622</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#183</span><span class="rank-badge rank-s">S#11</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">36</td>
+          <td><code>40897</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#114</span><span class="rank-badge rank-s">S#23</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">37</td>
+          <td><code>38210</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#24</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">38</td>
+          <td><code>34031</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#81</span><span class="rank-badge rank-s">S#45</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">39</td>
+          <td><code>45908</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#46</span><span class="rank-badge rank-s">S#93</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">40</td>
+          <td><code>14477</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#28</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">41</td>
+          <td><code>40724</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#228</span><span class="rank-badge rank-s">S#12</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">42</td>
+          <td><code>6353</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#33</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">43</td>
+          <td><code>36361</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#59</span><span class="rank-badge rank-s">S#87</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">44</td>
+          <td><code>75901</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#23</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">45</td>
+          <td><code>6140</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#117</span><span class="rank-badge rank-s">S#48</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">46</td>
+          <td><code>75175</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#18</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">47</td>
+          <td><code>74857</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#29</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">48</td>
+          <td><code>74651</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#79</span><span class="rank-badge rank-s">S#68</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">49</td>
+          <td><code>22190</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#291</span><span class="rank-badge rank-s">S#15</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">50</td>
+          <td><code>43385</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#22</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">51</td>
+          <td><code>76076</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#38</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">52</td>
+          <td><code>79615</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#50</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">53</td>
+          <td><code>2613</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#27</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">54</td>
+          <td><code>4786</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#41</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">55</td>
+          <td><code>45008</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#64</span><span class="rank-badge rank-s">S#96</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">56</td>
+          <td><code>53121</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#35</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">57</td>
+          <td><code>47020</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#176</span><span class="rank-badge rank-s">S#33</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">58</td>
+          <td><code>4405</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#37</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">59</td>
+          <td><code>40551</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#116</span><span class="rank-badge rank-s">S#59</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">60</td>
+          <td><code>60147</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#30</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">61</td>
+          <td><code>66923</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#31</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">62</td>
+          <td><code>59324</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#10</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">63</td>
+          <td><code>77108</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#54</span><span class="rank-badge rank-s">S#262</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">64</td>
+          <td><code>21151</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#124</span><span class="rank-badge rank-s">S#62</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">65</td>
+          <td><code>64130</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#43</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">66</td>
+          <td><code>66710</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#19</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">67</td>
+          <td><code>45874</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#34</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">68</td>
+          <td><code>15216</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#39</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">69</td>
+          <td><code>70409</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#83</span><span class="rank-badge rank-s">S#142</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">70</td>
+          <td><code>50330</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#58</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">71</td>
+          <td><code>27063</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#40</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">72</td>
+          <td><code>54247</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#184</span><span class="rank-badge rank-s">S#57</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">73</td>
+          <td><code>52067</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#71</span><span class="rank-badge rank-s">S#210</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">74</td>
+          <td><code>51510</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#251</span><span class="rank-badge rank-s">S#41</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">75</td>
+          <td><code>31541</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#44</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">76</td>
+          <td><code>60112</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#48</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">77</td>
+          <td><code>47189</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#77</span><span class="rank-badge rank-s">S#212</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">78</td>
+          <td><code>50560</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#379</span><span class="rank-badge rank-s">S#27</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">79</td>
+          <td><code>73864</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#63</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">80</td>
+          <td><code>62336</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#47</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">81</td>
+          <td><code>68856</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#24</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">82</td>
+          <td><code>21538</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#55</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">83</td>
+          <td><code>32486</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#281</span><span class="rank-badge rank-s">S#47</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">84</td>
+          <td><code>13201</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#69</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">85</td>
+          <td><code>39915</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#90</span><span class="rank-badge rank-s">S#241</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">86</td>
+          <td><code>52527</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#51</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">87</td>
+          <td><code>38545</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#102</span><span class="rank-badge rank-s">S#175</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">88</td>
+          <td><code>67182</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#49</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">89</td>
+          <td><code>41164</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#28</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">90</td>
+          <td><code>8980</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#139</span><span class="rank-badge rank-s">S#103</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">91</td>
+          <td><code>39809</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#57</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">92</td>
+          <td><code>26213</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#188</span><span class="rank-badge rank-s">S#78</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">93</td>
+          <td><code>17222</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#93</span><span class="rank-badge rank-s">S#333</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">94</td>
+          <td><code>26236</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#25</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">95</td>
+          <td><code>1608</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#26</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">96</td>
+          <td><code>66434</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#52</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">97</td>
+          <td><code>59196</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#70</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">98</td>
+          <td><code>78714</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#42</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">99</td>
+          <td><code>22225</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#278</span><span class="rank-badge rank-s">S#60</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">100</td>
+          <td><code>37819</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#34</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">101</td>
+          <td><code>40522</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#60</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">102</td>
+          <td><code>44266</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#368</span><span class="rank-badge rank-s">S#50</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">103</td>
+          <td><code>50629</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#263</span><span class="rank-badge rank-s">S#69</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">104</td>
+          <td><code>35620</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#101</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-neither">
+          <td class="rank">105</td>
+          <td><code>69609</code></td>
+          <td><span class="tag tag-neither">neither</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">106</td>
+          <td><code>3173</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#270</span><span class="rank-badge rank-s">S#72</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">107</td>
+          <td><code>50466</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#302</span><span class="rank-badge rank-s">S#67</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">108</td>
+          <td><code>66968</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#65</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">109</td>
+          <td><code>27017</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#89</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">110</td>
+          <td><code>65171</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#240</span><span class="rank-badge rank-s">S#90</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">111</td>
+          <td><code>59401</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#87</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">112</td>
+          <td><code>48841</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#337</span><span class="rank-badge rank-s">S#64</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">113</td>
+          <td><code>54019</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#141</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">114</td>
+          <td><code>34810</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#86</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">115</td>
+          <td><code>53765</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#82</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">116</td>
+          <td><code>42128</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#66</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">117</td>
+          <td><code>69909</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#162</span><span class="rank-badge rank-s">S#176</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">118</td>
+          <td><code>42776</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#212</span><span class="rank-badge rank-s">S#126</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">119</td>
+          <td><code>78381</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#249</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">120</td>
+          <td><code>11518</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#267</span><span class="rank-badge rank-s">S#81</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">121</td>
+          <td><code>77945</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#108</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">122</td>
+          <td><code>14461</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#140</span><span class="rank-badge rank-s">S#377</span></td>
+        </tr>
+<tr class="row-neither">
+          <td class="rank">123</td>
+          <td><code>19425</code></td>
+          <td><span class="tag tag-neither">neither</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">124</td>
+          <td><code>55717</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#56</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">125</td>
+          <td><code>65147</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#198</span><span class="rank-badge rank-s">S#157</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">126</td>
+          <td><code>31338</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#21</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">127</td>
+          <td><code>23842</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#73</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">128</td>
+          <td><code>10215</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#103</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">129</td>
+          <td><code>75217</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#110</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">130</td>
+          <td><code>1646</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#46</span></td>
+        </tr>
+<tr class="row-neither">
+          <td class="rank">131</td>
+          <td><code>66464</code></td>
+          <td><span class="tag tag-neither">neither</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">132</td>
+          <td><code>10610</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#106</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">133</td>
+          <td><code>14794</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#133</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">134</td>
+          <td><code>20636</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#132</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">135</td>
+          <td><code>31987</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#131</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">136</td>
+          <td><code>35127</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#119</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">137</td>
+          <td><code>56159</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#232</span></td>
+        </tr>
+<tr class="row-neither">
+          <td class="rank">138</td>
+          <td><code>62497</code></td>
+          <td><span class="tag tag-neither">neither</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">139</td>
+          <td><code>26322</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#160</span><span class="rank-badge rank-s">S#347</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">140</td>
+          <td><code>27604</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#39</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">141</td>
+          <td><code>49410</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#157</span><span class="rank-badge rank-s">S#381</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">142</td>
+          <td><code>32089</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#105</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">143</td>
+          <td><code>17559</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#236</span><span class="rank-badge rank-s">S#139</span></td>
+        </tr>
+<tr class="row-neither">
+          <td class="rank">144</td>
+          <td><code>65960</code></td>
+          <td><span class="tag tag-neither">neither</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">145</td>
+          <td><code>45728</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#67</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">146</td>
+          <td><code>13779</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#175</span><span class="rank-badge rank-s">S#332</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">147</td>
+          <td><code>56727</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#118</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-neither">
+          <td class="rank">148</td>
+          <td><code>73275</code></td>
+          <td><span class="tag tag-neither">neither</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">149</td>
+          <td><code>15245</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#84</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">150</td>
+          <td><code>31113</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#85</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">151</td>
+          <td><code>24086</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#201</span><span class="rank-badge rank-s">S#271</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">152</td>
+          <td><code>67588</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#200</span><span class="rank-badge rank-s">S#272</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">153</td>
+          <td><code>12617</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#94</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">154</td>
+          <td><code>59221</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#31</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">155</td>
+          <td><code>60019</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#53</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">156</td>
+          <td><code>73922</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#111</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">157</td>
+          <td><code>55261</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#208</span><span class="rank-badge rank-s">S#319</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">158</td>
+          <td><code>73231</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#76</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">159</td>
+          <td><code>52388</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#96</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">160</td>
+          <td><code>51740</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#58</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">161</td>
+          <td><code>79590</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#109</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">162</td>
+          <td><code>17785</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#178</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">163</td>
+          <td><code>3980</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#38</span></td>
+        </tr>
+<tr class="row-neither">
+          <td class="rank">164</td>
+          <td><code>64453</code></td>
+          <td><span class="tag tag-neither">neither</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">165</td>
+          <td><code>2305</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#204</span><span class="rank-badge rank-s">S#368</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">166</td>
+          <td><code>1148</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#97</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">167</td>
+          <td><code>43798</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#113</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">168</td>
+          <td><code>30153</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#156</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">169</td>
+          <td><code>60987</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#63</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">170</td>
+          <td><code>51752</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#163</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">171</td>
+          <td><code>40222</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#340</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">172</td>
+          <td><code>7625</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#216</span><span class="rank-badge rank-s">S#348</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">173</td>
+          <td><code>51258</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#53</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">174</td>
+          <td><code>51567</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#147</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">175</td>
+          <td><code>3009</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#107</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">176</td>
+          <td><code>62933</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#233</span><span class="rank-badge rank-s">S#289</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">177</td>
+          <td><code>46655</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#171</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">178</td>
+          <td><code>52599</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#65</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">179</td>
+          <td><code>49115</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#261</span><span class="rank-badge rank-s">S#195</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">180</td>
+          <td><code>21862</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#166</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">181</td>
+          <td><code>72852</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#365</span><span class="rank-badge rank-s">S#123</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">182</td>
+          <td><code>30623</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#121</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">183</td>
+          <td><code>68709</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#376</span><span class="rank-badge rank-s">S#113</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">184</td>
+          <td><code>8509</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#49</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">185</td>
+          <td><code>28810</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#226</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">186</td>
+          <td><code>13203</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#151</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">187</td>
+          <td><code>14167</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#168</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">188</td>
+          <td><code>44692</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#136</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">189</td>
+          <td><code>51428</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#306</span><span class="rank-badge rank-s">S#188</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">190</td>
+          <td><code>43663</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#143</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">191</td>
+          <td><code>31773</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#245</span><span class="rank-badge rank-s">S#360</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">192</td>
+          <td><code>4896</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#127</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">193</td>
+          <td><code>9919</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#319</span><span class="rank-badge rank-s">S#164</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">194</td>
+          <td><code>46542</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#318</span><span class="rank-badge rank-s">S#163</span></td>
+        </tr>
+<tr class="row-sparse">
+          <td class="rank">195</td>
+          <td><code>43282</code></td>
+          <td><span class="tag tag-sparse">sparse only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-na">D: —</span><span class="rank-badge rank-s">S#61</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">196</td>
+          <td><code>68663</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#195</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">197</td>
+          <td><code>36376</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#237</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">198</td>
+          <td><code>46103</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#142</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+<tr class="row-both">
+          <td class="rank">199</td>
+          <td><code>57685</code></td>
+          <td><span class="tag tag-both">dense ∩ sparse</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#275</span><span class="rank-badge rank-s">S#259</span></td>
+        </tr>
+<tr class="row-dense">
+          <td class="rank">200</td>
+          <td><code>7856</code></td>
+          <td><span class="tag tag-dense">dense only</span></td>
+          <td class="rank-cell"><span class="rank-badge rank-d">D#150</span><span class="rank-badge rank-na">S: —</span></td>
+        </tr>
+</tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

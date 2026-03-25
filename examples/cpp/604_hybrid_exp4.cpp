@@ -334,10 +334,7 @@ int main(int argc, char** argv) {
                 );
 
                 // 精确计算 sparse 内积
-                r.sparse_score = ComputeSparseIP(
-                    query_sparse_vec,
-                    train_sparse[cand_id]
-                );
+                r.sparse_score = 1 - sindi_results->GetDistances()[i];
 
                 // 混合分数
                 r.ComputeHybridScore(params.alpha);

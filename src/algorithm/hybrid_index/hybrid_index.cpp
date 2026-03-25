@@ -354,6 +354,7 @@ HybridIndex::KnnSearch(const DatasetPtr& query,
         }
         search_results->Pop();
     }
+    results->Statistics(discard_stats.Dump());
     // for (int j = 0; j < result_size; ++j) {
     //     std::cout << "id: " << ids[j] << "      ";
     //     std::cout << "dist: " << dists[j] << std::endl;

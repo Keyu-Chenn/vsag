@@ -108,31 +108,49 @@ def compute_all_distances(dense_vectors, sparse_vectors):
     return dense_distances, sparse_distances
 
 
-def compute_query_distances(train_dense, train_sparse, test_dense, test_sparse):
+def compute_query_distances(train_dense, train_sparse, test_dense, test_sparse, topk=10):
     """
-    Compute distances between test queries and train vectors.
-    Returns average dense distance and average sparse distance.
+    Compute topk distances between test queries and train vectors.
+    For each query, find topk by dense distance and topk by sparse distance separately.
+    Returns all topk distances combined into two lists.
     """
     n_test = len(test_dense)
+    n_test = 1
     n_train = len(train_dense)
 
     dense_distances = []
     sparse_distances = []
 
     print(f"Computing query distances: {n_test} queries × {n_train} train vectors...")
+    print(f"Finding top-{topk} for each query by dense and sparse distance separately")
 
     for i in range(n_test):
         if i % 10 == 0:
             print(f"  Progress: {i}/{n_test}")
 
+        # Compute all distances for this query
+        query_dense = []
+        query_sparse = []
+
         for j in range(n_train):
             # Dense distance
             dense_dist = compute_dense_distance(test_dense[i], train_dense[j])
-            dense_distances.append(dense_dist)
+            query_dense.append(dense_dist)
 
             # Sparse distance
             sparse_dist = compute_sparse_distance(test_sparse[i], train_sparse[j])
-            sparse_distances.append(sparse_dist)
+            query_sparse.append(sparse_dist)
+
+        query_dense = np.array(query_dense)
+        query_sparse = np.array(query_sparse)
+
+        # Get topk by dense distance (highest inner product = most similar)
+        d_topk_idx = np.argsort(query_dense)[-topk:][::-1]
+        dense_distances.extend(query_dense[d_topk_idx].tolist())
+
+        # Get topk by sparse distance (highest inner product = most similar)
+        s_topk_idx = np.argsort(query_sparse)[-topk:][::-1]
+        sparse_distances.extend(query_sparse[s_topk_idx].tolist())
 
     return dense_distances, sparse_distances
 

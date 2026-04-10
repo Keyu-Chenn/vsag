@@ -331,10 +331,6 @@ int main(int argc, char** argv) {
         auto search_start = std::chrono::high_resolution_clock::now();
 
 
-        // 保存第 0 个 query 的 IDs
-        std::vector<int64_t> dense_ids_file;
-        std::vector<int64_t> sparse_ids_file;
-        std::vector<int64_t> rerank_ids_file;
 
 
         for (int query_idx = 0; query_idx < actual_num_queries; query_idx++) {
@@ -367,15 +363,6 @@ int main(int argc, char** argv) {
                 total_hops_dense += dense_stats_js["hops"].get<float>();
             }
 
-            // 保存第 0 个 query 的 dense IDs
-            std::vector<int64_t> dense_ids_for_file;
-            std::vector<int64_t> sparse_ids_for_file;
-            std::vector<int64_t> rerank_ids_for_file;
-            if (query_idx == 0) {
-                for (int i = 0; i < dense_results->GetDim(); i++) {
-                    dense_ids_for_file.push_back(dense_results->GetIds()[i]);
-                }
-            }
 
             // ── 4.2 稀疏向量召回（hgraph） ────────────────────────────────
             auto sparse_query = vsag::Dataset::Make();
@@ -403,18 +390,11 @@ int main(int argc, char** argv) {
             // ── 4.3 合并两路召回结果（去重） ──────────────────────────────
             std::unordered_set<int64_t> candidate_ids;
 
-
             for (int i = 0; i < dense_results->GetDim(); i++) {
                 candidate_ids.insert(dense_results->GetIds()[i]);
-                if (query_idx == 0) {
-                    dense_ids_file.push_back(dense_results->GetIds()[i]);
-                }
             }
             for (int i = 0; i < sparse_results->GetDim(); i++) {
                 candidate_ids.insert(sparse_results->GetIds()[i]);
-                if (query_idx == 0) {
-                    sparse_ids_file.push_back(sparse_results->GetIds()[i]);
-                }
             }
 
             // ── 4.4 统一重新计算所有候选的距离并重排序 ────────────────────
@@ -451,9 +431,6 @@ int main(int argc, char** argv) {
             search_results.reserve(actual_k);
             for (int i = 0; i < actual_k; i++) {
                 search_results.push_back(results[i].id);
-                if (query_idx == 0) {
-                    rerank_ids_file.push_back(results[i].id);
-                }
             }
 
             // ── 4.6 计算召回率 ────────────────────────────────────────────
@@ -496,32 +473,6 @@ int main(int argc, char** argv) {
         std::cout << "avg_hops_sparse:          " << avg_hops_sparse           << std::endl;
         std::cout << "avg_hops_total:           " << avg_hops_total            << std::endl;
 
-        /******************* 6. 保存 ID 到文件 *****************/
-        std::ofstream outfile("606_hybrid_exp6_baseline_id_check.txt");
-        outfile << "# 606_hybrid_exp6 baseline ID check" << std::endl;
-        outfile << "# k=" << params.k << ", bk_dense=" << params.bk_dense
-                << ", bk_sparse=" << params.bk_sparse << ", alpha=" << params.alpha << std::endl;
-        outfile << std::endl;
-        outfile << "dense_top" << params.bk_dense << "_ids: ";
-        for (size_t i = 0; i < dense_ids_file.size(); i++) {
-            outfile << dense_ids_file[i];
-            if (i < dense_ids_file.size() - 1) outfile << ",";
-        }
-        outfile << std::endl;
-        outfile << "sparse_top" << params.bk_sparse << "_ids: ";
-        for (size_t i = 0; i < sparse_ids_file.size(); i++) {
-            outfile << sparse_ids_file[i];
-            if (i < sparse_ids_file.size() - 1) outfile << ",";
-        }
-        outfile << std::endl;
-        outfile << "rerank_top" << params.k << "_ids: ";
-        for (size_t i = 0; i < rerank_ids_file.size(); i++) {
-            outfile << rerank_ids_file[i];
-            if (i < rerank_ids_file.size() - 1) outfile << ",";
-        }
-        outfile << std::endl;
-        outfile.close();
-        std::cout << "IDs saved to 606_hybrid_exp6_baseline_id_check.txt" << std::endl;
 
         /******************* 7. 清理资源 *****************/
         FreeSparseVectors(train_sparse);

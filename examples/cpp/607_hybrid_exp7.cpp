@@ -339,6 +339,7 @@ int main(int argc, char** argv) {
                 ->Owner(false);
 
             std::string dense_search_params =
+
                 R"({"hnsw": {"ef_search": )" +
                 std::to_string(params.ef_search) + "}}";
 

@@ -15,8 +15,10 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <memory>
+#include <vector>
 
 #include "common.h"
 #include "flatten_interface.h"
@@ -39,6 +41,7 @@ class HybridComputer : public ComputerInterface {
 public:
     HybridComputer(const ComputerInterfacePtr& dense_computer,
                    const ComputerInterfacePtr& sparse_computer,
+                   float sparse_query_norm,
                    float dense_weight = 0.5f,
                    float sparse_weight = 0.5f);
 
@@ -58,12 +61,39 @@ public:
     SetLowerBound(float lb) {
         lower_bound_ = lb;
     }
+
+    void
+    SetSearchLowerBound(float lower_bound) override {
+        lower_bound_ = lower_bound;
+    }
+
+    [[nodiscard]] float
+    GetSearchLowerBound() const override {
+        return lower_bound_;
+    }
+
+    void
+    SetPruneScale(float prune_scale) override {
+        prune_scale_ = prune_scale;
+    }
+
+    [[nodiscard]] float
+    GetPruneScale() const override {
+        return prune_scale_;
+    }
+
+    [[nodiscard]] float
+    GetSparseQueryNorm() const {
+        return sparse_query_norm_;
+    }
 private:
     ComputerInterfacePtr dense_computer_;
     ComputerInterfacePtr sparse_computer_;
     float dense_weight_;
     float sparse_weight_;
-    float lower_bound_{1};
+    float lower_bound_{std::numeric_limits<float>::max()};
+    float prune_scale_{1.0F};
+    float sparse_query_norm_{0.0F};
 };
 
 
@@ -121,6 +151,7 @@ public:
     Resize(InnerIdType new_capacity) override {
         dense_cell_->Resize(new_capacity);
         sparse_cell_->Resize(new_capacity);
+        ensure_norm_capacity(new_capacity);
     }
 
     void
@@ -227,6 +258,12 @@ private:
     ComputerInterfacePtr
     factory_computer(const float* query);
 
+    [[nodiscard]] float
+    compute_sparse_norm(const SparseVector& sparse_vector) const;
+
+    void
+    ensure_norm_capacity(InnerIdType capacity);
+
     uint64_t
     GetTotalCount() const {
         return dense_cell_->TotalCount();
@@ -247,6 +284,7 @@ private:
     // Weights for combining dense and sparse distances
     float dense_weight_{0.5f};
     float sparse_weight_{0.5f};
+    std::vector<float> sparse_norms_;
 };
 
 }  // namespace vsag

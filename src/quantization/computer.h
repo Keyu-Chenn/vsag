@@ -16,6 +16,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 
 #include "metric_type.h"
@@ -33,6 +34,24 @@ public:
     ComputerInterface() = default;
 
     virtual ~ComputerInterface() = default;
+
+    virtual void
+    SetSearchLowerBound(float lower_bound) {
+    }
+
+    [[nodiscard]] virtual float
+    GetSearchLowerBound() const {
+        return std::numeric_limits<float>::max();
+    }
+
+    virtual void
+    SetPruneScale(float prune_scale) {
+    }
+
+    [[nodiscard]] virtual float
+    GetPruneScale() const {
+        return 1.0F;
+    }
 
 };
 

@@ -116,6 +116,7 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
     }
 
     auto computer = flatten->FactoryComputer(query);
+    computer->SetPruneScale(inner_search_param.hybrid_prune_scale);
 
     auto is_id_allowed = inner_search_param.is_inner_id_allowed;
     auto ep = inner_search_param.ep;
@@ -255,6 +256,7 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
     }
 
     auto computer = flatten->FactoryComputer(query);
+    computer->SetPruneScale(inner_search_param.hybrid_prune_scale);
 
     auto is_id_allowed = inner_search_param.is_inner_id_allowed;
     auto ep = inner_search_param.ep;
@@ -303,6 +305,10 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
         entry_points.push_back(inner_search_param.ep);
     }
 
+    if (entry_points.empty()) {
+        entry_points.push_back(inner_search_param.ep);
+    }
+
     // flatten->Query(&dist, computer, &ep, 1, alloc);
     // ++dist_cmp;
     // if (check_func(ep)) {
@@ -322,8 +328,9 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
     // 批量计算所有入口点的距离
 
     Vector<float> ep_dists(entry_points.size(), alloc);
-    if (inner_search_param.is_hybrid)
-        ep_dists[0] = 100;
+    if (inner_search_param.is_hybrid) {
+        computer->SetSearchLowerBound(std::numeric_limits<float>::max());
+    }
     flatten->Query(ep_dists.data(), computer, entry_points.data(),
                    static_cast<uint32_t>(entry_points.size()), alloc);
     dist_cmp += static_cast<uint32_t>(entry_points.size());
@@ -337,6 +344,11 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
 
         if (check_func(ep_id)) {
             top_candidates->Push(dist, ep_id);
+            if constexpr (mode == KNN_SEARCH) {
+                if (top_candidates->Size() > ef) {
+                    top_candidates->Pop();
+                }
+            }
         }
 
         if constexpr (mode == InnerSearchMode::RANGE_SEARCH) {
@@ -384,10 +396,10 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
 
         if (inner_search_param.is_hybrid) {
             if (top_candidates->Size() < ef) {
-                line_dists[0] = 100;
+                computer->SetSearchLowerBound(std::numeric_limits<float>::max());
             }
             else {
-                line_dists[0] = lower_bound;
+                computer->SetSearchLowerBound(lower_bound);
             }
         }
 

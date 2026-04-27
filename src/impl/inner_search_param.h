@@ -46,6 +46,7 @@ public:
     int range_search_limit_size{-1};
     int64_t parallel_search_thread_count{1};
     bool is_hybrid{false};
+    float hybrid_prune_scale{1.0F};
 
     //​​Multi-threaded search for a single query​
     bool use_muti_threads_for_one_query{false};
@@ -81,6 +82,8 @@ public:
             search_mode = other.search_mode;
             range_search_limit_size = other.range_search_limit_size;
             is_inner_id_allowed = other.is_inner_id_allowed;
+            is_hybrid = other.is_hybrid;
+            hybrid_prune_scale = other.hybrid_prune_scale;
             scan_bucket_size = other.scan_bucket_size;
             factor = other.factor;
             first_order_scan_ratio = other.first_order_scan_ratio;

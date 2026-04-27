@@ -131,6 +131,8 @@ void PrintUsage(const char* program_name) {
               << "  --hgraph_bk <int>          hgraph 召回数量，作为 hybrid 入口点 (default: 100)\n"
               << "  --ef_search <int>          hybrid index ef_search (default: 200)\n"
               << "  --alpha <float>            dense 分数权重，0~1 (default: 0.5)\n"
+              << "  --hybrid_prune_scale <float>\n"
+              << "                              sparse 上界缩放，1.0 为安全剪枝，越小越激进 (default: 1.0)\n"
               << "  --num_queries <int>        测试查询数量，-1 表示全部 (default: -1)\n"
               << "  --help, -h                 显示此帮助信息\n"
               << std::endl;
@@ -143,6 +145,7 @@ struct SearchParams {
     int hgraph_bk   = 100;
     int ef_search   = 200;
     float alpha     = 0.5f;
+    float hybrid_prune_scale = 1.0f;
     int num_queries = -1;
 };
 
@@ -171,6 +174,8 @@ SearchParams ParseCommandLine(int argc, char** argv) {
             params.ef_search = std::atoi(argv[++i]);
         } else if (arg == "--alpha" && i + 1 < argc) {
             params.alpha = std::atof(argv[++i]);
+        } else if (arg == "--hybrid_prune_scale" && i + 1 < argc) {
+            params.hybrid_prune_scale = std::atof(argv[++i]);
         } else if (arg == "--num_queries" && i + 1 < argc) {
             params.num_queries = std::atoi(argv[++i]);
         } else {
@@ -185,6 +190,10 @@ SearchParams ParseCommandLine(int argc, char** argv) {
     if (params.k <= 0) { std::cerr << "Error: k must be positive\n"; exit(1); }
     if (params.sindi_bk < params.k) { std::cerr << "Error: sindi_bk must be >= k\n"; exit(1); }
     if (params.alpha < 0.0f || params.alpha > 1.0f) { std::cerr << "Error: alpha must be in [0,1]\n"; exit(1); }
+    if (params.hybrid_prune_scale < 0.0f) {
+        std::cerr << "Error: hybrid_prune_scale must be >= 0\n";
+        exit(1);
+    }
 
     return params;
 }
@@ -444,6 +453,7 @@ int main(int argc, char** argv) {
             nlohmann::json search_param_json = {
                 {"alpha",        params.alpha},
                 {"ef_search",    params.ef_search},
+                {"hybrid_prune_scale", params.hybrid_prune_scale},
                 {"entry_points", entry_points}
             };
             std::string hybrid_search_params = search_param_json.dump();
@@ -494,6 +504,7 @@ int main(int argc, char** argv) {
         std::cout << "sindi_bk:      " << params.sindi_bk     << std::endl;
         std::cout << "ef_search:     " << params.ef_search     << std::endl;
         std::cout << "alpha:         " << params.alpha         << std::endl;
+        std::cout << "hybrid_prune_scale: " << params.hybrid_prune_scale << std::endl;
         std::cout << "num_queries:   " << actual_num_queries   << std::endl;
         std::cout << "avg_recall:    " << avg_recall           << std::endl;
         std::cout << "qps:           " << qps                  << std::endl;
@@ -608,6 +619,7 @@ int main(int argc, char** argv) {
                 R"({
                     "alpha": )" + std::to_string(params.alpha) + R"(,
                     "ef_search": )" + std::to_string(params.ef_search) + R"(,
+                    "hybrid_prune_scale": )" + std::to_string(params.hybrid_prune_scale) + R"(,
                     "entry_point": 0
                 })";
 
@@ -699,5 +711,3 @@ int main(int argc, char** argv) {
 
     return 0;
 }
-
-

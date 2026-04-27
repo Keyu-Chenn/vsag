@@ -7,6 +7,7 @@
 #include <atomic>
 #include <mutex>
 #include <optional>
+#include <unordered_set>
 
 #include "attr/argparse.h"
 #include "attr/executor/executor.h"
@@ -303,11 +304,17 @@ HybridIndex::KnnSearch(const DatasetPtr& query,
         // 多入口点：从 JSON 数组解析
         // 格式：{"entry_points": [1, 2, 3, ...]}
         const auto& ep_array = parsed_search_param["entry_points"].GetVector();
+        std::unordered_set<InnerIdType> dedup_entry_points;
         for (int i = 0; i < ep_array.size(); ++i) {
             // JSON 中存的是 label id，需要转换为 inner id
             int64_t label_id = ep_array[i];
+            if (not label_table_->CheckLabel(label_id)) {
+                continue;
+            }
             auto inner_id = label_table_->GetIdByLabel(label_id);
-            search_param.eps.push_back(inner_id);
+            if (dedup_entry_points.insert(inner_id).second) {
+                search_param.eps.push_back(inner_id);
+            }
         }
         // eps 为空时（全部 label 无效）退回默认入口点
         if (search_param.eps.empty()) {
@@ -324,6 +331,9 @@ HybridIndex::KnnSearch(const DatasetPtr& query,
 
     auto search_alpha_ = parsed_search_param["alpha"].GetFloat();
     hybrid_codes_->SetHybridWeight(search_alpha_, 1-search_alpha_);
+    search_param.hybrid_prune_scale = parsed_search_param.Contains("hybrid_prune_scale")
+                                          ? parsed_search_param["hybrid_prune_scale"].GetFloat()
+                                          : 1.0F;
 
     auto dense_vector = query->GetFloat32Vectors();
     auto dim = query->GetDim();

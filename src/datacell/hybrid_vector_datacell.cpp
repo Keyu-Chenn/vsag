@@ -23,6 +23,7 @@ namespace vsag {
 
 HybridComputer::HybridComputer(const ComputerInterfacePtr& dense_computer,
                                const ComputerInterfacePtr& sparse_computer,
+                               float dense_query_norm,
                                float sparse_query_norm,
                                float dense_weight,
                                float sparse_weight)
@@ -30,6 +31,7 @@ HybridComputer::HybridComputer(const ComputerInterfacePtr& dense_computer,
       sparse_computer_(sparse_computer),
       dense_weight_(dense_weight),
       sparse_weight_(sparse_weight),
+      dense_query_norm_(dense_query_norm),
       sparse_query_norm_(sparse_query_norm) {
     if (!dense_computer_ || !sparse_computer_) {
         throw VsagException(ErrorType::INVALID_ARGUMENT,
@@ -39,6 +41,15 @@ HybridComputer::HybridComputer(const ComputerInterfacePtr& dense_computer,
         throw VsagException(ErrorType::INVALID_ARGUMENT,
                            "Weights must be non-negative");
     }
+}
+
+bool
+HybridComputer::TryGetSparseDistance(InnerIdType inner_id, float& distance) const {
+    if (sparse_distance_table_ == nullptr or inner_id >= sparse_distance_table_size_) {
+        return false;
+    }
+    distance = sparse_distance_table_[inner_id];
+    return true;
 }
 
 
@@ -156,12 +167,11 @@ HybridVectorDataCell::query(float* result_dists,
     constexpr float kWeightEpsilon = 1e-5F;
     constexpr float kDistanceEpsilon = 1e-6F;
 
-    if (std::abs(dense_weight_) > kWeightEpsilon) {
-        dense_cell_->Query(
-            dense_dists.data(), hybrid_comp->GetDenseComputer(), idx, id_count, search_alloc);
-    }
-
     if (std::abs(sparse_weight_) <= kWeightEpsilon) {
+        if (std::abs(dense_weight_) > kWeightEpsilon) {
+            dense_cell_->Query(
+                dense_dists.data(), hybrid_comp->GetDenseComputer(), idx, id_count, search_alloc);
+        }
         for (InnerIdType i = 0; i < id_count; ++i) {
             result_dists[i] = dense_weight_ * dense_dists[i];
         }
@@ -170,8 +180,31 @@ HybridVectorDataCell::query(float* result_dists,
 
     if (std::abs(dense_weight_) <= kWeightEpsilon or
         lower_bound == std::numeric_limits<float>::max()) {
-        sparse_cell_->Query(
-            sparse_dists.data(), hybrid_comp->GetSparseComputer(), idx, id_count, search_alloc);
+        if (std::abs(dense_weight_) > kWeightEpsilon) {
+            dense_cell_->Query(
+                dense_dists.data(), hybrid_comp->GetDenseComputer(), idx, id_count, search_alloc);
+        }
+        Vector<InnerIdType> idx_sparse(search_alloc);
+        Vector<InnerIdType> sparse_positions(search_alloc);
+        idx_sparse.reserve(id_count);
+        sparse_positions.reserve(id_count);
+        for (InnerIdType i = 0; i < id_count; ++i) {
+            if (not hybrid_comp->TryGetSparseDistance(idx[i], sparse_dists[i])) {
+                idx_sparse.push_back(idx[i]);
+                sparse_positions.push_back(i);
+            }
+        }
+        if (not idx_sparse.empty()) {
+            Vector<float> selected_sparse_dists(idx_sparse.size(), 0.0F, search_alloc);
+            sparse_cell_->Query(selected_sparse_dists.data(),
+                                hybrid_comp->GetSparseComputer(),
+                                idx_sparse.data(),
+                                static_cast<InnerIdType>(idx_sparse.size()),
+                                search_alloc);
+            for (InnerIdType i = 0; i < idx_sparse.size(); ++i) {
+                sparse_dists[sparse_positions[i]] = selected_sparse_dists[i];
+            }
+        }
         for (InnerIdType i = 0; i < id_count; ++i) {
             result_dists[i] = dense_weight_ * dense_dists[i] + sparse_weight_ * sparse_dists[i];
         }
@@ -179,8 +212,56 @@ HybridVectorDataCell::query(float* result_dists,
     }
 
     const float score_threshold = 1.0F - lower_bound;
-    const float query_sparse_norm = hybrid_comp->GetSparseQueryNorm();
     const float prune_scale = std::max(0.0F, hybrid_comp->GetPruneScale());
+
+    if (hybrid_comp->HasSparseDistanceTable() and std::abs(dense_weight_) > kWeightEpsilon) {
+        const float query_dense_norm = hybrid_comp->GetDenseQueryNorm();
+        Vector<InnerIdType> idx_dense(search_alloc);
+        Vector<InnerIdType> dense_positions(search_alloc);
+        idx_dense.reserve(id_count);
+        dense_positions.reserve(id_count);
+
+        for (InnerIdType i = 0; i < id_count; ++i) {
+            if (not hybrid_comp->TryGetSparseDistance(idx[i], sparse_dists[i])) {
+                throw VsagException(ErrorType::INTERNAL_ERROR,
+                                    "sparse distance table is missing an in-range hybrid id");
+            }
+            const float sparse_ip = 1.0F - sparse_dists[i];
+            const float dense_ip_upper_bound =
+                idx[i] < dense_norms_.size() ? query_dense_norm * dense_norms_[idx[i]]
+                                             : std::numeric_limits<float>::infinity();
+            const float score_upper_bound =
+                dense_weight_ * prune_scale * dense_ip_upper_bound + sparse_weight_ * sparse_ip;
+            if (score_upper_bound > score_threshold + kDistanceEpsilon) {
+                idx_dense.push_back(idx[i]);
+                dense_positions.push_back(i);
+            } else {
+                result_dists[i] = lower_bound + kDistanceEpsilon;
+            }
+        }
+
+        if (not idx_dense.empty()) {
+            Vector<float> selected_dense_dists(idx_dense.size(), 0.0F, search_alloc);
+            dense_cell_->Query(selected_dense_dists.data(),
+                               hybrid_comp->GetDenseComputer(),
+                               idx_dense.data(),
+                               static_cast<InnerIdType>(idx_dense.size()),
+                               search_alloc);
+            for (InnerIdType i = 0; i < idx_dense.size(); ++i) {
+                const auto pos = dense_positions[i];
+                result_dists[pos] = dense_weight_ * selected_dense_dists[i] +
+                                    sparse_weight_ * sparse_dists[pos];
+            }
+        }
+        return;
+    }
+
+    if (std::abs(dense_weight_) > kWeightEpsilon) {
+        dense_cell_->Query(
+            dense_dists.data(), hybrid_comp->GetDenseComputer(), idx, id_count, search_alloc);
+    }
+
+    const float query_sparse_norm = hybrid_comp->GetSparseQueryNorm();
     Vector<InnerIdType> idx_sparse(search_alloc);
     Vector<InnerIdType> sparse_positions(search_alloc);
     idx_sparse.reserve(id_count);
@@ -205,11 +286,29 @@ HybridVectorDataCell::query(float* result_dists,
 
     if (not idx_sparse.empty()) {
         Vector<float> selected_sparse_dists(idx_sparse.size(), 0.0F, search_alloc);
-        sparse_cell_->Query(selected_sparse_dists.data(),
-                            hybrid_comp->GetSparseComputer(),
-                            idx_sparse.data(),
-                            static_cast<InnerIdType>(idx_sparse.size()),
-                            search_alloc);
+        Vector<InnerIdType> idx_sparse_to_compute(search_alloc);
+        Vector<InnerIdType> sparse_compute_positions(search_alloc);
+        idx_sparse_to_compute.reserve(idx_sparse.size());
+        sparse_compute_positions.reserve(idx_sparse.size());
+
+        for (InnerIdType i = 0; i < idx_sparse.size(); ++i) {
+            if (not hybrid_comp->TryGetSparseDistance(idx_sparse[i], selected_sparse_dists[i])) {
+                idx_sparse_to_compute.push_back(idx_sparse[i]);
+                sparse_compute_positions.push_back(i);
+            }
+        }
+
+        if (not idx_sparse_to_compute.empty()) {
+            Vector<float> computed_sparse_dists(idx_sparse_to_compute.size(), 0.0F, search_alloc);
+            sparse_cell_->Query(computed_sparse_dists.data(),
+                                hybrid_comp->GetSparseComputer(),
+                                idx_sparse_to_compute.data(),
+                                static_cast<InnerIdType>(idx_sparse_to_compute.size()),
+                                search_alloc);
+            for (InnerIdType i = 0; i < idx_sparse_to_compute.size(); ++i) {
+                selected_sparse_dists[sparse_compute_positions[i]] = computed_sparse_dists[i];
+            }
+        }
 
         for (InnerIdType i = 0; i < idx_sparse.size(); ++i) {
             const auto pos = sparse_positions[i];
@@ -234,6 +333,7 @@ HybridVectorDataCell::factory_computer(const float* query) {
     uint64_t dense_size = GetDenseVectorSize();
     const void* sparse_query = query_ptr + dense_size;
     const auto& sparse_query_vector = *static_cast<const SparseVector*>(sparse_query);
+    const auto dense_query_norm = compute_dense_norm(dense_query);
     const auto sparse_query_norm = compute_sparse_norm(sparse_query_vector);
 
     // Create computers for both dense and sparse parts
@@ -244,6 +344,7 @@ HybridVectorDataCell::factory_computer(const float* query) {
     return std::make_shared<HybridComputer>(
         computer_dense,
         computer_sparse,
+        dense_query_norm,
         sparse_query_norm,
         dense_weight_,
         sparse_weight_
@@ -259,8 +360,20 @@ HybridVectorDataCell::compute_sparse_norm(const SparseVector& sparse_vector) con
     return std::sqrt(norm_sqr);
 }
 
+float
+HybridVectorDataCell::compute_dense_norm(const float* dense_vector) const {
+    float norm_sqr = 0.0F;
+    for (int64_t i = 0; i < dense_dim_; ++i) {
+        norm_sqr += dense_vector[i] * dense_vector[i];
+    }
+    return std::sqrt(norm_sqr);
+}
+
 void
 HybridVectorDataCell::ensure_norm_capacity(InnerIdType capacity) {
+    if (dense_norms_.size() < capacity) {
+        dense_norms_.resize(capacity, 0.0F);
+    }
     if (sparse_norms_.size() < capacity) {
         sparse_norms_.resize(capacity, 0.0F);
     }
@@ -295,6 +408,7 @@ HybridVectorDataCell::InsertVector(const void* vector, InnerIdType idx) {
     // Insert sparse part
     sparse_cell_->InsertVector(vec_ptr + dense_size, idx);
     ensure_norm_capacity(idx + 1);
+    dense_norms_[idx] = compute_dense_norm(reinterpret_cast<const float*>(vec_ptr));
     const auto& sparse_vector = *reinterpret_cast<const SparseVector*>(vec_ptr + dense_size);
     sparse_norms_[idx] = compute_sparse_norm(sparse_vector);
 }
@@ -311,6 +425,7 @@ HybridVectorDataCell::UpdateVector(const void* vector, InnerIdType idx) {
     bool dense_updated = dense_cell_->UpdateVector(vec_ptr, idx);
     bool sparse_updated = sparse_cell_->UpdateVector(vec_ptr + dense_size, idx);
     if (idx < sparse_norms_.size()) {
+        dense_norms_[idx] = compute_dense_norm(reinterpret_cast<const float*>(vec_ptr));
         const auto& sparse_vector = *reinterpret_cast<const SparseVector*>(vec_ptr + dense_size);
         sparse_norms_[idx] = compute_sparse_norm(sparse_vector);
     }
@@ -347,6 +462,7 @@ HybridVectorDataCell::BatchInsertVector(const void* vectors, InnerIdType count,
         ensure_norm_capacity(static_cast<InnerIdType>(sparse_cell_->TotalCount()));
         const auto start_id = static_cast<InnerIdType>(sparse_cell_->TotalCount() - count);
         for (InnerIdType i = 0; i < count; ++i) {
+            dense_norms_[start_id + i] = compute_dense_norm(dense_vectors + i * dense_dim_);
             sparse_norms_[start_id + i] = compute_sparse_norm(sparse_array[i]);
         }
     } else {
@@ -356,6 +472,7 @@ HybridVectorDataCell::BatchInsertVector(const void* vectors, InnerIdType count,
         }
         ensure_norm_capacity(max_id + 1);
         for (InnerIdType i = 0; i < count; ++i) {
+            dense_norms_[idx_vec[i]] = compute_dense_norm(dense_vectors + i * dense_dim_);
             sparse_norms_[idx_vec[i]] = compute_sparse_norm(sparse_array[i]);
         }
     }

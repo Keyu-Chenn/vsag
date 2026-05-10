@@ -5,6 +5,7 @@
 #include <H5Cpp.h>
 
 #include <atomic>
+#include <cstring>
 #include <mutex>
 #include <optional>
 #include <unordered_set>
@@ -334,6 +335,23 @@ HybridIndex::KnnSearch(const DatasetPtr& query,
     search_param.hybrid_prune_scale = parsed_search_param.Contains("hybrid_prune_scale")
                                           ? parsed_search_param["hybrid_prune_scale"].GetFloat()
                                           : 1.0F;
+
+    if (query->GetExtraInfos() != nullptr &&
+        query->GetExtraInfoSize() >= static_cast<int64_t>(sizeof(int64_t))) {
+        int64_t sparse_distance_table_size = 0;
+        std::memcpy(
+            &sparse_distance_table_size, query->GetExtraInfos(), sizeof(sparse_distance_table_size));
+        const auto expected_extra_info_size =
+            static_cast<int64_t>(sizeof(sparse_distance_table_size)) +
+            static_cast<int64_t>(sizeof(float)) * sparse_distance_table_size;
+        CHECK_ARGUMENT(sparse_distance_table_size >= 0,
+                       "sparse distance count in query extra info should not be negative");
+        CHECK_ARGUMENT(query->GetExtraInfoSize() == expected_extra_info_size,
+                       "query extra info size does not match sparse distance table size");
+        search_param.sparse_distance_table =
+            reinterpret_cast<const float*>(query->GetExtraInfos() + sizeof(sparse_distance_table_size));
+        search_param.sparse_distance_table_size = sparse_distance_table_size;
+    }
 
     auto dense_vector = query->GetFloat32Vectors();
     auto dim = query->GetDim();

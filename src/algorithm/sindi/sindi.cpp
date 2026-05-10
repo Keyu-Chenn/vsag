@@ -15,6 +15,8 @@
 
 #include "sindi.h"
 
+#include <cstring>
+
 #include "impl/heap/standard_heap.h"
 #include "index_feature_list.h"
 #include "storage/serialization.h"
@@ -182,6 +184,14 @@ SINDI::search_impl(const SparseTermComputerPtr& computer,
 
     // window iteration
     Vector<float> dists(window_size_, 0.0, allocator);
+    const int64_t table_size = cur_element_count_;
+    const auto extra_info_size = static_cast<int64_t>(sizeof(table_size)) +
+                                 static_cast<int64_t>(sizeof(float)) * table_size;
+    auto* extra_infos =
+        reinterpret_cast<char*>(allocator_->Allocate(static_cast<uint64_t>(extra_info_size)));
+    std::memcpy(extra_infos, &table_size, sizeof(table_size));
+    auto* sparse_distance_table = reinterpret_cast<float*>(extra_infos + sizeof(table_size));
+    std::fill(sparse_distance_table, sparse_distance_table + table_size, 1.0F);
 
     for (auto cur = 0; cur < window_term_list_.size(); cur++) {
         auto window_start_id = cur * window_size_;
@@ -189,6 +199,11 @@ SINDI::search_impl(const SparseTermComputerPtr& computer,
 
         // compute
         term_list->Query(dists.data(), computer);
+        const auto window_size =
+            std::min<int64_t>(window_size_, cur_element_count_ - window_start_id);
+        for (int64_t i = 0; i < window_size; ++i) {
+            sparse_distance_table[window_start_id + i] = 1 + dists[i];
+        }
 
         // insert heap
         if (inner_param.is_inner_id_allowed) {
@@ -199,6 +214,10 @@ SINDI::search_impl(const SparseTermComputerPtr& computer,
                 dists.data(), computer, heap, inner_param, window_start_id);
         }
     }
+
+    auto attach_sparse_distance_table = [extra_info_size, extra_infos](const DatasetPtr& results) {
+        results->ExtraInfoSize(extra_info_size)->ExtraInfos(extra_infos);
+    };
 
     // rerank
     if (use_reorder_) {
@@ -214,6 +233,9 @@ SINDI::search_impl(const SparseTermComputerPtr& computer,
                 sorted_ids,
                 sorted_vals,
                 inner_id);  // TODO(ZXY): use flat to replace rerank_flat_index_
+            if (inner_id < table_size) {
+                sparse_distance_table[inner_id] = high_precise_distance;
+            }
             auto label = label_table_->GetLabelById(inner_id);
             if constexpr (mode == KNN_SEARCH) {
                 if (high_precise_distance < cur_heap_top or high_precise_heap->Size() < k) {
@@ -236,7 +258,9 @@ SINDI::search_impl(const SparseTermComputerPtr& computer,
             heap.pop();
         }
 
-        return rerank_flat_index_->collect_results(high_precise_heap);
+        auto results = rerank_flat_index_->collect_results(high_precise_heap);
+        attach_sparse_distance_table(results);
+        return results;
     }
 
     // low precision
@@ -250,6 +274,8 @@ SINDI::search_impl(const SparseTermComputerPtr& computer,
     int64_t cur_size = std::min(static_cast<int64_t>(heap.size()), k);
 
     auto [results, ret_dists, ret_ids] = create_fast_dataset(cur_size, allocator_);
+    attach_sparse_distance_table(results);
+
     if (cur_size == 0) {
         return results;
     }

@@ -117,6 +117,8 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
 
     auto computer = flatten->FactoryComputer(query);
     computer->SetPruneScale(inner_search_param.hybrid_prune_scale);
+    computer->SetSparseDistanceTable(inner_search_param.sparse_distance_table,
+                                     inner_search_param.sparse_distance_table_size);
 
     auto is_id_allowed = inner_search_param.is_inner_id_allowed;
     auto ep = inner_search_param.ep;
@@ -257,6 +259,8 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
 
     auto computer = flatten->FactoryComputer(query);
     computer->SetPruneScale(inner_search_param.hybrid_prune_scale);
+    computer->SetSparseDistanceTable(inner_search_param.sparse_distance_table,
+                                     inner_search_param.sparse_distance_table_size);
 
     auto is_id_allowed = inner_search_param.is_inner_id_allowed;
     auto ep = inner_search_param.ep;

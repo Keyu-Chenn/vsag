@@ -41,6 +41,7 @@ class HybridComputer : public ComputerInterface {
 public:
     HybridComputer(const ComputerInterfacePtr& dense_computer,
                    const ComputerInterfacePtr& sparse_computer,
+                   float dense_query_norm,
                    float sparse_query_norm,
                    float dense_weight = 0.5f,
                    float sparse_weight = 0.5f);
@@ -86,14 +87,38 @@ public:
     GetSparseQueryNorm() const {
         return sparse_query_norm_;
     }
+
+    [[nodiscard]] float
+    GetDenseQueryNorm() const {
+        return dense_query_norm_;
+    }
+
+    void
+    SetSparseDistanceTable(const float* table, int64_t count) override {
+        sparse_distance_table_ = table;
+        sparse_distance_table_size_ = count;
+    }
+
+    [[nodiscard]] bool
+    TryGetSparseDistance(InnerIdType inner_id, float& distance) const;
+
+    [[nodiscard]] bool
+    HasSparseDistanceTable() const {
+        return sparse_distance_table_ != nullptr;
+    }
+
 private:
+
     ComputerInterfacePtr dense_computer_;
     ComputerInterfacePtr sparse_computer_;
     float dense_weight_;
     float sparse_weight_;
     float lower_bound_{std::numeric_limits<float>::max()};
     float prune_scale_{1.0F};
+    float dense_query_norm_{0.0F};
     float sparse_query_norm_{0.0F};
+    const float* sparse_distance_table_{nullptr};
+    int64_t sparse_distance_table_size_{0};
 };
 
 
@@ -261,6 +286,9 @@ private:
     [[nodiscard]] float
     compute_sparse_norm(const SparseVector& sparse_vector) const;
 
+    [[nodiscard]] float
+    compute_dense_norm(const float* dense_vector) const;
+
     void
     ensure_norm_capacity(InnerIdType capacity);
 
@@ -284,6 +312,7 @@ private:
     // Weights for combining dense and sparse distances
     float dense_weight_{0.5f};
     float sparse_weight_{0.5f};
+    std::vector<float> dense_norms_;
     std::vector<float> sparse_norms_;
 };
 

@@ -39,7 +39,6 @@ struct SparseVector {
 
 };
 
-
 class Dataset;
 using DatasetPtr = std::shared_ptr<Dataset>;
 

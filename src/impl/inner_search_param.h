@@ -47,6 +47,8 @@ public:
     int64_t parallel_search_thread_count{1};
     bool is_hybrid{false};
     float hybrid_prune_scale{1.0F};
+    const float* sparse_distance_table{nullptr};
+    int64_t sparse_distance_table_size{0};
 
     //​​Multi-threaded search for a single query​
     bool use_muti_threads_for_one_query{false};
@@ -84,6 +86,8 @@ public:
             is_inner_id_allowed = other.is_inner_id_allowed;
             is_hybrid = other.is_hybrid;
             hybrid_prune_scale = other.hybrid_prune_scale;
+            sparse_distance_table = other.sparse_distance_table;
+            sparse_distance_table_size = other.sparse_distance_table_size;
             scan_bucket_size = other.scan_bucket_size;
             factor = other.factor;
             first_order_scan_ratio = other.first_order_scan_ratio;

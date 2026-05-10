@@ -15,6 +15,8 @@
 
 #include "sindi.h"
 
+#include <cstring>
+
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
@@ -124,9 +126,22 @@ TEST_CASE("SINDI Basic Test", "[ut][SINDI]") {
         // test basic performance
         auto result = index->KnnSearch(query, k, search_param_str, nullptr);
         REQUIRE(result->GetIds()[0] == ids[i]);
+        REQUIRE(result->GetExtraInfos() != nullptr);
+        REQUIRE(result->GetExtraInfoSize() >= static_cast<int64_t>(sizeof(int64_t)));
+        int64_t sparse_distance_table_size = 0;
+        std::memcpy(
+            &sparse_distance_table_size, result->GetExtraInfos(), sizeof(sparse_distance_table_size));
+        REQUIRE(sparse_distance_table_size == num_base);
+        REQUIRE(result->GetExtraInfoSize() ==
+                static_cast<int64_t>(sizeof(sparse_distance_table_size) +
+                                     sizeof(float) * sparse_distance_table_size));
+        auto* sparse_distance_table = reinterpret_cast<const float*>(
+            result->GetExtraInfos() + sizeof(sparse_distance_table_size));
         for (int j = 0; j < k; j++) {
             REQUIRE(result->GetIds()[j] == bf_result->GetIds()[j]);
             REQUIRE(std::abs(result->GetDistances()[j] - bf_result->GetDistances()[j]) < 1e-2);
+            REQUIRE(std::abs(sparse_distance_table[result->GetIds()[j]] - result->GetDistances()[j]) <
+                    1e-2);
         }
 
         // test filter with knn

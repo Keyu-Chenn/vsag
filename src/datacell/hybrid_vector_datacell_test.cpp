@@ -135,4 +135,133 @@ TEST_CASE("HybridVectorDataCell dense-first sparse pruning", "[ut][HybridVectorD
     REQUIRE(pruned_dists[2] > 0.7F);
 }
 
+TEST_CASE("HybridVectorDataCell sparse distance table matches sparse query", "[ut][HybridVectorDataCell]") {
+    auto allocator = SafeAllocator::FactoryDefaultAllocator();
+    IndexCommonParam common_param;
+    common_param.allocator_ = allocator;
+    common_param.dim_ = 2;
+    common_param.metric_ = MetricType::METRIC_TYPE_IP;
+
+    auto dense_param = MakeFlattenParam("fp32");
+    auto sparse_param = MakeFlattenParam("sparse");
+    auto data_cell = std::make_shared<HybridVectorDataCell>(dense_param, sparse_param, common_param);
+    data_cell->SetHybridWeight(0.5F, 0.5F);
+    data_cell->Resize(3);
+
+    std::vector<float> dense_vectors = {
+        0.8F, 0.0F,
+        0.8F, 0.0F,
+        0.8F, 0.0F,
+    };
+
+    uint32_t sparse_id0[] = {0};
+    float sparse_val0[] = {0.2F};
+    uint32_t sparse_id1[] = {1};
+    float sparse_val1[] = {0.9F};
+    uint32_t sparse_id2[] = {0};
+    float sparse_val2[] = {0.7F};
+    std::vector<SparseVector> sparse_vectors = {
+        MakeSparseVector(1, sparse_id0, sparse_val0),
+        MakeSparseVector(1, sparse_id1, sparse_val1),
+        MakeSparseVector(1, sparse_id2, sparse_val2),
+    };
+
+    const auto dense_size = common_param.dim_ * sizeof(float);
+    std::vector<int8_t> hybrid_vectors(dense_vectors.size() * sizeof(float) +
+                                       sparse_vectors.size() * sizeof(SparseVector));
+    std::memcpy(hybrid_vectors.data(), dense_vectors.data(), dense_vectors.size() * sizeof(float));
+    std::memcpy(hybrid_vectors.data() + dense_vectors.size() * sizeof(float),
+                sparse_vectors.data(),
+                sparse_vectors.size() * sizeof(SparseVector));
+    data_cell->BatchInsertVector(hybrid_vectors.data(), sparse_vectors.size());
+
+    std::vector<float> dense_query = {1.0F, 0.0F};
+    uint32_t query_sparse_id[] = {0};
+    float query_sparse_val[] = {1.0F};
+    auto sparse_query = MakeSparseVector(1, query_sparse_id, query_sparse_val);
+    std::vector<int8_t> hybrid_query(dense_size + sizeof(SparseVector));
+    std::memcpy(hybrid_query.data(), dense_query.data(), dense_size);
+    std::memcpy(hybrid_query.data() + dense_size, &sparse_query, sizeof(SparseVector));
+
+    InnerIdType ids[] = {0, 1, 2};
+    std::vector<float> original_dists(3, 0.0F);
+    auto original_computer = data_cell->FactoryComputer(hybrid_query.data());
+    data_cell->Query(original_dists.data(), original_computer, ids, 3, allocator.get());
+
+    std::vector<float> sparse_distance_table = {
+        SparseDistance(sparse_query, sparse_vectors[0]),
+        SparseDistance(sparse_query, sparse_vectors[1]),
+        SparseDistance(sparse_query, sparse_vectors[2]),
+    };
+    REQUIRE(sparse_distance_table[1] == 1.0F);
+
+    std::vector<float> table_dists(3, 0.0F);
+    auto table_computer = data_cell->FactoryComputer(hybrid_query.data());
+    table_computer->SetSparseDistanceTable(sparse_distance_table.data(), sparse_distance_table.size());
+    data_cell->Query(table_dists.data(), table_computer, ids, 3, allocator.get());
+
+    for (InnerIdType i = 0; i < 3; ++i) {
+        REQUIRE(std::abs(table_dists[i] - original_dists[i]) < 1e-5F);
+    }
+}
+
+TEST_CASE("HybridVectorDataCell sparse-first prunes dense computation", "[ut][HybridVectorDataCell]") {
+    auto allocator = SafeAllocator::FactoryDefaultAllocator();
+    IndexCommonParam common_param;
+    common_param.allocator_ = allocator;
+    common_param.dim_ = 2;
+    common_param.metric_ = MetricType::METRIC_TYPE_IP;
+
+    auto dense_param = MakeFlattenParam("fp32");
+    auto sparse_param = MakeFlattenParam("sparse");
+    auto data_cell = std::make_shared<HybridVectorDataCell>(dense_param, sparse_param, common_param);
+    data_cell->SetHybridWeight(0.5F, 0.5F);
+    data_cell->Resize(2);
+
+    std::vector<float> dense_vectors = {
+        1.0F, 0.0F,
+        0.0F, 0.0F,
+    };
+    uint32_t sparse_id0[] = {0};
+    float sparse_val0[] = {1.0F};
+    uint32_t sparse_id1[] = {1};
+    float sparse_val1[] = {1.0F};
+    std::vector<SparseVector> sparse_vectors = {
+        MakeSparseVector(1, sparse_id0, sparse_val0),
+        MakeSparseVector(1, sparse_id1, sparse_val1),
+    };
+
+    const auto dense_size = common_param.dim_ * sizeof(float);
+    std::vector<int8_t> hybrid_vectors(dense_vectors.size() * sizeof(float) +
+                                       sparse_vectors.size() * sizeof(SparseVector));
+    std::memcpy(hybrid_vectors.data(), dense_vectors.data(), dense_vectors.size() * sizeof(float));
+    std::memcpy(hybrid_vectors.data() + dense_vectors.size() * sizeof(float),
+                sparse_vectors.data(),
+                sparse_vectors.size() * sizeof(SparseVector));
+    data_cell->BatchInsertVector(hybrid_vectors.data(), sparse_vectors.size());
+
+    std::vector<float> dense_query = {1.0F, 0.0F};
+    uint32_t query_sparse_id[] = {0};
+    float query_sparse_val[] = {1.0F};
+    auto sparse_query = MakeSparseVector(1, query_sparse_id, query_sparse_val);
+    std::vector<int8_t> hybrid_query(dense_size + sizeof(SparseVector));
+    std::memcpy(hybrid_query.data(), dense_query.data(), dense_size);
+    std::memcpy(hybrid_query.data() + dense_size, &sparse_query, sizeof(SparseVector));
+
+    std::vector<float> sparse_distance_table = {
+        SparseDistance(sparse_query, sparse_vectors[0]),
+        SparseDistance(sparse_query, sparse_vectors[1]),
+    };
+    InnerIdType ids[] = {0, 1};
+    std::vector<float> table_dists(2, 0.0F);
+    auto table_computer = data_cell->FactoryComputer(hybrid_query.data());
+    table_computer->SetSparseDistanceTable(sparse_distance_table.data(), sparse_distance_table.size());
+    table_computer->SetPruneScale(0.0F);
+    table_computer->SetSearchLowerBound(0.6F);
+    data_cell->Query(table_dists.data(), table_computer, ids, 2, allocator.get());
+
+    REQUIRE(table_dists[0] < 0.6F);
+    REQUIRE(table_dists[1] > 0.6F);
+}
+
 }  // namespace vsag

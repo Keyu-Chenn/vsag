@@ -53,6 +53,10 @@ public:
         return 1.0F;
     }
 
+    virtual void
+    SetSparseDistanceTable(const float* table, int64_t count) {
+    }
+
 };
 
 template <typename T>

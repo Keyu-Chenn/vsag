@@ -1,82 +1,31 @@
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
-import matplotlib.patches as mpatches
 
-# ── Data ──────────────────────────────────────────────────────────────────────
-data = {
-    'α=0.2 (prune=0.5)': {
-        'baseline': {'recall': [0.85496,  0.977679, 0.994519, 0.99821],
-                     'qps':    [565,      346.256,  243.787,  195.492]},
-        'hybrid':   {'recall': [0.941878, 0.990649, 0.996539, 0.998559],
-                     'qps':    [1070.43,  584.582,  397.878,  295.764]}
-    },
-    'α=0.3 (prune=0.5)': {
-        'baseline': {'recall': [0.83169,  0.964059, 0.988879, 0.995549],
-                     'qps':    [554.568,  342.346,  250.646,  197.5]},
-        'hybrid':   {'recall': [0.918109, 0.982208, 0.993468, 0.996939],
-                     'qps':    [864.181,  459.363,  316.498,  240.791]}
-    },
-    'α=0.5 (prune=0.6)': {
-        'baseline': {'recall': [0.84587,  0.967478, 0.987218, 0.993058],
-                     'qps':    [548.095,  333.068,  248.707,  198.074]},
-        'hybrid':   {'recall': [0.942968, 0.980268, 0.990029, 0.993979],
-                     'qps':    [530.265,  325.17,   249.55,   205.68]}
-    },
-    'α=0.7 (prune=0.6)': {
-        'baseline': {'recall': [0.88642,  0.971948, 0.984688, 0.990248],
-                     'qps':    [553.886,  336.885,  246.621,  196.488]},
-        'hybrid':   {'recall': [0.929619, 0.971758, 0.984848, 0.990098],
-                     'qps':    [577.095,  352.017,  257.9,    210.262]}
-    },
-    'α=0.8 (prune=0.6)': {
-        'baseline': {'recall': [0.902599, 0.969538, 0.982818, 0.988859],
-                     'qps':    [560.52,   346.111,  252.154,  200.452]},
-        'hybrid':   {'recall': [0.924109, 0.968548, 0.982488, 0.988878],
-                     'qps':    [585.402,  349.129,  259.788,  210.034]}
-    }
-}
+# 数据
+baseline_recall = [0.85507, 0.977709, 0.994549, 0.99819]
+baseline_qps = [572.99, 346.141, 252.213, 199.175]
 
-style_handles = [
-    Line2D([0], [0], color='#e41a1c', linestyle='-',  linewidth=2,
-           marker='o', markersize=8,
-           markerfacecolor='white', markeredgewidth=2,
-           label='Baseline'),
-    Line2D([0], [0], color='#377eb8', linestyle='--', linewidth=2,
-           marker='*', markersize=12,
-           label='Hybrid Graph'),
-]
+hybrid_bkef_recall = [0.941878, 0.990649, 0.996539, 0.998559]
+hybrid_bkef_qps = [1065.39, 614.489, 405.43, 304.287]
 
-# ── One figure per alpha ───────────────────────────────────────────────────────
-for i, (alpha, vals) in enumerate(data.items()):
-    fig, ax = plt.subplots(figsize=(7, 5))
+hybrid_cset_recall = [0.78911, 0.82422, 0.86545, 0.88818, 0.90862, 0.933999]
+hybrid_cset_qps = [1655.47, 1566.49, 1438.86, 1354.42, 1252.72, 1086.33]
 
-    b_recall = vals['baseline']['recall']
-    b_qps    = vals['baseline']['qps']
-    h_recall = vals['hybrid']['recall']
-    h_qps    = vals['hybrid']['qps']
+labels_bf = ['ef=100', 'ef=200', 'ef=300', 'ef=400']
+labels_cset = ['c_set=1', 'c_set=2', 'c_set=5', 'c_set=10', 'c_set=20', 'c_set=50']
 
-    # Baseline
-    ax.plot(b_recall, b_qps,
-            color='#e41a1c', linestyle='-', linewidth=2,
-            marker='o', markersize=8,
-            markerfacecolor='white', markeredgewidth=2,
-            label='Baseline', zorder=3)
+fig, ax = plt.subplots(figsize=(8, 6))
 
-    # Hybrid Graph
-    ax.plot(h_recall, h_qps,
-            color='#377eb8', linestyle='--', linewidth=2,
-            marker='*', markersize=12,
-            label='Hybrid Graph', zorder=3)
+ax.plot(baseline_recall, baseline_qps, 'o-', label='Baseline', color='blue')
+ax.plot(hybrid_bkef_recall, hybrid_bkef_qps, 's-', label='Hybrid', color='red')
+ax.plot(hybrid_cset_recall, hybrid_cset_qps, '^-', label='Hybrid fix_cset', color='green')
 
-    ax.legend(fontsize=10, framealpha=0.9)
-    ax.set_xlabel('Recall', fontsize=12)
-    ax.set_ylabel('QPS (Queries Per Second)', fontsize=12)
-    ax.set_title(f'Recall vs QPS  ({alpha})', fontsize=13, fontweight='bold')
-    ax.grid(True, linestyle='--', alpha=0.45)
-    ax.tick_params(labelsize=10)
 
-    plt.tight_layout()
-    fname = f'recall_qps_{alpha.replace("=","").replace(" ","_").replace("(","").replace(")","").replace(".","")}.png'
-    plt.savefig(fname, dpi=150, bbox_inches='tight')
-    plt.show()
-    print(f"已保存：{fname}")
+ax.set_xlabel('Recall')
+ax.set_ylabel('QPS')
+ax.set_title('QPS-Recall Curve  (α=0.2)')
+ax.legend()
+ax.grid(True)
+
+plt.tight_layout()
+plt.savefig('qps_recall.png', dpi=150)
+plt.show()

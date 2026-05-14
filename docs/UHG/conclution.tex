@@ -1,0 +1,10 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+This paper studies dense--sparse hybrid retrieval from the perspective of graph topology. Two-route hybrid systems retrieve dense and sparse candidates separately and combine them only during reranking. This late-fusion design is modular, but it does not construct an index topology aligned with the hybrid distance.
+
+We proposed UHG, a unified hybrid graph index that selects alpha-cover neighbors across a family of dense--sparse weights. The mathematical motivation is that, for a fixed candidate pool, each candidate's hybrid distance is a line in $\alpha$, and the top-$k$ nearest-neighbor set changes only at finite breakpoints. UHG approximates this continuous cover by sampling alpha values, then refines the resulting graph with reverse-edge augmentation, RNG-inspired pruning, and connectivity repair.
+
+We also proposed UHGS, which uses SINDI as a sparse-guided routing and pruning module for UHG search. SINDI results provide multiple query-dependent entry points, and the sparse distances computed by SINDI are reused during hybrid graph traversal. These sparse distances provide a bound on the final hybrid distance before computing dense distances, enabling UHGS to prune unnecessary dense computations at query time.
+
+The evaluation plan compares UHG and UHGS against two-route HGraph+HGraph and HGraph+SINDI baselines using recall, QPS, distance computations, graph hops, and sensitivity to the hybrid weight $\alpha$. Overall, the paper argues that dense--sparse hybrid retrieval should not only combine distances after retrieval; it should also build and search a graph whose topology reflects the hybrid distance itself.

@@ -1,0 +1,140 @@
+\section{Unified Hybrid Graph}
+\label{sec:solution2}
+
+This section presents Unified Hybrid Graph (UHG) and its sparse-guided query variant UHGS. UHG addresses the topology problem: it builds one graph whose edges cover hybrid neighborhoods under multiple dense--sparse weights. UHGS addresses the query-efficiency problem: it uses SINDI not as an independent retrieval route, but as a source of query-dependent entry points and reusable sparse distances for pruning dense computations during UHG traversal.
+
+\subsection{Overview}
+
+Given a hybrid dataset $\mathcal{X}=\{(x_i^d,x_i^s)\}_{i=1}^{n}$, UHG builds a directed graph $G=(V,E)$ over database objects. The method has two layers. The first layer is an offline graph construction procedure that approximates the alpha-cover neighborhoods motivated in Section~\ref{sec:solution1}. The second layer is a query procedure that evaluates the graph under the user-specified hybrid weight. The construction follows three stages:
+\begin{enumerate}
+    \item generate dense and sparse candidate neighbors for each object;
+    \item select alpha-cover neighbors from the candidate pool;
+    \item refine the graph with reverse edges, pruning, and connectivity repair.
+\end{enumerate}
+
+The dense and sparse indexes used during construction are auxiliary tools. They are not used as two independent final retrieval routes. Their purpose is to produce a compact but expressive candidate pool so that UHG can evaluate hybrid distances over plausible neighbors without comparing every object with the entire dataset.
+
+\subsection{Dense--Sparse Candidate Generation}
+
+For each object $x_i$, UHG retrieves a dense candidate set $C_d(i)$ and a sparse candidate set $C_s(i)$. The dense set captures semantic neighbors, while the sparse set captures lexical neighbors. UHG uses their union as the candidate pool:
+\begin{equation}
+    C(i)=C_d(i)\cup C_s(i).
+    \label{eq:candidate-union}
+\end{equation}
+After forming $C(i)$, UHG recomputes the dense and sparse distances between $x_i$ and every candidate $x_j\in C(i)$. This gives a consistent distance table for evaluating the same candidate pool under different $\alpha$ values.
+
+The union pool is important because neither modality alone is sufficient. Dense candidates may miss exact-match neighbors, while sparse candidates may miss semantic neighbors. The union is still much smaller than the full dataset, but it is expressive enough to contain candidates that can become near under hybrid distance.
+
+\subsection{Alpha-cover Neighbor Selection}
+
+Let $\mathcal{A}=\{0,\delta,2\delta,\ldots,1\}$ be a sampled alpha grid. For each $\alpha\in\mathcal{A}$, UHG ranks candidates in $C(i)$ by
+\begin{equation}
+    d_h(x_i,x_j;\alpha)=\alpha d_d(x_i^d,x_j^d)+(1-\alpha)d_s(x_i^s,x_j^s).
+\end{equation}
+The alpha-cover neighbor set is
+\begin{equation}
+    N_{\mathrm{cover}}(x_i)=
+    \bigcup_{\alpha\in\mathcal{A}}
+    \operatorname{TopK}_{x_j\in C(i)}d_h(x_i,x_j;\alpha).
+    \label{eq:alpha-cover}
+\end{equation}
+
+This construction is a sampled approximation of the continuous cover set $N^*(x_i)$ in Eq.~\eqref{eq:continuous-alpha-cover}. Candidates selected near $\alpha=0$ preserve sparse-dominant neighborhoods, candidates selected near $\alpha=1$ preserve dense-dominant neighborhoods, and candidates selected in the middle preserve balanced hybrid neighborhoods. The grid step $\delta$ controls a construction trade-off: a smaller step gives finer coverage of the weight space, while a larger step reduces construction cost and intermediate neighbor-set size. In practice, the partial correlation between dense and sparse neighborhoods makes the union much smaller than the sum of all per-$\alpha$ top-$k$ sets, as discussed in Section~\ref{sec:solution1}. Algorithm 1 summarizes the full construction procedure.
+
+\begin{center}
+\begin{tabular}{r p{0.88\linewidth}}
+\hline
+\multicolumn{2}{p{0.97\linewidth}}{\textbf{Algorithm 1: UHGConstruction}$(\mathcal{X}, b_d, b_s, \mathcal{A}, k, M)$} \\
+\multicolumn{2}{p{0.97\linewidth}}{\textbf{Input:} hybrid dataset $\mathcal{X}=\{(x_i^d,x_i^s)\}_{i=1}^{n}$, candidate budgets $b_d,b_s$, alpha grid $\mathcal{A}$, per-alpha neighbor size $k$, maximum out-degree $M$.} \\
+\multicolumn{2}{p{0.97\linewidth}}{\textbf{Output:} refined unified hybrid graph $G=(V,E)$.} \\
+\hline
+1 & $I_d \leftarrow \operatorname{BuildDenseIndex}(\{x_i^d\}_{i=1}^{n})$; $I_s \leftarrow \operatorname{BuildSparseIndex}(\{x_i^s\}_{i=1}^{n})$. \\
+2 & $N_{\mathrm{raw}}(x_i)\leftarrow\emptyset$ for all $x_i\in\mathcal{X}$. \\
+3 & \textbf{for all} $x_i\in\mathcal{X}$ \textbf{do} \\
+4 & \quad $C_d\leftarrow\operatorname{Search}(I_d,x_i^d,b_d)$; $C_s\leftarrow\operatorname{Search}(I_s,x_i^s,b_s)$. \\
+5 & \quad $C\leftarrow(C_d\cup C_s)\setminus\{x_i\}$. \\
+6 & \quad \textbf{for all} $x_j\in C$ \textbf{do} \\
+7 & \quad\quad $D[j]\leftarrow d_d(x_i^d,x_j^d)$; $S[j]\leftarrow d_s(x_i^s,x_j^s)$. \\
+8 & \quad $N_{\mathrm{cover}}\leftarrow\emptyset$. \\
+9 & \quad \textbf{for all} $\alpha\in\mathcal{A}$ \textbf{do} \\
+10 & \quad\quad Sort $C$ in ascending order of $\alpha D[j]+(1-\alpha)S[j]$. \\
+11 & \quad\quad $N_{\mathrm{cover}}\leftarrow N_{\mathrm{cover}}\cup$ first $k$ objects in the sorted list. \\
+12 & \quad $N_{\mathrm{raw}}(x_i)\leftarrow N_{\mathrm{cover}}$. \\
+13 & \textbf{for all} $x_i\in\mathcal{X}$ and $x_j\in N_{\mathrm{raw}}(x_i)$ \textbf{do} \\
+14 & \quad $N_{\mathrm{raw}}(x_j)\leftarrow N_{\mathrm{raw}}(x_j)\cup\{x_i\}$. \hfill \textit{// reverse augmentation} \\
+15 & \textbf{for all} $x_i\in\mathcal{X}$ \textbf{do} \\
+16 & \quad $N(x_i)\leftarrow\operatorname{RNGPrune}(x_i,N_{\mathrm{raw}}(x_i),M)$. \\
+17 & $E\leftarrow\{(x_i,x_j)\mid x_j\in N(x_i)\}$. \\
+18 & $G\leftarrow\operatorname{RepairConnectivity}((\mathcal{X},E))$. \\
+19 & \textbf{return} $G$. \\
+\hline
+\end{tabular}
+\end{center}
+
+\subsection{Graph Refinement}
+
+The raw alpha-cover graph can contain redundant edges, uneven degrees, and disconnected components. UHG refines it before search.
+
+\textbf{Reverse-edge augmentation.} If $x_i$ selects $x_j$, UHG also considers adding $x_i$ as a candidate neighbor of $x_j$. This improves reciprocal reachability and gives graph traversal more paths into regions that may otherwise have few incoming edges.
+
+\textbf{RNG-inspired pruning.} UHG prunes redundant edges using a relative-neighborhood-style rule. Candidates are considered in distance order. A candidate edge can be removed if an already selected neighbor provides a shorter or comparable route to the candidate under a hybrid evaluation distance. This keeps the graph sparse while preserving diverse navigational directions.
+
+\textbf{Connectivity repair.} Pruning can disconnect parts of the graph. UHG therefore checks reachability and adds repair edges from disconnected components to reachable nodes. This step ensures that graph search can access the constructed topology from the entry region.
+
+\subsection{UHG Query Search}
+
+At query time, UHG traverses the graph using the query-time hybrid distance $d_h(q,x;\alpha)$. The graph itself is fixed after construction, but the distance computer is configured by the query weight $\alpha$. Thus the same topology can serve sparse-dominant, balanced, and dense-dominant queries without reconstruction.
+
+The traversal follows the standard graph-based ANNS pattern. Starting from an entry point, UHG evaluates the hybrid distance to the entry, inserts it into a candidate queue, and repeatedly expands the most promising unexpanded vertex. For every newly discovered neighbor, UHG computes its dense and sparse distances to the query, combines them into $d_h(q,x;\alpha)$, and updates the candidate queue and the current result heap. The search width controls the number of retained candidates and therefore the recall--QPS trade-off. This baseline UHG search is already hybrid-aware because both expansion and result maintenance use the hybrid distance, not a single-modality distance followed by reranking.
+
+\subsection{UHGS: Sparse-guided Entry and Pruning}
+
+UHGS augments UHG search with SINDI. Its key difference from the HGraph+SINDI two-route baseline is that the sparse search result is not treated as a separate candidate list for final merging. Instead, UHGS injects sparse information into the hybrid graph traversal itself. This injection has three roles: sparse-guided entry, sparse distance reuse, and dense-computation pruning.
+
+\textbf{Sparse-guided entry.} Given a query $q=(q^d,q^s)$, SINDI first searches the sparse vector $q^s$ and returns a set of sparse candidates. UHGS uses these candidates as multiple entry points for UHG traversal. Compared with a fixed global entry point, these entries are query-dependent and can place the graph search near exact-match or entity-heavy regions before hybrid expansion begins.
+
+\textbf{Sparse distance reuse.} During sparse search, SINDI computes sparse distances between the query and database objects. UHGS attaches these distances to the hybrid query as a sparse-distance table. When UHG later evaluates a visited object or a discovered neighbor, it first looks up the sparse distance in this table. If the value is available, UHG reuses it directly; otherwise, it falls back to computing the sparse distance. This avoids evaluating the sparse component twice and, more importantly, exposes the sparse component before the dense distance is computed.
+
+\textbf{Dense-computation pruning.} Once the sparse distance is known, UHGS can decide whether a dense distance computation is still necessary. Let $\tau$ be the current worst acceptable hybrid distance in the search heap. For a candidate $x$, suppose UHGS already knows its sparse distance $d_s(q^s,x^s)$. Since IP distance is defined as $1-\langle\cdot,\cdot\rangle$, the dense IP distance can be lower-bounded by Cauchy--Schwarz:
+
+\begin{equation}
+    d_d(q^d,x^d) \geq 1-\|q^d\|\cdot\|x^d\|.
+\end{equation}
+Therefore, the dense norm gives the following scaled lower bound on the hybrid distance:
+\begin{equation}
+    \underline{d}_h(q,x;\alpha)
+    = \alpha\cdot\big(1-\gamma\cdot\|q^d\|\|x^d\|\big)
+    +(1-\alpha)d_s(q^s,x^s),
+    \label{eq:uhgs-prune-bound}
+\end{equation}
+where $\gamma\geq0$ is a pruning scale parameter. When the bound is already no smaller than $\tau$, even the best possible dense contribution cannot make $x$ enter the current top-$k$ heap, so UHGS skips the dense distance computation for $x$. Smaller $\gamma$ makes the lower bound larger and prunes more aggressively, while larger $\gamma$ is more conservative and better preserves recall.
+
+This mechanism changes the role of the sparse index. In a two-route pipeline, SINDI produces a candidate list that is later merged with dense candidates. In UHGS, SINDI provides entry points, reusable sparse distances, and a pruning signal inside unified graph traversal. Dense and sparse evidence therefore interact during search rather than only during final reranking. Algorithm 2 summarizes the query process.
+
+\begin{center}
+\begin{tabular}{r p{0.88\linewidth}}
+\hline
+\multicolumn{2}{p{0.97\linewidth}}{\textbf{Algorithm 2: UHGSQuery}$(q,G,I_s,k,b_s,B,\alpha,\gamma)$} \\
+\multicolumn{2}{p{0.97\linewidth}}{\textbf{Input:} query $q=(q^d,q^s)$, graph $G$, sparse index $I_s$, top-$k$, entry budget $b_s$, search budget $B$, hybrid weight $\alpha$, pruning scale $\gamma$.} \\
+\multicolumn{2}{p{0.97\linewidth}}{\textbf{Output:} approximate hybrid top-$k$ results.} \\
+\hline
+1 & $(E_q,D_s)\leftarrow\operatorname{SINDISearch}(I_s,q^s,b_s)$. \hfill \textit{// entries and sparse-distance table} \\
+2 & Attach $D_s$ to the hybrid query and configure the hybrid distance computer with $(\alpha,\gamma)$. \\
+3 & $Q\leftarrow\emptyset$; $R\leftarrow\emptyset$; $V_{\mathrm{seen}}\leftarrow\emptyset$; $c\leftarrow0$. \\
+4 & \textbf{for all} $x\in E_q$ \textbf{do} evaluate $d_h(q,x;\alpha)$ using $D_s$ and insert $x$ into $Q$ and $R$. \\
+5 & \textbf{while} $Q\ne\emptyset$ and $c<B$ \textbf{do} \\
+6 & \quad $x\leftarrow\operatorname{PopBest}(Q)$; \textbf{if} $x\in V_{\mathrm{seen}}$ \textbf{then continue}. \\
+7 & \quad $V_{\mathrm{seen}}\leftarrow V_{\mathrm{seen}}\cup\{x\}$; $c\leftarrow c+1$. \\
+8 & \quad $d_s\leftarrow\operatorname{Lookup}(D_s,x)$; \textbf{if} unavailable \textbf{then} $d_s\leftarrow d_s(q^s,x^s)$. \\
+9 & \quad $\tau\leftarrow+\infty$ if $|R|<k$; otherwise $\tau\leftarrow\operatorname{WorstDistance}(R)$. \\
+10 & \quad $\underline{d}_h\leftarrow\alpha(1-\gamma\|q^d\|\|x^d\|)+(1-\alpha)d_s$. \\
+11 & \quad \textbf{if} $|R|\ge k$ and $\underline{d}_h\ge\tau$ \textbf{then} \\
+12 & \quad\quad \textbf{continue}. \hfill \textit{// skip dense distance computation} \\
+13 & \quad $d_d\leftarrow d_d(q^d,x^d)$; $d\leftarrow\alpha d_d+(1-\alpha)d_s$. \\
+14 & \quad $R\leftarrow\operatorname{UpdateTopK}(R,(x,d),k)$. \\
+15 & \quad \textbf{for all} $y\in N_G(x)$ \textbf{do} \\
+16 & \quad\quad \textbf{if} $y\notin V_{\mathrm{seen}}$ \textbf{then} insert or update $y$ in $Q$. \\
+17 & \textbf{return} $R$. \\
+\hline
+\end{tabular}
+\end{center}

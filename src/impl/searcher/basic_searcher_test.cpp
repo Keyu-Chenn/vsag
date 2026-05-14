@@ -15,11 +15,182 @@
 
 #include "basic_searcher.h"
 
+#include <cstring>
+#include <limits>
+#include <vector>
+
 #include "algorithm/inner_index_interface.h"
 #include "searcher_test.h"
 #include "utils/visited_list.h"
 
 using namespace vsag;
+
+namespace {
+
+class CountingComputer : public ComputerInterface {
+public:
+    void
+    SetSearchLowerBound(float lower_bound) override {
+        search_lower_bound_ = lower_bound;
+    }
+
+    [[nodiscard]] float
+    GetSearchLowerBound() const override {
+        return search_lower_bound_;
+    }
+
+private:
+    float search_lower_bound_{std::numeric_limits<float>::max()};
+};
+
+class FixedDistanceFlatten : public FlattenInterface {
+public:
+    FixedDistanceFlatten(std::vector<float> distances, std::vector<uint32_t>* query_counts)
+        : distances_(std::move(distances)), query_counts_(query_counts) {
+        this->total_count_ = static_cast<InnerIdType>(distances_.size());
+        this->max_capacity_ = static_cast<InnerIdType>(distances_.size());
+        this->code_size_ = sizeof(float);
+    }
+
+    void
+    Query(float* result_dists,
+          const ComputerInterfacePtr&,
+          const InnerIdType* idx,
+          InnerIdType id_count,
+          Allocator*) override {
+        query_counts_->push_back(static_cast<uint32_t>(id_count));
+        for (InnerIdType i = 0; i < id_count; ++i) {
+            result_dists[i] = distances_.at(idx[i]);
+        }
+    }
+
+    ComputerInterfacePtr
+    FactoryComputer(const void*) override {
+        return std::make_shared<CountingComputer>();
+    }
+
+    void
+    Train(const void*, uint64_t) override {
+    }
+
+    void
+    InsertVector(const void*, InnerIdType) override {
+    }
+
+    void
+    BatchInsertVector(const void*, InnerIdType, InnerIdType*) override {
+    }
+
+    float
+    ComputePairVectors(InnerIdType, InnerIdType) override {
+        return 0.0F;
+    }
+
+    void
+    Prefetch(InnerIdType) override {
+    }
+
+    [[nodiscard]] std::string
+    GetQuantizerName() override {
+        return "fixed_distance";
+    }
+
+    [[nodiscard]] MetricType
+    GetMetricType() override {
+        return MetricType::METRIC_TYPE_L2SQR;
+    }
+
+    void
+    Resize(InnerIdType) override {
+    }
+
+    void
+    ExportModel(const FlattenInterfacePtr&) const override {
+    }
+
+    bool
+    Decode(const uint8_t*, DataType*) override {
+        return false;
+    }
+
+    [[nodiscard]] const uint8_t*
+    GetCodesById(InnerIdType, bool& need_release) const override {
+        need_release = false;
+        return nullptr;
+    }
+
+    void
+    Release(const uint8_t*) const override {
+    }
+
+    bool
+    GetCodesById(InnerIdType id, uint8_t* codes) const override {
+        auto value = distances_.at(id);
+        std::memcpy(codes, &value, sizeof(value));
+        return true;
+    }
+
+private:
+    std::vector<float> distances_;
+    std::vector<uint32_t>* query_counts_{nullptr};
+};
+
+class StaticGraph : public GraphInterface {
+public:
+    explicit StaticGraph(std::vector<std::vector<InnerIdType>> neighbors)
+        : neighbors_(std::move(neighbors)) {
+        this->total_count_ = static_cast<InnerIdType>(neighbors_.size());
+        this->max_capacity_ = static_cast<InnerIdType>(neighbors_.size());
+        for (const auto& ids : neighbors_) {
+            this->maximum_degree_ = std::max<uint32_t>(this->maximum_degree_, ids.size());
+        }
+    }
+
+    void
+    InsertNeighborsById(InnerIdType, const Vector<InnerIdType>&) override {
+    }
+
+    void
+    GetNeighbors(InnerIdType id, Vector<InnerIdType>& neighbor_ids) const override {
+        neighbor_ids.clear();
+        for (auto neighbor : neighbors_.at(id)) {
+            neighbor_ids.push_back(neighbor);
+        }
+    }
+
+    uint32_t
+    GetNeighborSize(InnerIdType id) const override {
+        return static_cast<uint32_t>(neighbors_.at(id).size());
+    }
+
+    void
+    Resize(InnerIdType) override {
+    }
+
+    void
+    Prefetch(InnerIdType, uint32_t) override {
+    }
+
+private:
+    std::vector<std::vector<InnerIdType>> neighbors_;
+};
+
+class RejectIdsFilter : public Filter {
+public:
+    explicit RejectIdsFilter(std::vector<InnerIdType> rejected_ids)
+        : rejected_ids_(std::move(rejected_ids)) {
+    }
+
+    [[nodiscard]] bool
+    CheckValid(int64_t id) const override {
+        return std::find(rejected_ids_.begin(), rejected_ids_.end(), id) == rejected_ids_.end();
+    }
+
+private:
+    std::vector<InnerIdType> rejected_ids_;
+};
+
+}  // namespace
 
 TEST_CASE("Basic Usage for GraphDataCell (adapter of hnsw)", "[ut][GraphDataCell]") {
     uint32_t M = 32;
@@ -226,6 +397,83 @@ TEST_CASE("Search with HNSW", "[ut][BasicSearcher]") {
             }
         }
     }
+}
+
+TEST_CASE("Hybrid search leaves candidate set unbounded by default", "[ut][BasicSearcher]") {
+    auto allocator = SafeAllocator::FactoryDefaultAllocator();
+    IndexCommonParam common;
+    common.allocator_ = allocator;
+    common.dim_ = 1;
+    common.metric_ = MetricType::METRIC_TYPE_L2SQR;
+
+    auto graph = std::make_shared<StaticGraph>(std::vector<std::vector<InnerIdType>>{
+        {1, 2, 3},
+        {},
+        {},
+        {},
+    });
+
+    std::vector<uint32_t> query_counts;
+    auto flatten = std::make_shared<FixedDistanceFlatten>(
+        std::vector<float>{0.0F, 0.1F, 0.2F, 0.3F}, &query_counts);
+
+    InnerSearchParam search_param;
+    search_param.ep = 0;
+    search_param.ef = 2;
+    search_param.topk = 2;
+    search_param.is_hybrid = true;
+    search_param.is_inner_id_allowed =
+        std::make_shared<RejectIdsFilter>(std::vector<InnerIdType>{0, 1});
+
+    auto vl = std::make_shared<VisitedList>(graph->MaxCapacity(), allocator.get());
+    BasicSearcher searcher(common);
+    Statistics stats;
+    float query = 0.0F;
+
+    auto result =
+        searcher.Search(graph, flatten, vl, &query, search_param, (LabelTablePtr)nullptr, stats);
+
+    REQUIRE(result->Size() == search_param.topk);
+    REQUIRE(stats.hops.load(std::memory_order_relaxed) == 4);
+}
+
+TEST_CASE("Hybrid search bounds candidate set by explicit search parameter", "[ut][BasicSearcher]") {
+    auto allocator = SafeAllocator::FactoryDefaultAllocator();
+    IndexCommonParam common;
+    common.allocator_ = allocator;
+    common.dim_ = 1;
+    common.metric_ = MetricType::METRIC_TYPE_L2SQR;
+
+    auto graph = std::make_shared<StaticGraph>(std::vector<std::vector<InnerIdType>>{
+        {1, 2, 3},
+        {},
+        {},
+        {},
+    });
+
+    std::vector<uint32_t> query_counts;
+    auto flatten = std::make_shared<FixedDistanceFlatten>(
+        std::vector<float>{0.0F, 0.1F, 0.2F, 0.3F}, &query_counts);
+
+    InnerSearchParam search_param;
+    search_param.ep = 0;
+    search_param.ef = 3;
+    search_param.topk = 2;
+    search_param.is_hybrid = true;
+    search_param.hybrid_candidate_set_size = 1;
+    search_param.is_inner_id_allowed =
+        std::make_shared<RejectIdsFilter>(std::vector<InnerIdType>{0});
+
+    auto vl = std::make_shared<VisitedList>(graph->MaxCapacity(), allocator.get());
+    BasicSearcher searcher(common);
+    Statistics stats;
+    float query = 0.0F;
+
+    auto result =
+        searcher.Search(graph, flatten, vl, &query, search_param, (LabelTablePtr)nullptr, stats);
+
+    REQUIRE(result->Size() == search_param.topk);
+    REQUIRE(stats.hops.load(std::memory_order_relaxed) == search_param.hybrid_candidate_set_size + 1);
 }
 
 TEST_CASE("Optimize SQ4", "[ut][BasicOptimizer]") {

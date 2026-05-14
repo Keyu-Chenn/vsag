@@ -293,6 +293,9 @@ HybridIndex::KnnSearch(const DatasetPtr& query,
     auto parsed_search_param = JsonType::Parse(parameters);
     InnerSearchParam search_param;
     search_param.ef = parsed_search_param["ef_search"].GetInt();
+    search_param.hybrid_candidate_set_size = parsed_search_param.Contains("hybrid_candidate_set_size")
+                                                 ? parsed_search_param["hybrid_candidate_set_size"].GetInt()
+                                                 : 0;
     search_param.topk = k;
     search_param.search_mode = KNN_SEARCH;
     search_param.is_hybrid = true;

@@ -1,0 +1,44 @@
+\section{Related Work}
+\label{sec:related}
+
+This section reviews the work most closely related to dense--sparse hybrid retrieval and unified hybrid indexing. We focus on three lines of work: dense and sparse retrieval models, score-fusion-based hybrid retrieval, and unified or graph-based hybrid vector search.
+
+\subsection{Sparse and Dense Retrieval}
+
+Sparse retrieval has long been the standard approach for lexical matching. Classical methods such as BM25 rank documents using term-frequency and inverse-document-frequency statistics, and they remain strong baselines for exact matching, entity-heavy queries, and rare terms. Recent learned sparse retrievers, such as SPLADE, use neural models to produce sparse lexical expansion vectors. These models inherit the interpretability and inverted-index compatibility of sparse retrieval while improving semantic coverage through learned expansion.
+
+Dense retrieval represents queries and documents as low-dimensional neural embeddings. Representative dense retrievers, such as DPR and ANCE, address vocabulary mismatch by retrieving documents according to semantic similarity in an embedding space. Dense retrieval is effective for paraphrases and natural-language queries, but it can be less reliable for exact identifiers, rare entities, and lexical constraints. This complementarity motivates dense--sparse hybrid retrieval.
+
+Some work attempts to reduce the gap between the two representations at the model level. For example, SPAR trains a dense lexical model to imitate a sparse retriever and combines it with a dense retriever, showing that lexical matching ability can be partially distilled into dense representations. These approaches improve retrieval models themselves, while our work studies the index structure used to search over paired dense and sparse vectors.
+
+\subsection{Fusion-based Dense--Sparse Hybrid Retrieval}
+
+A widely used hybrid retrieval architecture runs dense and sparse retrievers separately, then merges their candidate lists. The final ranking can be produced by linear score interpolation,
+\begin{equation}
+    s_h(q,x;\alpha)=\alpha s_d(q^d,x^d)+(1-\alpha)s_s(q^s,x^s),
+\end{equation}
+or by rank-level fusion methods such as Reciprocal Rank Fusion (RRF). RRF is attractive because it combines ranked lists without requiring score normalization, and it has become a common default for hybrid retrieval pipelines.
+
+The main advantage of two-route fusion is modularity: an existing dense ANN index and an existing sparse index can be reused without changing either index. Modern vector databases and search systems often expose this design as either two separate indexes whose results are merged, or a single record schema that stores dense and sparse vectors side by side. However, the retrieval process remains candidate-level fusion. Dense and sparse candidates are generated under separate single-modality objectives, and the hybrid score is applied only after these candidates have been selected. As discussed in Section~\ref{sec:solution1}, this may miss objects that are not top-ranked by either individual modality but are strong under the combined score.
+
+UHG differs from fusion-based retrieval by moving hybrid awareness into the graph topology. Instead of using dense and sparse indexes only as independent query-time routes, UHG constructs graph edges that are selected according to hybrid similarity over a family of dense--sparse weights.
+
+\subsection{Unified Dense--Sparse Indexing}
+
+Several systems study how to reduce the overhead of maintaining separate dense and sparse retrieval paths. OneSparse proposes a unified multi-index vector search system that incorporates multiple posting-based vector indexes. Its key idea is inter-index intersection push-down: sparse and dense posting lists are organized in a unified query engine so that low-quality candidates can be skipped before expensive scoring. OneSparse targets system-level efficiency for multi-index queries, whereas UHG targets graph topology construction for dense--sparse hybrid ANNS.
+
+Commercial and open-source vector databases also support native hybrid search. Pinecone describes a single-index dense--sparse pattern where dense and sparse query vectors are scaled by an $\alpha$ parameter and searched together under dot product. Qdrant supports collections containing both dense and sparse vectors and commonly combines the two result lists or scores. These systems show the practical importance of hybrid retrieval, but their public descriptions usually focus on API-level support, score normalization, or two-route fusion rather than on how to construct a graph whose edges cover hybrid neighborhoods across different weights.
+
+\subsection{Graph-based Hybrid Vector Search}
+
+The closest academic line of work is graph-based ANNS for dense--sparse hybrid vectors. The recent work \emph{Efficient and Effective Retrieval of Dense-Sparse Hybrid Vectors using Graph-based Approximate Nearest Neighbor Search} observes that separate sparse and dense search suffers from scalability and system-complexity issues, and it builds on HNSW for hybrid vectors. Its main techniques include distribution alignment between dense and sparse distances, an adaptive dense-to-hybrid two-stage computation strategy, and sparse-vector pruning to reduce sparse distance computations.
+
+UHG is complementary but addresses a different bottleneck. Rather than primarily aligning distance distributions or reducing sparse computation overhead, UHG focuses on the topology mismatch caused by varying hybrid weights. A graph constructed for a single weight may not preserve the neighbors needed by another weight. UHG therefore constructs an alpha-cover graph by retaining neighbors that become important under sampled hybrid weights, so that one graph can support multiple dense--sparse trade-offs without reconstruction.
+
+Other graph-based hybrid-search work studies different problem settings. ACORN extends HNSW for vector search with structured predicates by constructing and traversing predicate-aware subgraphs. Although ACORN is also described as hybrid search, its hybrid dimension is vector similarity plus metadata filtering, not dense--sparse score fusion. Allan-Poe proposes an all-in-one graph index integrating dense, sparse, and full-text retrieval paths with GPU acceleration and dynamic fusion. These works confirm the importance of unified graph structures for mixed retrieval signals, while UHG specifically studies dense--sparse hybrid graph construction under a tunable weight $\alpha$.
+
+\subsection{Graph-based ANNS Foundations}
+
+UHG builds on ideas from graph-based approximate nearest neighbor search. NSW and HNSW use navigable small-world graphs to support efficient greedy or beam search. NSG, Vamana/DiskANN, and related methods emphasize graph sparsification, bounded degree, long-range edges, and connectivity. Many of these methods use ideas related to KNNG, RNG, or MRNG structures to balance local accuracy with global navigability. DEG further studies dynamic and continuously refined graph structures with predictable degree and connectivity.
+
+These graph-based ANNS methods provide the general principles used by UHG: a useful graph should be sparse, connected, and navigable. However, they are usually designed for a single vector space and a fixed distance or similarity function. UHG extends this perspective to dense--sparse hybrid retrieval, where the target neighborhood structure changes with $\alpha$.

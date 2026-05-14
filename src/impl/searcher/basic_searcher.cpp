@@ -16,6 +16,7 @@
 #include "basic_searcher.h"
 
 #include <atomic>
+#include <functional>
 #include <limits>
 
 #include "algorithm/inner_index_interface.h"
@@ -251,7 +252,6 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
     Allocator* alloc =
         inner_search_param.search_alloc == nullptr ? allocator_ : inner_search_param.search_alloc;
     auto top_candidates = std::make_shared<StandardHeap<true, false>>(alloc, -1);
-    auto candidate_set = std::make_shared<StandardHeap<true, false>>(alloc, -1);
 
     if (not graph or not flatten) {
         return top_candidates;
@@ -265,6 +265,38 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
     auto is_id_allowed = inner_search_param.is_inner_id_allowed;
     auto ep = inner_search_param.ep;
     auto ef = inner_search_param.ef;
+    auto candidate_set = std::make_shared<StandardHeap<true, false>>(alloc, -1);
+    auto push_candidate = [&](float candidate_dist, InnerIdType candidate_id) {
+        candidate_set->Push(-candidate_dist, candidate_id);
+    };
+    auto push_fixed_size_candidate = [&](float candidate_dist, InnerIdType candidate_id) {
+        candidate_set->Push(-candidate_dist, candidate_id);
+        if (candidate_set->Size() <= inner_search_param.hybrid_candidate_set_size) {
+            return;
+        }
+
+        const auto* candidate_data = candidate_set->GetData();
+        uint64_t farthest_pos = 0;
+        for (uint64_t i = 1; i < candidate_set->Size(); ++i) {
+            if (candidate_data[i].first < candidate_data[farthest_pos].first) {
+                farthest_pos = i;
+            }
+        }
+
+        auto capped_candidate_set = std::make_shared<StandardHeap<true, false>>(alloc, -1);
+        for (uint64_t i = 0; i < candidate_set->Size(); ++i) {
+            if (i != farthest_pos) {
+                capped_candidate_set->Push(candidate_data[i].first, candidate_data[i].second);
+            }
+        }
+        candidate_set = capped_candidate_set;
+    };
+    const auto limit_candidate_set_size =
+        inner_search_param.is_hybrid && inner_search_param.hybrid_candidate_set_size > 0;
+    std::function<void(float, InnerIdType)> push_candidate_func = push_candidate;
+    if (limit_candidate_set_size) {
+        push_candidate_func = push_fixed_size_candidate;
+    }
 
     float dist = 0.0F;
     auto lower_bound = std::numeric_limits<float>::max();
@@ -344,7 +376,7 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
         dist = ep_dists[i];
 
         vl->Set(ep_id);
-        candidate_set->Push(-dist, ep_id);
+        push_candidate_func(dist, ep_id);
 
         if (check_func(ep_id)) {
             top_candidates->Push(dist, ep_id);
@@ -377,7 +409,6 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
             stats.is_timeout.store(true, std::memory_order_relaxed);
             break;
         }
-
         if constexpr (mode == InnerSearchMode::KNN_SEARCH) {
             if ((-current_node_pair.first) > lower_bound && top_candidates->Size() == ef) {
                 break;
@@ -401,8 +432,7 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
         if (inner_search_param.is_hybrid) {
             if (top_candidates->Size() < ef) {
                 computer->SetSearchLowerBound(std::numeric_limits<float>::max());
-            }
-            else {
+            } else {
                 computer->SetSearchLowerBound(lower_bound);
             }
         }
@@ -415,7 +445,7 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
             dist = line_dists[i];
             if (top_candidates->Size() < ef || lower_bound > dist ||
                 (mode == RANGE_SEARCH && dist <= inner_search_param.radius)) {
-                candidate_set->Push(-dist, to_be_visited_id[i]);
+                push_candidate_func(dist, to_be_visited_id[i]);
                 //                flatten->Prefetch(candidate_set->Top().second);
                 if (check_func(to_be_visited_id[i])) {
                     top_candidates->Push(dist, to_be_visited_id[i]);

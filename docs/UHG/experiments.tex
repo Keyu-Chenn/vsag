@@ -1,0 +1,58 @@
+\section{Experiments}
+\label{sec:experimental}
+
+This section evaluates UHG and UHGS against two-route hybrid retrieval baselines. The current draft focuses on four methods: UHG, UHGS, HGraph+HGraph, and HGraph+SINDI. Final numerical values should be filled after running the benchmark scripts; the tables below provide the intended reporting format.
+
+\subsection{Experimental Setup}
+
+The evaluation uses hybrid datasets where each object contains one dense vector and one sparse vector. The benchmark input contains base vectors, query vectors, labels, and exact hybrid ground-truth neighbors. For each dataset, the final paper should report the number of base vectors, the number of queries, the dense dimension, the sparse vocabulary size, and the average number of non-zero sparse entries.
+
+All methods are evaluated under the same hybrid distance in Eq.~\eqref{eq:hybrid-distance}. We vary the hybrid weight $\alpha$ to cover sparse-dominant, balanced, and dense-dominant settings. The main search parameters include top-$k$, the dense and sparse candidate budgets of the two-route baselines, the UHG search budget, the SINDI entry budget of UHGS, and the UHGS pruning scale $\gamma$ in Eq.~\eqref{eq:uhgs-prune-bound}.
+
+We compare four methods. \textbf{HGraph+HGraph} searches a dense HGraph and a sparse HGraph separately, merges their candidate sets, and reranks candidates by the hybrid distance. \textbf{HGraph+SINDI} replaces the sparse HGraph with SINDI and follows the same two-route merge-and-rerank pipeline. \textbf{UHG} searches the proposed unified hybrid graph from the default entry point using the query-time hybrid distance. \textbf{UHGS} uses SINDI results as multiple entry points for UHG search and reuses SINDI-computed sparse distances to prune dense computations during graph traversal.
+
+We report Recall@$k$ and QPS as the main effectiveness and efficiency metrics. When available, we also report average distance computations, average graph hops, and total query time to analyze where the efficiency difference comes from.
+
+\subsection{Main Results}
+
+The main experiment compares UHG and UHGS with the two two-route baselines. HGraph+HGraph tests whether a unified graph is better than merging two graph-based retrieval routes. HGraph+SINDI tests whether SINDI is more useful as an independent sparse retrieval route or as an entry-point and pruning module inside UHGS. The comparison should be reported under multiple $\alpha$ values, because UHG is designed to support different dense--sparse trade-offs with one graph.
+
+\begin{table}[t]
+\centering
+\caption{Main comparison of dense--sparse hybrid retrieval methods.}
+\label{tab:main-results}
+\begin{tabular}{lccccc}
+\hline
+Method & Recall@$k$ & QPS & Dist. Comp. & Hops & Time (s) \\
+\hline
+HGraph+HGraph & TBD & TBD & TBD & TBD & TBD \\
+HGraph+SINDI & TBD & TBD & TBD & TBD & TBD \\
+UHG & TBD & TBD & TBD & TBD & TBD \\
+UHGS & TBD & TBD & TBD & TBD & TBD \\
+\hline
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:main-results} should be accompanied by a short analysis of the recall--QPS trade-off. If UHG improves over HGraph+HGraph, the result supports the claim that constructing one hybrid-aware topology is preferable to late fusion over two graph routes. If UHGS improves over HGraph+SINDI, the result supports the claim that SINDI is more effective when used for sparse-guided graph routing and pruning than when used only as a separate retrieval route.
+
+\subsection{UHGS Pruning Study}
+
+The pruning study isolates the effect of reusing SINDI-computed sparse distances during UHG traversal. We vary the pruning scale $\gamma$ in Eq.~\eqref{eq:uhgs-prune-bound}. A smaller $\gamma$ prunes dense computations more aggressively and may improve QPS, while a larger $\gamma$ is more conservative and should better preserve recall. This experiment should report how recall, QPS, distance computations, and graph hops change as pruning becomes more aggressive.
+
+\begin{table}[t]
+\centering
+\caption{Effect of sparse-distance-based dense-computation pruning in UHGS.}
+\label{tab:pruning-study}
+\begin{tabular}{lcccc}
+\hline
+Pruning scale $\gamma$ & Recall@$k$ & QPS & Dist. Comp. & Hops \\
+\hline
+0.0 & TBD & TBD & TBD & TBD \\
+0.5 & TBD & TBD & TBD & TBD \\
+1.0 & TBD & TBD & TBD & TBD \\
+No pruning & TBD & TBD & TBD & TBD \\
+\hline
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:pruning-study} should be used to identify the practical pruning regime. The desired behavior is a reduction in dense distance computations and higher QPS with little recall loss. If aggressive pruning causes recall degradation, the analysis should report the trade-off and motivate the default value of $\gamma$.

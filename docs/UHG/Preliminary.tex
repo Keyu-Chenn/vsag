@@ -1,0 +1,114 @@
+\section{Preliminaries}
+\label{sec:problemDefinition}
+
+This section introduces the background concepts used in the rest of the paper. We first review approximate nearest neighbor search (ANNS) and graph-based ANNS. We then define dense--sparse hybrid retrieval and the standard two-route hybrid retrieval pipeline.
+
+\subsection{Notation}
+
+We use a unified notation for dense vectors, sparse vectors, and their hybrid representation. Each database object contains two components: a dense vector for semantic matching and a sparse vector for lexical matching. Since the paper formulates retrieval as a nearest-neighbor problem, all ranking functions are written as distances, where smaller values indicate better matches. Table~\ref{tab:notation} lists the main symbols used in the following sections.
+
+\begin{table}[t]
+\centering
+\caption{Main notation.}
+\label{tab:notation}
+\begin{tabular}{p{0.28\columnwidth}p{0.62\columnwidth}}
+\hline
+Notation & Definition \\
+\hline
+$\mathcal{X}$ & Database object set, $\mathcal{X}=\{x_1,x_2,\ldots,x_n\}$. \\
+$x_i$ & The $i$-th hybrid object, $x_i=(x_i^d,x_i^s)$. \\
+$q$ & Hybrid query, $q=(q^d,q^s)$. \\
+$x_i^d, q^d$ & Dense vector components of object $x_i$ and query $q$. \\
+$x_i^s, q^s$ & Sparse vector components of object $x_i$ and query $q$. \\
+$D_d, D_s$ & Dense-vector dimension and sparse-vector vocabulary size. \\
+$d_{\mathrm{ip}}(u,v)$ & Inner-product distance, defined as $1-\langle u,v\rangle$. \\
+$d_d(q^d,x_i^d)$ & Dense IP distance between query and object. \\
+$d_s(q^s,x_i^s)$ & Sparse IP distance between query and object. \\
+$\alpha$ & Hybrid weight controlling dense--sparse trade-off. \\
+$d_h(q,x_i;\alpha)$ & Weighted hybrid distance. \\
+$k$ & Number of nearest neighbors requested by a query. \\
+$\operatorname{TopK}(q)$ & Exact top-$k$ nearest-neighbor result under a distance. \\
+$\widetilde{\operatorname{TopK}}(q)$ & Approximate top-$k$ result returned by an ANNS method. \\
+$C_d(q), C_s(q)$ & Dense-route and sparse-route candidate sets. \\
+$G=(V,E)$ & Graph index with vertex set $V$ and edge set $E$. \\
+$N_G(x_i)$ & Outgoing neighbors of $x_i$ in graph $G$. \\
+$ef_{\mathrm{search}}$ & Graph search width controlling the candidate pool size. \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Approximate Nearest Neighbor Search}
+
+Let $\mathcal{X}=\{x_1,x_2,\ldots,x_n\}$ be a set of database objects. Given a query $q$ and a distance function $d(q,x)$, the exact top-$k$ nearest neighbor search problem returns the set
+\begin{equation}
+    \operatorname{TopK}(q)
+    = \arg\min_{S\subseteq\mathcal{X}, |S|=k}
+    \sum_{x_i\in S} d(q,x_i).
+    \label{eq:exact-knn}
+\end{equation}
+Equivalently, $\operatorname{TopK}(q)$ contains the $k$ objects with the smallest distances to $q$.
+
+Exact nearest neighbor search is expensive on large high-dimensional datasets because it requires comparing the query with every database object. Approximate nearest neighbor search builds an index over $\mathcal{X}$ and returns an approximate result set $\widetilde{\operatorname{TopK}}(q)$ with much lower query cost. The quality of an ANNS result is commonly measured by recall:
+\begin{equation}
+    \operatorname{Recall@}k
+    = \frac{|\widetilde{\operatorname{TopK}}(q) \cap \operatorname{TopK}(q)|}{k}.
+\end{equation}
+The goal of ANNS is to achieve high recall while reducing query latency, distance computations, and memory overhead.
+
+Many vector retrieval systems use similarity scores internally. In this paper, however, we present dense--sparse hybrid retrieval with distances so that smaller values are better and the problem is consistent with the ANNS formulation in Eq.~\eqref{eq:exact-knn}.
+
+\subsection{Graph-based ANNS}
+
+Graph-based ANNS indexes the database as a proximity graph $G=(V,E)$, where each vertex $v_i\in V$ corresponds to an object $x_i\in\mathcal{X}$ and each edge stores a navigational neighbor relation. A common idealized reference is the $k$-nearest neighbor graph (KNNG), but exact KNNG construction is usually too expensive for large datasets. Practical methods such as HNSW, NSG, and DiskANN therefore construct sparse approximate proximity graphs with bounded out-degree.
+
+Query processing is commonly implemented as greedy or beam search over the graph. Given an entry vertex or a set of entry vertices, the search maintains a pool of discovered candidates whose distances to the query have been evaluated, together with a visited set to avoid repeated expansion. In each iteration, the closest unexpanded candidate is selected, its outgoing neighbors are evaluated, and the candidate pool is updated. The current top-$k$ results are obtained from the best evaluated vertices. Implementations often maintain two priority queues or equivalent data structures: one for candidates to be expanded and one for the current result set.
+
+The main query-time control parameter is the search width, denoted by $ef_{\mathrm{search}}$. It bounds the size of the dynamic candidate pool or the number of vertices retained during exploration. Increasing the search width usually improves Recall@$k$ because more graph vertices are evaluated, but it also increases distance computations and reduces QPS. Thus graph-based ANNS is typically evaluated by its recall--QPS trade-off rather than by recall or latency alone.
+
+\subsection{Dense and Sparse Retrieval}
+
+Dense retrieval represents each object with a dense embedding $x_i^d\in\mathbb{R}^{D_d}$. Dense embeddings are usually produced by neural encoders and are effective at capturing semantic similarity. Since the sparse component in this paper uses inner-product distance, we also use inner-product distance for the dense component. Specifically, for two vectors $u$ and $v$, the IP distance is defined as
+\begin{equation}
+    d_{\mathrm{ip}}(u,v)=1-\langle u,v\rangle.
+\end{equation}
+Given a query embedding $q^d$, dense retrieval ranks objects by the dense distance $d_d(q^d,x_i^d)=d_{\mathrm{ip}}(q^d,x_i^d)$.
+
+Sparse retrieval represents each object with a sparse vector $x_i^s\in\mathbb{R}^{D_s}$, where only a small number of dimensions are non-zero. Sparse vectors preserve lexical or term-level evidence and are effective for exact matches, rare terms, entity names, and identifier-like queries. Given a sparse query vector $q^s$, sparse retrieval ranks objects by the sparse IP distance $d_s(q^s,x_i^s)=d_{\mathrm{ip}}(q^s,x_i^s)$, where the inner product is evaluated only over non-zero dimensions.
+
+The two representations are complementary. Dense retrieval can match semantic paraphrases even when query and target use different surface forms, while sparse retrieval can preserve exact lexical constraints that dense embeddings may smooth away. Dense--sparse hybrid retrieval combines these two signals under a single ranking objective.
+
+\subsection{Dense--Sparse Hybrid Search}
+
+In dense--sparse hybrid search, each database object is represented as
+\begin{equation}
+    x_i=(x_i^d,x_i^s),
+\end{equation}
+and each query is represented as $q=(q^d,q^s)$. Given a hybrid weight $\alpha\in[0,1]$, the hybrid distance is defined as
+\begin{equation}
+    d_h(q,x_i;\alpha)
+    = \alpha \cdot d_d(q^d,x_i^d)
+    + (1-\alpha) \cdot d_s(q^s,x_i^s).
+    \label{eq:hybrid-distance}
+\end{equation}
+When $\alpha=1$, retrieval uses only the dense distance. When $\alpha=0$, retrieval uses only the sparse distance. Intermediate values balance semantic and lexical evidence. Since both component distances are IP distances, Eq.~\eqref{eq:hybrid-distance} can be interpreted as a weighted distance form of dense--sparse inner-product retrieval.
+
+For a query $q$, a weight $\alpha$, and a target size $k$, the exact dense--sparse hybrid search problem returns
+\begin{equation}
+    \operatorname{TopK}_h(q,\alpha)
+    = \arg\min_{S\subseteq\mathcal{X}, |S|=k}
+    \sum_{x_i\in S} d_h(q,x_i;\alpha).
+    \label{eq:hybrid-topk}
+\end{equation}
+An approximate hybrid search algorithm returns $\widetilde{\operatorname{TopK}}_h(q,\alpha)$ and is evaluated by comparing it with the exact result in Eq.~\eqref{eq:hybrid-topk}.
+
+The value of $\alpha$ changes the target ranking. A dense-dominant weight favors semantic neighborhoods, while a sparse-dominant weight favors lexical neighborhoods. Therefore, an index structure that is effective for one weight may not be effective for another.
+
+\subsection{Two-route Hybrid Retrieval}
+
+A widely used hybrid retrieval architecture is the two-route pipeline. It maintains one dense index and one sparse index. Given a query $q=(q^d,q^s)$, the dense index returns a candidate set $C_d(q)$ according to $d_d$, and the sparse index returns a candidate set $C_s(q)$ according to $d_s$. The system then merges the two candidate sets,
+\begin{equation}
+    C(q)=C_d(q)\cup C_s(q),
+\end{equation}
+recomputes or normalizes dense and sparse distances for candidates in $C(q)$, and reranks them by the hybrid distance in Eq.~\eqref{eq:hybrid-distance}.
+
+This architecture is simple and modular because it reuses existing dense and sparse retrieval systems. However, its candidate-generation stage is still single-modality: the dense route optimizes dense distance, and the sparse route optimizes sparse distance. The hybrid distance is applied only after both routes have produced limited candidate sets. This distinction is important for the later sections, where we study graph structures for dense--sparse hybrid retrieval rather than only distance fusion after separate retrieval.

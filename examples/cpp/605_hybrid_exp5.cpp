@@ -132,6 +132,7 @@ void PrintUsage(const char* program_name) {
               << "  --ef_search <int>          hybrid index ef_search (default: 200)\n"
               << "  --hybrid_candidate_set_size <int>\n"
               << "                              hybrid search candidate_set 上限，-1 表示不限制 (default: -1)\n"
+              << "  --max_hops <int>           hybrid search 最大邻居扩展次数，0 表示不限制 (default: 0)\n"
               << "  --alpha <float>            dense 分数权重，0~1 (default: 0.5)\n"
               << "  --sindi_query_prune_ratio <float>\n"
               << "                              SINDI query pruning ratio, [0,0.9], 0 表示不剪枝 (default: 0)\n"
@@ -151,6 +152,7 @@ struct SearchParams {
     int hgraph_bk   = 100;
     int ef_search   = 200;
     int hybrid_candidate_set_size = -1;
+    int max_hops = 0;
     float alpha     = 0.5f;
     float sindi_query_prune_ratio = 0.0f;
     float sindi_term_prune_ratio = 0.0f;
@@ -183,6 +185,8 @@ SearchParams ParseCommandLine(int argc, char** argv) {
             params.ef_search = std::atoi(argv[++i]);
         } else if (arg == "--hybrid_candidate_set_size" && i + 1 < argc) {
             params.hybrid_candidate_set_size = std::atoi(argv[++i]);
+        } else if (arg == "--max_hops" && i + 1 < argc) {
+            params.max_hops = std::atoi(argv[++i]);
         } else if (arg == "--alpha" && i + 1 < argc) {
             params.alpha = std::atof(argv[++i]);
         } else if (arg == "--sindi_query_prune_ratio" && i + 1 < argc) {
@@ -219,6 +223,10 @@ SearchParams ParseCommandLine(int argc, char** argv) {
     }
     if (params.hybrid_candidate_set_size == 0) {
         std::cerr << "Error: hybrid_candidate_set_size must be positive\n";
+        exit(1);
+    }
+    if (params.max_hops < 0) {
+        std::cerr << "Error: max_hops must be >= 0\n";
         exit(1);
     }
 
@@ -492,6 +500,9 @@ int main(int argc, char** argv) {
             if (params.hybrid_candidate_set_size > 0) {
                 search_param_json["hybrid_candidate_set_size"] = params.hybrid_candidate_set_size;
             }
+            if (params.max_hops > 0) {
+                search_param_json["max_hops"] = params.max_hops;
+            }
             std::string hybrid_search_params = search_param_json.dump();
 
             auto query_ds = vsag::Dataset::Make();
@@ -544,6 +555,7 @@ int main(int argc, char** argv) {
         std::cout << "sindi_term_prune_ratio:  " << params.sindi_term_prune_ratio << std::endl;
         std::cout << "ef_search:     " << params.ef_search     << std::endl;
         std::cout << "hybrid_candidate_set_size: " << params.hybrid_candidate_set_size << std::endl;
+        std::cout << "max_hops:      " << params.max_hops      << std::endl;
         std::cout << "alpha:         " << params.alpha         << std::endl;
         std::cout << "hybrid_prune_scale: " << params.hybrid_prune_scale << std::endl;
         std::cout << "num_queries:   " << actual_num_queries   << std::endl;

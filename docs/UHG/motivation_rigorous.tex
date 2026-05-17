@@ -1,0 +1,98 @@
+\section{Motivation}
+\label{sec:solution1}
+
+This section motivates UHG from two observations. First, the two-route baseline can miss hybrid nearest neighbors because dense and sparse candidates are generated independently. Second, dense and sparse neighborhoods are not completely unrelated; their partial correlation makes it possible to merge neighbor sets across multiple hybrid weights without causing uncontrolled degree growth.
+
+\subsection{Limitations of Existing Methods}
+
+The two-route pipeline described in Section~\ref{sec:problemDefinition} performs dense and sparse retrieval independently and applies the hybrid distance only during reranking. Let $C_d(q)$ and $C_s(q)$ be the candidates returned by the dense and sparse routes. Since reranking only operates on $C_d(q)\cup C_s(q)$, the baseline can recover an exact hybrid top-$k$ result only if that result has already been retrieved by at least one single-modality route.
+
+This candidate-coverage assumption is often too strong. A point can have a moderately small dense distance and a moderately small sparse distance without ranking near the top in either modality alone. Such a point may still become a hybrid nearest neighbor after the two distances are combined. If it is absent from both single-modality candidate sets, increasing the accuracy of the reranking step cannot recover it. Increasing the dense and sparse candidate budgets can reduce this risk, but it also increases query latency and duplicates retrieval work across two indexes.
+
+A simple graph-based alternative is to construct or reuse a graph for a single distance, such as a dense graph, a sparse graph, or a graph built under one fixed hybrid weight. This does not fully address the dynamic-weight setting. A dense or sparse graph is biased toward one modality, while a fixed-weight hybrid graph may miss neighbors that become important when $\alpha$ changes. Therefore, the key question is not only how to rerank hybrid candidates, but how to build one graph that preserves useful hybrid neighborhoods across different weights.
+
+\subsection{Dense--Sparse Correlation Analysis}
+
+The feasibility of UHG depends on the relationship between dense and sparse neighborhoods. If the two modalities were almost identical, two-route retrieval would be sufficient because dense and sparse top candidates would cover nearly the same objects. If they were completely independent, however, merging neighbor sets across many $\alpha$ values could produce a very large graph. Real hybrid datasets lie between these two extremes.
+
+Empirical analysis in this project shows that dense and sparse rankings are not strongly aligned. The analysis script reports the overlap between dense and sparse top-$k$ results; for example, the top-10 overlap can be around $20\%$ on sampled queries. This low overlap explains why the two-route baseline can miss hybrid top-$k$ results: the hybrid nearest neighbors may include balanced points that are not extreme dense or sparse neighbors.
+
+At the same time, the two modalities are not independent. A separate candidate-coverage analysis with $k=100$, $b_d=400$, $b_s=400$, and $\alpha=0.4$ shows that many hybrid top-$k$ objects are covered by both dense and sparse candidate sets, while the remaining objects are split between dense-only and sparse-only candidates. This indicates partial correlation: dense and sparse retrieval expose different but overlapping evidence.
+
+This partial correlation is important for graph construction. When $\alpha$ changes, the nearest-neighbor sets under adjacent weights do not become completely unrelated. Instead, many neighbors persist across a range of weights, while only some neighbors enter or leave the top-$k$ set. Therefore, taking the union of KNNGs sampled at different $\alpha$ values can cover multiple hybrid regimes without causing the degree to grow without bound. This observation motivates UHG: the graph should preserve the changing hybrid neighborhoods, but it can remain sparse because those neighborhoods have substantial overlap.
+
+\subsection{Design Goals}
+
+The above observations lead to three design goals.
+
+\textbf{Hybrid awareness.} Neighbor selection should use the combined dense--sparse distance rather than relying solely on dense or sparse distance. This directly targets the candidate-loss problem of two-route retrieval.
+
+\textbf{Weight robustness.} The graph should support multiple values of $\alpha$ without reconstruction. This requires preserving neighborhoods that become important in sparse-dominant, balanced, and dense-dominant regimes.
+
+\textbf{Correlation-aware search acceleration.} The search process should exploit the partial correlation between dense and sparse evidence, rather than treating the two routes as isolated candidate generators. In a two-route pipeline, dense and sparse retrieval are executed independently, so the search stage cannot use one modality to reduce the work required by the other. A unified hybrid search sees dense and sparse distances within the same traversal, allowing reusable sparse distances to bound hybrid distances and prune unnecessary dense distance computations.
+
+The central question is therefore: how can one finite graph represent the neighborhood structures induced by a continuum of hybrid weights, while still enabling efficient query-time use of dense--sparse distance information? The next subsection gives a more formal mathematical motivation.
+
+\subsection{Mathematical Motivation for Unified Hybrid Graphs}
+
+We now give a more formal version of the alpha-cover intuition. The goal is not to enumerate all breakpoints exactly, but to explain why the number of useful hybrid-neighborhood regimes can remain small enough for graph construction.
+
+Fix a source object $x_i$ and a finite candidate pool $C(i)$. For each candidate $x_j\in C(i)$, the hybrid distance can be written as a line over $\alpha\in[0,1]$:
+\begin{equation}
+    \ell_j(\alpha)
+    =d_h(x_i,x_j;\alpha)
+    =d_s(x_i^s,x_j^s)
+    +\alpha\big(d_d(x_i^d,x_j^d)-d_s(x_i^s,x_j^s)\big).
+    \label{eq:rigorous-alpha-line}
+\end{equation}
+At any fixed $\alpha$, the hybrid top-$k$ neighbors are the $k$ lowest lines at coordinate $\alpha$. Therefore, as $\alpha$ varies, the top-$k$ set can change only at intersections of candidate lines. Between two adjacent intersections that affect the bottom-$k$ levels, the relative order of the bottom-$k$ lines is unchanged, so the hybrid top-$k$ set is unchanged.
+
+\paragraph{Endpoint ranks.}
+Let $D_k(i)$ denote the dense top-$k$ candidates of $x_i$, and let $S_k(i)$ denote the sparse top-$k$ candidates. We define two cross-modal endpoint ranks. Let $r_1$ be the largest sparse rank among the dense top-$k$ candidates:
+\begin{equation}
+    r_1=\max_{x_j\in D_k(i)}\operatorname{rank}_s(x_j),
+\end{equation}
+where $\operatorname{rank}_s(x_j)$ is the rank of $x_j$ under sparse distance. Similarly, let $r_2$ be the largest dense rank among the sparse top-$k$ candidates:
+\begin{equation}
+    r_2=\max_{x_j\in S_k(i)}\operatorname{rank}_d(x_j).
+\end{equation}
+Intuitively, $r_1$ measures how far the dense top-$k$ set is from the sparse ranking, and $r_2$ measures how far the sparse top-$k$ set is from the dense ranking. When dense and sparse neighborhoods are partially correlated, both values are much smaller than the full candidate-pool size.
+
+Let
+\begin{equation}
+    R_i=\min\{r_1,r_2\}.
+\end{equation}
+The value $R_i$ gives a conservative active level for hybrid-neighborhood changes. Since one endpoint top-$k$ set is contained within the first $R_i$ positions of the other endpoint ranking, hybrid candidates that are useful across $\alpha\in[0,1]$ are expected to appear in shallow levels of the line arrangement rather than in arbitrary high levels.
+
+\paragraph{Breakpoint bound.}
+Consider the arrangement of the lines $\{\ell_j\mid x_j\in C(i)\}$, and let $n=|C(i)|$ be the candidate-pool size. A breakpoint can change the hybrid top-$k$ set only if it lies on the first few levels of this arrangement. We use the standard $(\leq h)$-level theorem for arrangements of lines: in an arrangement of $n$ lines, the total complexity of the first $h$ levels is $O(nh)$. Applying this theorem with $h=R_i$ gives the following active-level bound:
+\begin{equation}
+    |\mathcal{B}_{\le R_i}(i)|=O(nR_i),
+\end{equation}
+where $\mathcal{B}_{\le R_i}(i)$ is the set of line intersections that lie on the first $R_i$ levels.
+
+For UHG construction, the candidate pool is already formed by dense and sparse top candidates rather than by the full dataset. We further use an active-frontier assumption: the only breakpoints that can change the constructed neighbor set are those where one of the current $k$ frontier lines exchanges order with a line in the first $R_i$ active levels. Under this assumption, each of the $k$ frontier positions interacts only with the $R_i$-level active band. This yields the more construction-oriented bound
+\begin{equation}
+    |\mathcal{B}_{k,[0,1]}(i)|=O(kR_i)
+    =O(k\min\{r_1,r_2\}),
+    \label{eq:rigorous-breakpoint-bound}
+\end{equation}
+where $\mathcal{B}_{k,[0,1]}(i)$ denotes breakpoints inside $[0,1]$ that can affect the hybrid top-$k$ set. This bound connects the number of possible top-$k$ changes to cross-modal rank agreement: if dense top-$k$ candidates also have small sparse ranks, or sparse top-$k$ candidates also have small dense ranks, then the active level is shallow.
+
+\paragraph{Effective breakpoints and neighbor-set size.}
+The bound in Eq.~\eqref{eq:rigorous-breakpoint-bound} is still an upper bound. Many active-level intersections do not change the final top-$k$ neighbor set: some occur outside $[0,1]$, some swap two candidates that are both already inside or outside the top-$k$, and some affect only a line segment that is not on the bottom-$k$ envelope. Let $e_b$ denote the number of effective breakpoints that actually change the top-$k$ set over $\alpha\in[0,1]$.
+
+Starting from the top-$k$ set at one endpoint, each effective breakpoint can introduce at most one new candidate into the top-$k$ set. Therefore, the size of the continuous alpha-cover neighborhood satisfies
+\begin{equation}
+    \left|\bigcup_{\alpha\in[0,1]}T_k(\alpha)\right|
+    \leq k+e_b.
+    \label{eq:rigorous-neighbor-bound}
+\end{equation}
+Since $e_b$ is only a small subset of the active-level intersections, the merged alpha-cover neighborhood is expected to remain much smaller than the union of all possible pairwise candidates. This gives a formal explanation for why UHG construction is feasible: the graph needs to preserve candidates that appear in the finite sequence of effective hybrid top-$k$ regimes, not all candidates in the dense and sparse retrieval spaces.
+
+The sampled cover can therefore be interpreted as a discretized approximation of this finite sequence of effective regimes:
+\begin{equation}
+    N_{\mathrm{cover}}(x_i)=\bigcup_{\alpha\in\mathcal{A}}T_k(\alpha).
+    \label{eq:rigorous-sampled-alpha-cover}
+\end{equation}
+If the grid is too coarse, some candidates that are competitive only in a narrow interval may be missed. If the grid is too dense, many sampled neighborhoods may be redundant and increase construction cost. The dense--sparse correlation analysis above explains why a moderate grid is practical: neighborhoods under nearby $\alpha$ values are not identical, so their union can recover hybrid neighbors missed by two-route retrieval; yet they overlap substantially, so the union does not become an uncontrolled dense graph. The next section presents UHG, which operationalizes this idea through dense--sparse candidate generation, sampled alpha-cover selection, graph refinement, and sparse-guided query processing.

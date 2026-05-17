@@ -48,6 +48,7 @@ public:
     bool is_hybrid{false};
     float hybrid_prune_scale{1.0F};
     uint64_t hybrid_candidate_set_size{0};
+    uint32_t max_hops{0};
     const float* sparse_distance_table{nullptr};
     int64_t sparse_distance_table_size{0};
 
@@ -88,6 +89,7 @@ public:
             is_hybrid = other.is_hybrid;
             hybrid_prune_scale = other.hybrid_prune_scale;
             hybrid_candidate_set_size = other.hybrid_candidate_set_size;
+            max_hops = other.max_hops;
             sparse_distance_table = other.sparse_distance_table;
             sparse_distance_table_size = other.sparse_distance_table_size;
             scan_bucket_size = other.scan_bucket_size;

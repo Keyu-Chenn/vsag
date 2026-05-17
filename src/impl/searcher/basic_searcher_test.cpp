@@ -476,6 +476,45 @@ TEST_CASE("Hybrid search bounds candidate set by explicit search parameter", "[u
     REQUIRE(stats.hops.load(std::memory_order_relaxed) == search_param.hybrid_candidate_set_size + 1);
 }
 
+TEST_CASE("Hybrid search stops when max hops is reached", "[ut][BasicSearcher]") {
+    auto allocator = SafeAllocator::FactoryDefaultAllocator();
+    IndexCommonParam common;
+    common.allocator_ = allocator;
+    common.dim_ = 1;
+    common.metric_ = MetricType::METRIC_TYPE_L2SQR;
+
+    auto graph = std::make_shared<StaticGraph>(std::vector<std::vector<InnerIdType>>{
+        {1, 2, 3},
+        {},
+        {},
+        {},
+    });
+
+    std::vector<uint32_t> query_counts;
+    auto flatten = std::make_shared<FixedDistanceFlatten>(
+        std::vector<float>{0.0F, 0.1F, 0.2F, 0.3F}, &query_counts);
+
+    InnerSearchParam search_param;
+    search_param.ep = 0;
+    search_param.ef = 3;
+    search_param.topk = 2;
+    search_param.is_hybrid = true;
+    search_param.max_hops = 2;
+    search_param.is_inner_id_allowed =
+        std::make_shared<RejectIdsFilter>(std::vector<InnerIdType>{0});
+
+    auto vl = std::make_shared<VisitedList>(graph->MaxCapacity(), allocator.get());
+    BasicSearcher searcher(common);
+    Statistics stats;
+    float query = 0.0F;
+
+    auto result =
+        searcher.Search(graph, flatten, vl, &query, search_param, (LabelTablePtr)nullptr, stats);
+
+    REQUIRE(result->Size() == search_param.topk);
+    REQUIRE(stats.hops.load(std::memory_order_relaxed) == search_param.max_hops);
+}
+
 TEST_CASE("Optimize SQ4", "[ut][BasicOptimizer]") {
     // avoid too much slow task logs
     fixtures::logger::LoggerReplacer _;

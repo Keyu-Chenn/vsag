@@ -401,6 +401,9 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
     }
 
     while (not candidate_set->Empty()) {
+        if (inner_search_param.max_hops > 0 && hops >= inner_search_param.max_hops) {
+            break;
+        }
         ++hops;
         auto current_node_pair = candidate_set->Top();
 

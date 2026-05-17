@@ -296,6 +296,9 @@ HybridIndex::KnnSearch(const DatasetPtr& query,
     search_param.hybrid_candidate_set_size = parsed_search_param.Contains("hybrid_candidate_set_size")
                                                  ? parsed_search_param["hybrid_candidate_set_size"].GetInt()
                                                  : 0;
+    search_param.max_hops = parsed_search_param.Contains("max_hops")
+                                ? parsed_search_param["max_hops"].GetInt()
+                                : 0;
     search_param.topk = k;
     search_param.search_mode = KNN_SEARCH;
     search_param.is_hybrid = true;

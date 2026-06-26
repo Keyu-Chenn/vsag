@@ -172,12 +172,20 @@ HybridIndex::add_one_point(InnerIdType inner_id, const float* vector) {
 
         // all alpha neighbors
         // 静态变量，只读取一次HDF5文件
-        static std::vector<std::vector<int64_t>> precomputed_neighbors;
+        static std::vector<int64_t> precomputed_neighbors;
+        static std::vector<int64_t> precomputed_neighbor_counts;
+        static int64_t precomputed_num_points = 0;
+        static int64_t precomputed_max_neighbors = 0;
         static bool neighbors_loaded = false;
 
         if (!neighbors_loaded) {
             try {
-                std::string h5_file = "/tbase-project/vsag/build-release/examples/cpp/601_output_neighbors_k32.h5";
+                // std::string h5_file = "/tbase-project/vsag/build-release/examples/cpp/601_output_neighbors_k32.h5";
+                // std::string h5_file = "/tbase-project/vsag/scripts/UHG/data/fhg/webis-touche2020_fhg_alpha_0_5.h5";
+                // std::string h5_file = "/tbase-project/vsag/scripts/UHG/data/fhg/nq_fhg_alpha_0_5.h5";
+                // std::string h5_file = "/tbase-project/vsag/scripts/UHG/data/uhg/nq_uhg_v2.h5";
+                std::string h5_file = "/tbase-project/vsag/scripts/UHG/data/fhg/msmarco_fhg_alpha_0_5.h5";
+                std::cout << "Loading precomputed neighbors from " << h5_file << std::endl;
                 H5::H5File file(h5_file, H5F_ACC_RDONLY);
 
                 // 读取邻居数据
@@ -186,33 +194,20 @@ HybridIndex::add_one_point(InnerIdType inner_id, const float* vector) {
                 hsize_t dims[2];
                 neighbors_dataspace.getSimpleExtentDims(dims);
 
-                int64_t num_points = dims[0];
-                int64_t max_neighbors = dims[1];
+                precomputed_num_points = dims[0];
+                precomputed_max_neighbors = dims[1];
 
-                std::vector<int64_t> flat_neighbors(num_points * max_neighbors);
-                neighbors_dataset.read(flat_neighbors.data(), H5::PredType::NATIVE_INT64);
+                precomputed_neighbors.resize(precomputed_num_points * precomputed_max_neighbors);
+                neighbors_dataset.read(precomputed_neighbors.data(), H5::PredType::NATIVE_INT64);
 
                 // 读取每个点的实际邻居数量
                 H5::DataSet counts_dataset = file.openDataSet("neighbor_counts");
-                std::vector<int64_t> counts(num_points);
-                counts_dataset.read(counts.data(), H5::PredType::NATIVE_INT64);
-
-                // 转换为内部数据结构
-                precomputed_neighbors.resize(num_points);
-                for (int64_t i = 0; i < num_points; ++i) {
-                    int64_t actual_count = std::min(counts[i], static_cast<int64_t>(max_degree_));
-                    precomputed_neighbors[i].reserve(actual_count);
-
-                    for (int64_t j = 0; j < actual_count; ++j) {
-                        int64_t neighbor_id = flat_neighbors[i * max_neighbors + j];
-                        if (neighbor_id >= 0) {  // -1 表示填充值
-                            precomputed_neighbors[i].push_back(neighbor_id);
-                        }
-                    }
-                }
+                precomputed_neighbor_counts.resize(precomputed_num_points);
+                counts_dataset.read(precomputed_neighbor_counts.data(), H5::PredType::NATIVE_INT64);
 
                 neighbors_loaded = true;
-                std::cout << "Loaded precomputed neighbors for " << num_points << " points" << std::endl;
+                std::cout << "Loaded precomputed neighbors for " << precomputed_num_points
+                          << " points" << std::endl;
 
             } catch (H5::Exception& e) {
                 std::cerr << "Failed to load precomputed neighbors: " << e.getDetailMsg() << std::endl;
@@ -221,16 +216,21 @@ HybridIndex::add_one_point(InnerIdType inner_id, const float* vector) {
         }
 
         // 使用预计算的邻居
-        if (neighbors_loaded && inner_id < precomputed_neighbors.size()) {
-            const auto& neighbors = precomputed_neighbors[inner_id];
-
-            // 转换为 Vector<InnerIdType>
+        if (neighbors_loaded && inner_id < precomputed_num_points) {
+            int64_t actual_count = std::min(precomputed_neighbor_counts[inner_id],
+                                            static_cast<int64_t>(max_degree_));
             Vector<InnerIdType> neighbor_vec(allocator_);
-            neighbor_vec.resize(neighbors.size());
+            neighbor_vec.resize(actual_count);
 
-            for (size_t i = 0; i < neighbors.size(); ++i) {
-                neighbor_vec[i] = static_cast<InnerIdType>(neighbors[i]);
+            int64_t valid_count = 0;
+            const int64_t row_offset = inner_id * precomputed_max_neighbors;
+            for (int64_t i = 0; i < actual_count; ++i) {
+                int64_t neighbor_id = precomputed_neighbors[row_offset + i];
+                if (neighbor_id >= 0) {
+                    neighbor_vec[valid_count++] = static_cast<InnerIdType>(neighbor_id);
+                }
             }
+            neighbor_vec.resize(valid_count);
 
             // 插入邻居关系
             graph_->InsertNeighborsById(inner_id, neighbor_vec);
@@ -251,25 +251,21 @@ HybridIndex::Add(const DatasetPtr& data) {
     auto dense_vecs = data->GetFloat32Vectors();
     auto sparse_vecs = data->GetSparseVectors();
 
-    auto hybrid_vecs = static_cast<int8_t*>(allocator_->Allocate(vec_num * dim * sizeof(float) + vec_num * sizeof(sparse_vecs[0])));
-    std::memcpy(hybrid_vecs, dense_vecs, vec_num * dim * sizeof(float));
-    std::memcpy(hybrid_vecs + vec_num * dim * sizeof(float), sparse_vecs, vec_num * sizeof(sparse_vecs[0]));
-    // insert codes
-    hybrid_codes_->BatchInsertVector(hybrid_vecs, vec_num);
+    const auto dense_bytes = dim * sizeof(float);
+    const auto sparse_ref_bytes = sizeof(sparse_vecs[0]);
+    auto hybrid_vec = static_cast<uint8_t*>(allocator_->Allocate(dense_bytes + sparse_ref_bytes));
 
     // insert labels and points
-    for (auto i = total_count_; i < total_count_ + vec_num; i++) {
-        label_table_->Insert(i, labels[i]);
-        auto sparse_vec = sparse_vecs[i];
-        int64_t total_size = dim * sizeof(float) + 4 * (2 * sparse_vec.len_ + 1);
-        auto hybrid_vec = static_cast<uint8_t*>(allocator_->Allocate(total_size));
-        std::memcpy(hybrid_vec, dense_vecs + i, dim * sizeof(float));
-        std::memcpy(hybrid_vec + dim * sizeof(float), sparse_vecs + i, sizeof(sparse_vecs[0]));
-        add_one_point(i, (const float *)hybrid_vec);
-        allocator_->Deallocate(hybrid_vec);
+    for (auto offset = 0; offset < vec_num; offset++) {
+        auto inner_id = total_count_ + offset;
+        label_table_->Insert(inner_id, labels[offset]);
+        std::memcpy(hybrid_vec, dense_vecs + offset * dim, dense_bytes);
+        std::memcpy(hybrid_vec + dense_bytes, sparse_vecs + offset, sparse_ref_bytes);
+        hybrid_codes_->InsertVector(hybrid_vec, inner_id);
+        add_one_point(inner_id, reinterpret_cast<const float*>(hybrid_vec));
     }
 
-    allocator_->Deallocate(hybrid_vecs);
+    allocator_->Deallocate(hybrid_vec);
 
     this->total_count_ += vec_num;
     return failed_ids;

@@ -189,3 +189,9 @@ data/
 /coverage/
 *.gcov
 /dist/
+
+# UHG generated artifacts
+/scripts/UHG/data/
+/scripts/UHG/logs/
+/scripts/UHG/results/
+/scripts/UHG/scripts/__pycache__/

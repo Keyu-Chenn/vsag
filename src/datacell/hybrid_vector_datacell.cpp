@@ -567,6 +567,7 @@ HybridVectorDataCell::Serialize(StreamWriter& writer) {
     StreamWriter::WriteObj(writer, dense_weight_);
     StreamWriter::WriteObj(writer, sparse_weight_);
     StreamWriter::WriteObj(writer, dense_dim_);
+    StreamWriter::WriteVector(writer, dense_norms_);
     StreamWriter::WriteVector(writer, sparse_norms_);
     // Serialize both cells
     dense_cell_->Serialize(writer);
@@ -578,6 +579,7 @@ HybridVectorDataCell::Deserialize(lvalue_or_rvalue<StreamReader> reader) {
     StreamReader::ReadObj(reader, dense_weight_);
     StreamReader::ReadObj(reader, sparse_weight_);
     StreamReader::ReadObj(reader, dense_dim_);
+    StreamReader::ReadVector(reader, dense_norms_);
     StreamReader::ReadVector(reader, sparse_norms_);
     dense_cell_->Deserialize(reader);
     sparse_cell_->Deserialize(reader);

@@ -14,6 +14,8 @@
 # limitations under the License.
 
 
+find_package(OpenMP REQUIRED)
+
 add_executable(101_index_hnsw 101_index_hnsw.cpp)
 target_link_libraries(101_index_hnsw vsag)
 
@@ -133,3 +135,24 @@ target_link_libraries (607_hybrid_exp7 vsag libhdf5_cpp.a libhdf5.a z)
 
 add_executable (608_hybrid_exp8 608_hybrid_exp8.cpp)
 target_link_libraries (608_hybrid_exp8 vsag libhdf5_cpp.a libhdf5.a z)
+
+add_executable (701_uhg_exp1 701_uhg_exp1.cpp)
+target_link_libraries (701_uhg_exp1 vsag libhdf5_cpp.a libhdf5.a z)
+
+add_executable (702_uhg_exp2 702_uhg_exp2.cpp)
+target_link_libraries (702_uhg_exp2 vsag libhdf5_cpp.a libhdf5.a z OpenMP::OpenMP_CXX)
+
+add_executable (703_uhg_exp3 703_uhg_exp3.cpp)
+target_link_libraries (703_uhg_exp3 vsag libhdf5_cpp.a libhdf5.a z)
+
+add_executable (704_uhg_exp4 704_uhg_exp4.cpp)
+target_link_libraries (704_uhg_exp4 vsag libhdf5_cpp.a libhdf5.a z OpenMP::OpenMP_CXX)
+
+add_executable (705_uhg_exp5 705_uhg_exp5.cpp)
+target_link_libraries (705_uhg_exp5 vsag libhdf5_cpp.a libhdf5.a z)
+
+add_executable (706_uhg_exp6 706_uhg_exp6.cpp)
+target_link_libraries (706_uhg_exp6 vsag libhdf5_cpp.a libhdf5.a z OpenMP::OpenMP_CXX)
+
+add_executable (707_uhg_exp7 707_uhg_exp7.cpp)
+target_link_libraries (707_uhg_exp7 vsag libhdf5_cpp.a libhdf5.a z)

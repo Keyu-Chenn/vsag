@@ -15,6 +15,8 @@
 #include <H5Cpp.h>
 #include <vsag/vsag.h>
 
+#include <omp.h>
+
 #include <algorithm>
 #include <chrono>
 #include <cstring>
@@ -26,6 +28,8 @@
 #include <vector>
 #include <cmath>
 #include <nlohmann/json.hpp>
+
+#include "uhg_mixed_alpha_utils.h"
 
 // ============================================================
 // 工具函数
@@ -163,6 +167,19 @@ FileExists(const std::string& path) {
     return f.good();
 }
 
+std::vector<int>
+ParseSearchPoints(const std::string& text) {
+    std::vector<int> values;
+    std::stringstream ss(text);
+    std::string token;
+    while (std::getline(ss, token, ',')) {
+        if (!token.empty()) {
+            values.push_back(std::atoi(token.c_str()));
+        }
+    }
+    return values;
+}
+
 // ============================================================
 // 参数解析
 // ============================================================
@@ -171,46 +188,77 @@ void
 PrintUsage(const char* program_name) {
     std::cout << "Usage: " << program_name << " <h5_file> [options]\n"
               << "\nOptions:\n"
-              << "  --method <string>          Search method: 'uhg' or 'uhgs' (default: uhgs)\n"
+              << "  --method <string>          hybrid_index method: uhg/uhgs/uhgh/auto (default: auto)\n"
               << "  -k, --topk <int>           Number of final top results (default: 10)\n"
               << "  --sindi_bk <int>           Sindi recall count for entry points (default: 100)\n"
+              << "  --dense_entry_bk <int>     Dense entry recall count for uhgh/auto (default: 100)\n"
+              << "  --dense_entry_ef_search <int>\n"
+              << "                              ef_search for dense entry graph (default: 200)\n"
               << "  --sindi_query_prune_ratio <float>\n"
               << "                              SINDI query pruning ratio, [0,0.9], 0=no pruning (default: 0)\n"
               << "  --sindi_term_prune_ratio <float>\n"
               << "                              SINDI term pruning ratio, [0,0.9], 0=no pruning (default: 0)\n"
               << "  --ef_search <int>          ef_search for hybrid index (default: 200)\n"
+              << "  --search_points <csv>      Run all coupled search-width points after one index load\n"
               << "  --alpha <float>            Dense score weight (default: 0.5)\n"
+              << "  --build_alpha <float>      Dense weight used to build the main graph (default: alpha)\n"
+              << "  --graph_path <path>        Precomputed UHG graph HDF5 for the main hybrid graph\n"
+              << "  --sindi_index_path <path>  Existing SINDI index to load into hybrid_index\n"
+              << "  --dense_entry_hnsw_graph_path <path>\n"
+              << "                              Existing dense HNSW index; load graph only for UHGH\n"
+              << "  --disable_sindi            Do not build internal SINDI helper\n"
+              << "  --disable_dense_entry      Do not build internal dense-entry helper\n"
               << "  --hybrid_prune_scale <float>\n"
-              << "                              Prune scale for hybrid search, 0=sparse-only, smaller=more aggressive (default: 1.0)\n"
+              << "                              Sparse-IP upper-bound scale; smaller is more aggressive, 1=Cauchy bound (default: 1.0)\n"
+              << "  --disable_hybrid_pruning   Disable dense-first sparse upper-bound pruning\n"
               << "  --max_hops <int>           Max neighbor expansion hops, 0=no limit (default: 0)\n"
               << "  --num_queries <int>        Number of queries to process, -1 for all (default: -1)\n"
+              << "  --threads <int>            Query-level parallel search threads (default: 1)\n"
               << "  --rebuild                  Force rebuild indexes\n"
               << "  --index_dir <path>         Directory for index cache (default: /tbase-project/vsag/scripts/UHG/data/index)\n"
+              << "  --hybrid_index_path <path> Explicit hybrid_index path, overrides index_dir\n"
               << "  --gt_dir <path>            Directory with ground truth npy files (required)\n"
+              << "  --mixed_alpha_file <path> Per-query alpha float32 npy; use with --mixed_gt_file\n"
+              << "  --mixed_gt_file <path>    Ground truth int64 npy for mixed per-query alphas\n"
               << "  --help, -h                 Show this help message\n"
               << "\nMethods:\n"
-              << "  uhg:   Hybrid index search with single entry point (baseline)\n"
-              << "  uhgs:  Sindi recall + hybrid index search (sindi results as entry points,\n"
-              << "         reuse sindi sparse distances via ExtraInfos)\n"
-              << "\nIndex files: 703_{dataset}_sindi.index, 703_{dataset}_hybrid_index.index\n"
+              << "  uhg:   Main hybrid graph search\n"
+              << "  uhgs:  Internal SINDI entry points + main hybrid graph\n"
+              << "  uhgh:  Internal dense entry graph + main hybrid graph\n"
+              << "  auto:  alpha<=0.5 => uhgs, alpha>0.5 => uhgh\n"
+              << "\nIndex file: 703_{dataset}_hybrid_index.index\n"
               << std::endl;
 }
 
 struct SearchParams {
     std::string h5_file;
-    std::string method = "uhgs";
+    std::string method = "auto";
     int k = 10;
     int sindi_bk = 100;
+    int dense_entry_bk = 100;
+    int dense_entry_ef_search = 200;
     float sindi_query_prune_ratio = 0.0f;
     float sindi_term_prune_ratio = 0.0f;
     int ef_search = 200;
+    std::vector<int> search_points;
     float alpha = 0.5f;
+    float build_alpha = -1.0f;
+    std::string graph_path;
+    std::string sindi_index_path;
+    std::string dense_entry_hnsw_graph_path;
+    bool enable_sindi = true;
+    bool enable_dense_entry = true;
+    bool enable_hybrid_pruning = true;
     float hybrid_prune_scale = 1.0f;
     int max_hops = 0;
     int num_queries = -1;
+    int threads = 1;
     bool rebuild = false;
     std::string index_dir = "/tbase-project/vsag/scripts/UHG/data/index";
+    std::string hybrid_index_path;
     std::string gt_dir = "";
+    std::string mixed_alpha_file;
+    std::string mixed_gt_file;
 };
 
 SearchParams
@@ -220,6 +268,12 @@ ParseCommandLine(int argc, char** argv) {
     if (argc < 2) {
         PrintUsage(argv[0]);
         exit(1);
+    }
+
+    std::string arg1 = argv[1];
+    if (arg1 == "--help" || arg1 == "-h") {
+        PrintUsage(argv[0]);
+        exit(0);
     }
 
     params.h5_file = argv[1];
@@ -232,34 +286,67 @@ ParseCommandLine(int argc, char** argv) {
             exit(0);
         } else if (arg == "--method" && i + 1 < argc) {
             params.method = argv[++i];
-            if (params.method != "uhg" && params.method != "uhgs") {
-                std::cerr << "Error: method must be 'uhg' or 'uhgs'\n";
+            if (params.method != "uhg" && params.method != "uhgs" &&
+                params.method != "uhgh" && params.method != "auto") {
+                std::cerr << "Error: method must be one of uhg/uhgs/uhgh/auto\n";
                 exit(1);
             }
         } else if ((arg == "-k" || arg == "--topk") && i + 1 < argc) {
             params.k = std::atoi(argv[++i]);
         } else if (arg == "--sindi_bk" && i + 1 < argc) {
             params.sindi_bk = std::atoi(argv[++i]);
+        } else if ((arg == "--dense_entry_bk" || arg == "--hnsw_bk") && i + 1 < argc) {
+            params.dense_entry_bk = std::atoi(argv[++i]);
+        } else if ((arg == "--dense_entry_ef_search" || arg == "--hnsw_ef_search") &&
+                   i + 1 < argc) {
+            params.dense_entry_ef_search = std::atoi(argv[++i]);
         } else if (arg == "--sindi_query_prune_ratio" && i + 1 < argc) {
             params.sindi_query_prune_ratio = std::atof(argv[++i]);
         } else if (arg == "--sindi_term_prune_ratio" && i + 1 < argc) {
             params.sindi_term_prune_ratio = std::atof(argv[++i]);
         } else if (arg == "--ef_search" && i + 1 < argc) {
             params.ef_search = std::atoi(argv[++i]);
+        } else if (arg == "--search_points" && i + 1 < argc) {
+            params.search_points = ParseSearchPoints(argv[++i]);
         } else if (arg == "--alpha" && i + 1 < argc) {
             params.alpha = std::atof(argv[++i]);
+        } else if (arg == "--build_alpha" && i + 1 < argc) {
+            params.build_alpha = std::atof(argv[++i]);
+        } else if (arg == "--graph_path" && i + 1 < argc) {
+            params.graph_path = argv[++i];
+        } else if (arg == "--sindi_index_path" && i + 1 < argc) {
+            params.sindi_index_path = argv[++i];
+        } else if ((arg == "--dense_entry_hnsw_graph_path" ||
+                    arg == "--dense_entry_hnsw_index_path" ||
+                    arg == "--hnsw_index_path") &&
+                   i + 1 < argc) {
+            params.dense_entry_hnsw_graph_path = argv[++i];
+        } else if (arg == "--disable_sindi") {
+            params.enable_sindi = false;
+        } else if (arg == "--disable_dense_entry") {
+            params.enable_dense_entry = false;
+        } else if (arg == "--disable_hybrid_pruning") {
+            params.enable_hybrid_pruning = false;
         } else if (arg == "--hybrid_prune_scale" && i + 1 < argc) {
             params.hybrid_prune_scale = std::atof(argv[++i]);
         } else if (arg == "--max_hops" && i + 1 < argc) {
             params.max_hops = std::atoi(argv[++i]);
         } else if (arg == "--num_queries" && i + 1 < argc) {
             params.num_queries = std::atoi(argv[++i]);
+        } else if (arg == "--threads" && i + 1 < argc) {
+            params.threads = std::atoi(argv[++i]);
         } else if (arg == "--rebuild") {
             params.rebuild = true;
         } else if (arg == "--index_dir" && i + 1 < argc) {
             params.index_dir = argv[++i];
+        } else if (arg == "--hybrid_index_path" && i + 1 < argc) {
+            params.hybrid_index_path = argv[++i];
         } else if (arg == "--gt_dir" && i + 1 < argc) {
             params.gt_dir = argv[++i];
+        } else if (arg == "--mixed_alpha_file" && i + 1 < argc) {
+            params.mixed_alpha_file = argv[++i];
+        } else if (arg == "--mixed_gt_file" && i + 1 < argc) {
+            params.mixed_gt_file = argv[++i];
         } else {
             std::cerr << "Unknown argument: " << arg << std::endl;
             PrintUsage(argv[0]);
@@ -267,12 +354,17 @@ ParseCommandLine(int argc, char** argv) {
         }
     }
 
-    if (params.k <= 0 || params.sindi_bk <= 0 || params.ef_search <= 0) {
-        std::cerr << "Error: k, sindi_bk, ef_search must be positive\n";
+    if (params.k <= 0 || params.sindi_bk <= 0 || params.dense_entry_bk <= 0 ||
+        params.dense_entry_ef_search <= 0 || params.ef_search <= 0) {
+        std::cerr << "Error: k, sindi_bk, dense_entry_bk, dense_entry_ef_search, ef_search must be positive\n";
         exit(1);
     }
     if (params.alpha < 0.0f || params.alpha > 1.0f) {
         std::cerr << "Error: alpha must be in [0, 1]\n";
+        exit(1);
+    }
+    if (params.build_alpha >= 0.0f and params.build_alpha > 1.0f) {
+        std::cerr << "Error: build_alpha must be in [0, 1]\n";
         exit(1);
     }
     if (params.sindi_query_prune_ratio < 0.0f || params.sindi_query_prune_ratio > 0.9f) {
@@ -287,8 +379,32 @@ ParseCommandLine(int argc, char** argv) {
         std::cerr << "Error: hybrid_prune_scale must be >= 0\n";
         exit(1);
     }
+    if (params.threads <= 0) {
+        std::cerr << "Error: threads must be positive\n";
+        exit(1);
+    }
+    for (int point : params.search_points) {
+        if (point <= 0) {
+            std::cerr << "Error: search_points must be positive\n";
+            exit(1);
+        }
+    }
     if (params.max_hops < 0) {
         std::cerr << "Error: max_hops must be >= 0\n";
+        exit(1);
+    }
+    if (!params.graph_path.empty() && !FileExists(params.graph_path)) {
+        std::cerr << "Error: graph_path does not exist: " << params.graph_path << "\n";
+        exit(1);
+    }
+    if (!params.sindi_index_path.empty() && !FileExists(params.sindi_index_path)) {
+        std::cerr << "Error: sindi_index_path does not exist: " << params.sindi_index_path << "\n";
+        exit(1);
+    }
+    if (!params.dense_entry_hnsw_graph_path.empty() &&
+        !FileExists(params.dense_entry_hnsw_graph_path)) {
+        std::cerr << "Error: dense_entry_hnsw_graph_path does not exist: "
+                  << params.dense_entry_hnsw_graph_path << "\n";
         exit(1);
     }
 
@@ -320,12 +436,12 @@ main(int argc, char** argv) {
         std::string dataset_name = GetDatasetName(params.h5_file);
 
         // Index paths
-        std::string sindi_index_path = params.index_dir + "/703_" + dataset_name + "_sindi.index";
-        std::string hybrid_index_path = params.index_dir + "/703_" + dataset_name + "_hybrid_index.index";
+        std::string hybrid_index_path = params.hybrid_index_path.empty()
+                                            ? params.index_dir + "/703_" + dataset_name + "_hybrid_index.index"
+                                            : params.hybrid_index_path;
 
-        bool need_build_sindi = params.rebuild || !FileExists(sindi_index_path);
         bool need_build_hybrid = params.rebuild || !FileExists(hybrid_index_path);
-        bool need_build = need_build_sindi || need_build_hybrid;
+        bool need_build = need_build_hybrid;
 
         // Create index directory if needed
         if (need_build) {
@@ -394,73 +510,35 @@ main(int argc, char** argv) {
             std::cout << "Train data loaded: " << num_train << " vectors" << std::endl;
         }
 
-        /******************* 2. 构建/加载 sindi 索引 *****************/
-        std::string sindi_build_params = R"(
-        {
-            "dtype": "sparse",
-            "metric_type": "ip",
-            "index_param": {
-                "use_reorder": false
-            }
-        })";
-
-        auto sparse_index = vsag::Factory::CreateIndex("sindi", sindi_build_params).value();
-
-        if (need_build_sindi) {
-            std::cout << "Building sindi index..." << std::endl;
-            auto base_sparse_dataset = vsag::Dataset::Make();
-            base_sparse_dataset->NumElements(num_train)
-                ->Ids(train_labels.data())
-                ->SparseVectors(train_sparse.data())
-                ->Owner(false);
-
-            auto build_start = std::chrono::high_resolution_clock::now();
-            if (!sparse_index->Build(base_sparse_dataset).has_value()) {
-                std::cerr << "Failed to build sindi index" << std::endl;
-                return -1;
-            }
-            auto build_end = std::chrono::high_resolution_clock::now();
-            double build_time = std::chrono::duration<double>(build_end - build_start).count();
-            std::cout << "Sindi built in " << build_time << "s" << std::endl;
-
-            std::ofstream out_stream(sindi_index_path);
-            auto serialize_result = sparse_index->Serialize(out_stream);
-            out_stream.close();
-            if (!serialize_result.has_value()) {
-                std::cerr << "Failed to save sindi index: " << serialize_result.error().message << std::endl;
-                return -1;
-            }
-            std::cout << "Sindi saved to " << sindi_index_path << std::endl;
-        } else {
-            std::cout << "Loading sindi from " << sindi_index_path << std::endl;
-            sparse_index = nullptr;
-            sparse_index = vsag::Factory::CreateIndex("sindi", sindi_build_params).value();
-            std::ifstream in_stream(sindi_index_path);
-            auto deserialize_result = sparse_index->Deserialize(in_stream);
-            in_stream.close();
-            if (!deserialize_result.has_value()) {
-                std::cerr << "Failed to load sindi index: " << deserialize_result.error().message << std::endl;
-                return -1;
-            }
-            num_train = sparse_index->GetNumElements();
-            std::cout << "Sindi loaded (" << num_train << " vectors)" << std::endl;
+        /******************* 2. 构建/加载 unified hybrid_index *****************/
+        float effective_build_alpha = params.build_alpha >= 0.0f ? params.build_alpha : params.alpha;
+        nlohmann::json hybrid_build_param_json = {
+            {"dtype", "float32"},
+            {"metric_type", "ip"},
+            {"dim", dense_dim},
+            {"index_param",
+             {
+                 {"sparse_dtype", "float32"},
+                 {"sparse_metric_type", "ip"},
+                 {"sparse_dim", 30000},
+                 {"alpha", effective_build_alpha},
+                 {"ef_construction", 200},
+                 {"max_degree", 64},
+                 {"enable_sindi", params.enable_sindi},
+                 {"enable_dense_entry", params.enable_dense_entry},
+             }},
+        };
+        if (!params.graph_path.empty()) {
+            hybrid_build_param_json["index_param"]["graph_path"] = params.graph_path;
         }
-
-        /******************* 3. 构建/加载 hybrid_index *****************/
-        std::string hybrid_build_params =
-            R"({
-                "dtype": "float32",
-                "metric_type": "ip",
-                "dim": )" + std::to_string(dense_dim) + R"(,
-                "index_param": {
-                    "sparse_dtype": "float32",
-                    "sparse_metric_type": "ip",
-                    "sparse_dim": 30000,
-                    "alpha": )" + std::to_string(params.alpha) + R"(,
-                    "ef_construction": 200,
-                    "max_degree": 64
-                }
-            })";
+        if (!params.sindi_index_path.empty()) {
+            hybrid_build_param_json["index_param"]["sindi_index_path"] = params.sindi_index_path;
+        }
+        if (!params.dense_entry_hnsw_graph_path.empty()) {
+            hybrid_build_param_json["index_param"]["dense_entry_hnsw_graph_path"] =
+                params.dense_entry_hnsw_graph_path;
+        }
+        std::string hybrid_build_params = hybrid_build_param_json.dump();
 
         auto hybrid_index = vsag::Factory::CreateIndex("hybrid_index", hybrid_build_params).value();
 
@@ -506,9 +584,21 @@ main(int argc, char** argv) {
         }
 
         /******************* 4. 加载 ground truth *****************/
+        const bool mixed_alpha_mode = uhg_mixed_alpha::ValidateMixedFiles(
+            params.mixed_alpha_file, params.mixed_gt_file);
+        std::vector<float> mixed_alphas;
+        if (mixed_alpha_mode) {
+            std::vector<int64_t> alpha_shape;
+            mixed_alphas = uhg_mixed_alpha::ReadNPYFloat32(
+                params.mixed_alpha_file, alpha_shape);
+        }
         std::ostringstream gt_file_ss;
-        gt_file_ss << params.gt_dir << "/" << dataset_name << "_ground_truth_alpha_"
-                   << std::fixed << std::setprecision(1) << params.alpha << ".npy";
+        if (mixed_alpha_mode) {
+            gt_file_ss << params.mixed_gt_file;
+        } else {
+            gt_file_ss << params.gt_dir << "/" << dataset_name << "_ground_truth_alpha_"
+                       << std::fixed << std::setprecision(1) << params.alpha << ".npy";
+        }
         std::string gt_file_path = gt_file_ss.str();
 
         std::cout << "Loading ground truth from " << gt_file_path << std::endl;
@@ -526,132 +616,121 @@ main(int argc, char** argv) {
         int actual_num_queries = (params.num_queries > 0)
             ? std::min(params.num_queries, (int)num_test)
             : (int)num_test;
-
-        float total_recall = 0.0f;
-
-        auto search_start = std::chrono::high_resolution_clock::now();
-
-        for (int query_idx = 0; query_idx < actual_num_queries; query_idx++) {
-            if ((query_idx + 1) % 100 == 0) {
-                std::cout << "Processing query " << query_idx + 1 << "/" << actual_num_queries << std::endl;
-            }
-
-            if (params.method == "uhgs") {
-                // UHGS: sindi 召回作为入口点
-                auto query_sparse_ds = vsag::Dataset::Make();
-                query_sparse_ds->NumElements(1)
-                    ->SparseVectors(test_sparse.data() + query_idx)
-                    ->Owner(false);
-
-                nlohmann::json sindi_search_param_json = {
-                    {"sindi", {
-                        {"query_prune_ratio", params.sindi_query_prune_ratio},
-                        {"term_prune_ratio", params.sindi_term_prune_ratio}
-                    }}
-                };
-                auto sindi_search_params = sindi_search_param_json.dump();
-                auto sindi_result = sparse_index->KnnSearch(
-                    query_sparse_ds, params.sindi_bk, sindi_search_params).value();
-
-                int sindi_num = sindi_result->GetDim();
-                const int64_t* sindi_ids = sindi_result->GetIds();
-                std::vector<int64_t> entry_points(sindi_ids, sindi_ids + sindi_num);
-
-                // hybrid_index 搜索，传入 entry_points 和 ExtraInfos
-                nlohmann::json search_param_json = {
-                    {"alpha", params.alpha},
-                    {"ef_search", params.ef_search},
-                    {"hybrid_prune_scale", params.hybrid_prune_scale},
-                    {"entry_points", entry_points}
-                };
-                if (params.max_hops > 0) {
-                    search_param_json["max_hops"] = params.max_hops;
-                }
-                std::string hybrid_search_params = search_param_json.dump();
-
-                auto query_ds = vsag::Dataset::Make();
-                query_ds->NumElements(1)
-                    ->Dim(dense_dim)
-                    ->Float32Vectors(test_dense.data() + query_idx * dense_dim)
-                    ->SparseVectors(test_sparse.data() + query_idx)
-                    ->ExtraInfos(sindi_result->GetExtraInfos())
-                    ->ExtraInfoSize(sindi_result->GetExtraInfoSize())
-                    ->Owner(false);
-
-                auto hybrid_result = hybrid_index->KnnSearch(
-                    query_ds, params.k, hybrid_search_params).value();
-
-                int result_num = hybrid_result->GetDim();
-                std::vector<int64_t> search_results(
-                    hybrid_result->GetIds(),
-                    hybrid_result->GetIds() + result_num);
-
-                int gt_k = std::min(params.k, (int)k_gt);
-                std::vector<int64_t> gt(
-                    ground_truth.begin() + query_idx * k_gt,
-                    ground_truth.begin() + query_idx * k_gt + gt_k);
-                total_recall += CalculateRecall(search_results, gt);
-
-            } else {
-                // UHG: 单入口点 baseline
-                nlohmann::json search_param_json = {
-                    {"alpha", params.alpha},
-                    {"ef_search", params.ef_search},
-                    {"hybrid_prune_scale", params.hybrid_prune_scale},
-                    {"entry_point", 0}
-                };
-                if (params.max_hops > 0) {
-                    search_param_json["max_hops"] = params.max_hops;
-                }
-                std::string hybrid_search_params = search_param_json.dump();
-
-                auto query_ds = vsag::Dataset::Make();
-                query_ds->NumElements(1)
-                    ->Dim(dense_dim)
-                    ->Float32Vectors(test_dense.data() + query_idx * dense_dim)
-                    ->SparseVectors(test_sparse.data() + query_idx)
-                    ->Owner(false);
-
-                auto hybrid_result = hybrid_index->KnnSearch(
-                    query_ds, params.k, hybrid_search_params).value();
-
-                int result_num = hybrid_result->GetDim();
-                std::vector<int64_t> search_results(
-                    hybrid_result->GetIds(),
-                    hybrid_result->GetIds() + result_num);
-
-                int gt_k = std::min(params.k, (int)k_gt);
-                std::vector<int64_t> gt(
-                    ground_truth.begin() + query_idx * k_gt,
-                    ground_truth.begin() + query_idx * k_gt + gt_k);
-                total_recall += CalculateRecall(search_results, gt);
-            }
+        if (gt_shape[0] < actual_num_queries ||
+            (mixed_alpha_mode && static_cast<int>(mixed_alphas.size()) < actual_num_queries)) {
+            throw std::runtime_error("Mixed alpha/ground truth rows are fewer than num_queries");
         }
 
-        auto search_end = std::chrono::high_resolution_clock::now();
-        double elapsed_seconds = std::chrono::duration<double>(search_end - search_start).count();
-        double qps = static_cast<double>(actual_num_queries) / elapsed_seconds;
+        std::vector<int> search_points = params.search_points;
+        if (search_points.empty()) {
+            search_points.push_back(params.ef_search);
+        }
 
-        float avg_recall = total_recall / static_cast<float>(actual_num_queries);
+        for (int point : search_points) {
+            const int effective_ef_search = params.search_points.empty() ? params.ef_search : point;
+            const int effective_sindi_bk = params.search_points.empty() ? params.sindi_bk : point;
+            const int effective_dense_entry_bk =
+                params.search_points.empty() ? params.dense_entry_bk : point;
+            const int effective_dense_entry_ef_search =
+                params.search_points.empty() ? params.dense_entry_ef_search : point;
+            std::vector<float> query_recalls(actual_num_queries, 0.0f);
 
-        /******************* 6. 输出结果 *****************/
-        std::cout << "\n========== Results ==========\n";
-        std::cout << "Method: " << params.method << "\n";
-        std::cout << "k: " << params.k << "\n";
-        std::cout << "sindi_bk: " << params.sindi_bk << "\n";
-        std::cout << "sindi_query_prune_ratio: " << params.sindi_query_prune_ratio << "\n";
-        std::cout << "sindi_term_prune_ratio: " << params.sindi_term_prune_ratio << "\n";
-        std::cout << "ef_search: " << params.ef_search << "\n";
-        std::cout << "alpha: " << params.alpha << "\n";
-        std::cout << "hybrid_prune_scale: " << params.hybrid_prune_scale << "\n";
-        std::cout << "max_hops: " << params.max_hops << "\n";
-        std::cout << "num_queries: " << actual_num_queries << "\n";
-        std::cout << "rebuild: " << (params.rebuild ? "true" : "false") << "\n";
-        std::cout << "index_dir: " << params.index_dir << "\n";
-        std::cout << "----------------------------\n";
-        std::cout << "Recall: " << avg_recall << "\n";
-        std::cout << "QPS: " << qps << "\n";
-        std::cout << "============================\n";
+            auto search_start = std::chrono::high_resolution_clock::now();
+
+#pragma omp parallel for num_threads(params.threads) schedule(dynamic)
+            for (int query_idx = 0; query_idx < actual_num_queries; query_idx++) {
+                const float query_alpha =
+                    mixed_alpha_mode ? mixed_alphas[query_idx] : params.alpha;
+                if (params.threads == 1 && (query_idx + 1) % 100 == 0) {
+                    std::cout << "Processing query " << query_idx + 1 << "/"
+                              << actual_num_queries << " (point=" << point << ")" << std::endl;
+                }
+
+                nlohmann::json unified_search_param_json = {
+                    {"method", params.method},
+                    {"alpha", query_alpha},
+                    {"ef_search", effective_ef_search},
+                    {"enable_hybrid_pruning", params.enable_hybrid_pruning},
+                    {"hybrid_prune_scale", params.hybrid_prune_scale},
+                    {"sindi_bk", effective_sindi_bk},
+                    {"sindi_query_prune_ratio", params.sindi_query_prune_ratio},
+                    {"sindi_term_prune_ratio", params.sindi_term_prune_ratio},
+                    {"dense_entry_bk", effective_dense_entry_bk},
+                    {"dense_entry_ef_search", effective_dense_entry_ef_search}
+                };
+                if (params.max_hops > 0) {
+                    unified_search_param_json["max_hops"] = params.max_hops;
+                }
+
+                auto query_ds = vsag::Dataset::Make();
+                query_ds->NumElements(1)
+                    ->Dim(dense_dim)
+                    ->Float32Vectors(test_dense.data() + query_idx * dense_dim)
+                    ->SparseVectors(test_sparse.data() + query_idx)
+                    ->Owner(false);
+
+                auto hybrid_result = hybrid_index->KnnSearch(
+                    query_ds, params.k, unified_search_param_json.dump()).value();
+
+                int result_num = hybrid_result->GetDim();
+                std::vector<int64_t> search_results(
+                    hybrid_result->GetIds(), hybrid_result->GetIds() + result_num);
+
+                int gt_k = std::min(params.k, (int)k_gt);
+                std::vector<int64_t> gt(
+                    ground_truth.begin() + query_idx * k_gt,
+                    ground_truth.begin() + query_idx * k_gt + gt_k);
+                query_recalls[query_idx] = CalculateRecall(search_results, gt);
+            }
+
+            auto search_end = std::chrono::high_resolution_clock::now();
+            double elapsed_seconds =
+                std::chrono::duration<double>(search_end - search_start).count();
+            double qps = static_cast<double>(actual_num_queries) / elapsed_seconds;
+
+            double total_recall = 0.0;
+            for (float recall : query_recalls) total_recall += recall;
+            float avg_recall = static_cast<float>(total_recall / actual_num_queries);
+
+            /******************* 6. 输出结果 *****************/
+            std::cout << "\n========== Results ==========\n";
+            std::cout << "Method: " << params.method << "\n";
+            std::cout << "k: " << params.k << "\n";
+            std::cout << "sindi_bk: " << effective_sindi_bk << "\n";
+            std::cout << "dense_entry_bk: " << effective_dense_entry_bk << "\n";
+            std::cout << "dense_entry_ef_search: " << effective_dense_entry_ef_search << "\n";
+            std::cout << "sindi_query_prune_ratio: " << params.sindi_query_prune_ratio << "\n";
+            std::cout << "sindi_term_prune_ratio: " << params.sindi_term_prune_ratio << "\n";
+            std::cout << "ef_search: " << effective_ef_search << "\n";
+            std::cout << "alpha: " << params.alpha << "\n";
+            std::cout << "mixed_alpha: " << (mixed_alpha_mode ? "true" : "false") << "\n";
+            std::cout << "build_alpha: " << effective_build_alpha << "\n";
+            std::cout << "graph_path: "
+                      << (params.graph_path.empty() ? "(none)" : params.graph_path) << "\n";
+            std::cout << "sindi_index_path: "
+                      << (params.sindi_index_path.empty() ? "(none)" : params.sindi_index_path)
+                      << "\n";
+            std::cout << "dense_entry_hnsw_graph_path: "
+                      << (params.dense_entry_hnsw_graph_path.empty()
+                              ? "(none)"
+                              : params.dense_entry_hnsw_graph_path)
+                      << "\n";
+            std::cout << "enable_sindi: " << (params.enable_sindi ? "true" : "false") << "\n";
+            std::cout << "enable_dense_entry: "
+                      << (params.enable_dense_entry ? "true" : "false") << "\n";
+            std::cout << "enable_hybrid_pruning: "
+                      << (params.enable_hybrid_pruning ? "true" : "false") << "\n";
+            std::cout << "hybrid_prune_scale: " << params.hybrid_prune_scale << "\n";
+            std::cout << "max_hops: " << params.max_hops << "\n";
+            std::cout << "num_queries: " << actual_num_queries << "\n";
+            std::cout << "threads: " << params.threads << "\n";
+            std::cout << "rebuild: " << (params.rebuild ? "true" : "false") << "\n";
+            std::cout << "index_dir: " << params.index_dir << "\n";
+            std::cout << "----------------------------\n";
+            std::cout << "Recall: " << avg_recall << "\n";
+            std::cout << "QPS: " << qps << "\n";
+            std::cout << "============================\n";
+        }
 
         /******************* 7. 清理资源 *****************/
         if (need_build) {

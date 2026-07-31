@@ -15,6 +15,8 @@
 #include <H5Cpp.h>
 #include <vsag/vsag.h>
 
+#include <omp.h>
+
 #include <algorithm>
 #include <chrono>
 #include <cstring>
@@ -22,8 +24,11 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+#include "uhg_mixed_alpha_utils.h"
 
 // Simple NPY file reader for int64 arrays
 std::vector<int64_t>
@@ -150,6 +155,19 @@ CalculateRecall(const std::vector<int64_t>& results, const std::vector<int64_t>&
     return static_cast<float>(hit_count) / ground_truth.size();
 }
 
+std::vector<int>
+ParseSearchPoints(const std::string& text) {
+    std::vector<int> values;
+    std::stringstream ss(text);
+    std::string token;
+    while (std::getline(ss, token, ',')) {
+        if (!token.empty()) {
+            values.push_back(std::atoi(token.c_str()));
+        }
+    }
+    return values;
+}
+
 void
 PrintUsage(const char* program_name) {
     std::cout << "Usage: " << program_name << " <h5_file> [options]\n"
@@ -160,10 +178,18 @@ PrintUsage(const char* program_name) {
               << "  --bk <int>                 Set both bk_dense and bk_sparse\n"
               << "  --alpha <float>            Weight for dense score (default: 0.5)\n"
               << "  --num_queries <int>        Number of queries to process (default: all)\n"
+              << "  --threads <int>            Query-level parallel search threads (default: 1)\n"
               << "  --ef_search <int>          ef_search for hnsw (default: 200)\n"
+              << "  --search_points <csv>      Run bk_dense=bk_sparse=ef_search points after one load\n"
+              << "  --query_prune_ratio <float>\n"
+              << "                              SINDI query pruning ratio, [0,0.9], 0=no pruning (default: 0)\n"
+              << "  --term_prune_ratio <float>\n"
+              << "                              SINDI term pruning ratio, [0,0.9], 0=no pruning (default: 0)\n"
               << "  --rebuild                  Force rebuild indexes\n"
               << "  --index_dir <path>         Directory to save/load indexes (default: ./indexes)\n"
               << "  --gt_dir <path>            Directory containing ground truth npy files (required)\n"
+              << "  --mixed_alpha_file <path> Per-query alpha float32 npy; use with --mixed_gt_file\n"
+              << "  --mixed_gt_file <path>    Ground truth int64 npy for mixed per-query alphas\n"
               << "  --help, -h                 Show this help message\n"
               << "\nIndex files: 701_dense_hnsw.index, 701_sparse_sindi.index\n"
               << "\nExample:\n"
@@ -178,10 +204,16 @@ struct SearchParams {
     int bk_sparse = 100;
     float alpha = 0.5;
     int num_queries = -1;
+    int threads = 1;
     int ef_search = 200;
+    std::vector<int> search_points;
+    float query_prune_ratio = 0.0f;
+    float term_prune_ratio = 0.0f;
     bool rebuild = false;
     std::string index_dir = "./indexes";
     std::string gt_dir = "";
+    std::string mixed_alpha_file;
+    std::string mixed_gt_file;
 };
 
 SearchParams
@@ -221,14 +253,26 @@ ParseCommandLine(int argc, char** argv) {
             params.alpha = std::atof(argv[++i]);
         } else if (arg == "--num_queries" && i + 1 < argc) {
             params.num_queries = std::atoi(argv[++i]);
+        } else if (arg == "--threads" && i + 1 < argc) {
+            params.threads = std::atoi(argv[++i]);
         } else if (arg == "--ef_search" && i + 1 < argc) {
             params.ef_search = std::atoi(argv[++i]);
+        } else if (arg == "--search_points" && i + 1 < argc) {
+            params.search_points = ParseSearchPoints(argv[++i]);
+        } else if (arg == "--query_prune_ratio" && i + 1 < argc) {
+            params.query_prune_ratio = std::atof(argv[++i]);
+        } else if (arg == "--term_prune_ratio" && i + 1 < argc) {
+            params.term_prune_ratio = std::atof(argv[++i]);
         } else if (arg == "--rebuild") {
             params.rebuild = true;
         } else if (arg == "--index_dir" && i + 1 < argc) {
             params.index_dir = argv[++i];
         } else if (arg == "--gt_dir" && i + 1 < argc) {
             params.gt_dir = argv[++i];
+        } else if (arg == "--mixed_alpha_file" && i + 1 < argc) {
+            params.mixed_alpha_file = argv[++i];
+        } else if (arg == "--mixed_gt_file" && i + 1 < argc) {
+            params.mixed_gt_file = argv[++i];
         } else {
             std::cerr << "Unknown argument: " << arg << std::endl;
             PrintUsage(argv[0]);
@@ -239,6 +283,16 @@ ParseCommandLine(int argc, char** argv) {
     if (params.k <= 0 || params.bk_dense <= 0 || params.bk_sparse <= 0) {
         std::cerr << "Error: k, bk_dense, bk_sparse must be positive\n";
         exit(1);
+    }
+    if (params.threads <= 0) {
+        std::cerr << "Error: threads must be positive\n";
+        exit(1);
+    }
+    for (int point : params.search_points) {
+        if (point <= 0) {
+            std::cerr << "Error: search_points must be positive\n";
+            exit(1);
+        }
     }
     if (params.alpha < 0.0 || params.alpha > 1.0) {
         std::cerr << "Error: alpha must be between 0.0 and 1.0\n";
@@ -353,9 +407,21 @@ main(int argc, char** argv) {
         }
 
         // Load ground truth
+        const bool mixed_alpha_mode = uhg_mixed_alpha::ValidateMixedFiles(
+            params.mixed_alpha_file, params.mixed_gt_file);
+        std::vector<float> mixed_alphas;
+        if (mixed_alpha_mode) {
+            std::vector<int64_t> alpha_shape;
+            mixed_alphas = uhg_mixed_alpha::ReadNPYFloat32(
+                params.mixed_alpha_file, alpha_shape);
+        }
         std::ostringstream gt_file_ss;
-        gt_file_ss << params.gt_dir << "/" << dataset_name << "_ground_truth_alpha_"
-                   << std::fixed << std::setprecision(1) << params.alpha << ".npy";
+        if (mixed_alpha_mode) {
+            gt_file_ss << params.mixed_gt_file;
+        } else {
+            gt_file_ss << params.gt_dir << "/" << dataset_name << "_ground_truth_alpha_"
+                       << std::fixed << std::setprecision(1) << params.alpha << ".npy";
+        }
         std::string gt_file_path = gt_file_ss.str();
 
         std::cout << "Loading ground truth from " << gt_file_path << std::endl;
@@ -482,107 +548,173 @@ main(int argc, char** argv) {
 
         // Hybrid Search (using index distances for rerank)
         int actual_num_queries = (params.num_queries > 0) ? std::min(params.num_queries, (int)num_test) : (int)num_test;
-
-        float total_recall = 0.0f;
-
-        std::string dense_search_params = R"({"hnsw": {"ef_search": )" + std::to_string(params.ef_search) + "}}";
-        std::string sparse_search_params = R"({"sindi": {}})";
-
-        auto search_start = std::chrono::high_resolution_clock::now();
-
-        for (int query_idx = 0; query_idx < actual_num_queries; query_idx++) {
-            if ((query_idx + 1) % 100 == 0) {
-                std::cout << "Processing query " << query_idx + 1 << "/" << actual_num_queries << std::endl;
-            }
-
-            auto query = vsag::Dataset::Make();
-            query->NumElements(1)
-                ->Dim(dense_dim)
-                ->Float32Vectors(test_dense.data() + query_idx * dense_dim)
-                ->SparseVectors(test_sparse.data() + query_idx)
-                ->Owner(false);
-
-            auto dense_results = dense_index->KnnSearch(query, params.bk_dense, dense_search_params).value();
-            auto sparse_results = sparse_index->KnnSearch(query, params.bk_sparse, sparse_search_params).value();
-
-            // Merge candidate IDs from both indices
-            std::unordered_set<int64_t> candidate_set;
-            for (int i = 0; i < dense_results->GetDim(); i++) {
-                candidate_set.insert(dense_results->GetIds()[i]);
-            }
-            for (int i = 0; i < sparse_results->GetDim(); i++) {
-                candidate_set.insert(sparse_results->GetIds()[i]);
-            }
-
-            std::vector<int64_t> candidate_ids(candidate_set.begin(), candidate_set.end());
-            int64_t num_candidates = candidate_ids.size();
-
-            // Compute exact distances via index for all candidates
-            auto dense_dists_result = dense_index->CalDistanceById(
-                test_dense.data() + query_idx * dense_dim,
-                candidate_ids.data(), num_candidates).value();
-
-            auto sparse_query_ds = vsag::Dataset::Make();
-            sparse_query_ds->NumElements(1)
-                ->SparseVectors(test_sparse.data() + query_idx)
-                ->Owner(false);
-            auto sparse_dists_result = sparse_index->CalDistanceById(
-                sparse_query_ds, candidate_ids.data(), num_candidates).value();
-
-            const float* dense_dists = dense_dists_result->GetDistances();
-            const float* sparse_dists = sparse_dists_result->GetDistances();
-
-            // Compute hybrid scores and rerank
-            std::vector<std::pair<int64_t, float>> hybrid_results;
-            hybrid_results.reserve(num_candidates);
-
-            for (int64_t i = 0; i < num_candidates; i++) {
-                float dense_score = 1.0f - dense_dists[i];
-                float sparse_score = 1.0f - sparse_dists[i];
-                float hybrid_score = params.alpha * dense_score + (1.0f - params.alpha) * sparse_score;
-                hybrid_results.emplace_back(candidate_ids[i], hybrid_score);
-            }
-
-            int actual_k = std::min(params.k, (int)hybrid_results.size());
-            std::partial_sort(hybrid_results.begin(), hybrid_results.begin() + actual_k, hybrid_results.end(),
-                              [](const auto& a, const auto& b) { return a.second > b.second; });
-
-            std::vector<int64_t> search_results;
-            for (int i = 0; i < actual_k; i++) {
-                search_results.push_back(hybrid_results[i].first);
-            }
-
-            // Calculate recall
-            int gt_k = std::min(params.k, (int)k_gt);
-            std::vector<int64_t> gt(ground_truth.begin() + query_idx * k_gt,
-                                   ground_truth.begin() + query_idx * k_gt + gt_k);
-
-            float recall = CalculateRecall(search_results, gt);
-            total_recall += recall;
+        if (gt_shape[0] < actual_num_queries ||
+            (mixed_alpha_mode && static_cast<int>(mixed_alphas.size()) < actual_num_queries)) {
+            throw std::runtime_error("Mixed alpha/ground truth rows are fewer than num_queries");
         }
 
-        auto search_end = std::chrono::high_resolution_clock::now();
-        double elapsed_seconds = std::chrono::duration<double>(search_end - search_start).count();
-        double qps = actual_num_queries / elapsed_seconds;
+        std::ostringstream sparse_ss;
+        sparse_ss << std::fixed << std::setprecision(1)
+                  << R"({"sindi": {"query_prune_ratio": )" << params.query_prune_ratio
+                  << R"(, "term_prune_ratio": )" << params.term_prune_ratio
+                  << "}}";
+        std::string sparse_search_params = sparse_ss.str();
 
-        float avg_recall = total_recall / actual_num_queries;
+        struct CandidateDistances {
+            bool has_dense{false};
+            bool has_sparse{false};
+            float dense_dist{0.0f};
+            float sparse_dist{0.0f};
+        };
 
-        // Output Results
-        std::cout << "\n========== Results ==========\n";
-        std::cout << "Dataset: " << params.h5_file << "\n";
-        std::cout << "k: " << params.k << "\n";
-        std::cout << "bk_dense: " << params.bk_dense << "\n";
-        std::cout << "bk_sparse: " << params.bk_sparse << "\n";
-        std::cout << "alpha: " << params.alpha << "\n";
-        std::cout << "ef_search: " << params.ef_search << "\n";
-        std::cout << "num_queries: " << actual_num_queries << "\n";
-        std::cout << "rebuild: " << (params.rebuild ? "true" : "false") << "\n";
-        std::cout << "index_dir: " << params.index_dir << "\n";
-        std::cout << "gt_file: " << gt_file_path << "\n";
-        std::cout << "----------------------------\n";
-        std::cout << "Recall: " << avg_recall << "\n";
-        std::cout << "QPS: " << qps << "\n";
-        std::cout << "============================\n";
+        std::vector<int> search_points = params.search_points;
+        if (search_points.empty()) {
+            search_points.push_back(params.bk_dense);
+        }
+
+        for (int point : search_points) {
+            const int effective_bk_dense = params.search_points.empty() ? params.bk_dense : point;
+            const int effective_bk_sparse = params.search_points.empty() ? params.bk_sparse : point;
+            const int effective_ef_search = params.search_points.empty() ? params.ef_search : point;
+            std::vector<float> query_recalls(actual_num_queries, 0.0f);
+            std::string dense_search_params = R"({"hnsw": {"ef_search": )" +
+                std::to_string(effective_ef_search) + "}}";
+
+            auto search_start = std::chrono::high_resolution_clock::now();
+
+#pragma omp parallel for num_threads(params.threads) schedule(dynamic)
+            for (int query_idx = 0; query_idx < actual_num_queries; query_idx++) {
+                const float query_alpha =
+                    mixed_alpha_mode ? mixed_alphas[query_idx] : params.alpha;
+                if (params.threads == 1 && (query_idx + 1) % 100 == 0) {
+                    std::cout << "Processing query " << query_idx + 1 << "/"
+                              << actual_num_queries << " (point=" << point << ")" << std::endl;
+                }
+
+                auto query = vsag::Dataset::Make();
+                query->NumElements(1)
+                    ->Dim(dense_dim)
+                    ->Float32Vectors(test_dense.data() + query_idx * dense_dim)
+                    ->SparseVectors(test_sparse.data() + query_idx)
+                    ->Owner(false);
+
+                auto dense_results = dense_index->KnnSearch(
+                    query, effective_bk_dense, dense_search_params).value();
+                auto sparse_results = sparse_index->KnnSearch(
+                    query, effective_bk_sparse, sparse_search_params).value();
+
+                std::unordered_map<int64_t, CandidateDistances> candidate_distances;
+                candidate_distances.reserve(dense_results->GetDim() + sparse_results->GetDim());
+
+                const auto* dense_ids = dense_results->GetIds();
+                const auto* dense_search_dists = dense_results->GetDistances();
+                for (int i = 0; i < dense_results->GetDim(); i++) {
+                    auto& candidate = candidate_distances[dense_ids[i]];
+                    candidate.has_dense = true;
+                    candidate.dense_dist = dense_search_dists[i];
+                }
+
+                const auto* sparse_ids = sparse_results->GetIds();
+                const auto* sparse_search_dists = sparse_results->GetDistances();
+                for (int i = 0; i < sparse_results->GetDim(); i++) {
+                    auto& candidate = candidate_distances[sparse_ids[i]];
+                    candidate.has_sparse = true;
+                    candidate.sparse_dist = sparse_search_dists[i];
+                }
+
+                std::vector<int64_t> missing_dense_ids;
+                std::vector<int64_t> missing_sparse_ids;
+                missing_dense_ids.reserve(candidate_distances.size());
+                missing_sparse_ids.reserve(candidate_distances.size());
+                for (const auto& [candidate_id, distances] : candidate_distances) {
+                    if (!distances.has_dense) missing_dense_ids.emplace_back(candidate_id);
+                    if (!distances.has_sparse) missing_sparse_ids.emplace_back(candidate_id);
+                }
+
+                if (!missing_dense_ids.empty()) {
+                    auto dense_dists_result = dense_index->CalDistanceById(
+                        test_dense.data() + query_idx * dense_dim,
+                        missing_dense_ids.data(),
+                        static_cast<int64_t>(missing_dense_ids.size())).value();
+                    const auto* dense_dists = dense_dists_result->GetDistances();
+                    for (size_t i = 0; i < missing_dense_ids.size(); ++i) {
+                        auto& candidate = candidate_distances[missing_dense_ids[i]];
+                        candidate.has_dense = true;
+                        candidate.dense_dist = dense_dists[i];
+                    }
+                }
+
+                if (!missing_sparse_ids.empty()) {
+                    auto sparse_query_ds = vsag::Dataset::Make();
+                    sparse_query_ds->NumElements(1)
+                        ->SparseVectors(test_sparse.data() + query_idx)
+                        ->Owner(false);
+                    auto sparse_dists_result = sparse_index->CalDistanceById(
+                        sparse_query_ds,
+                        missing_sparse_ids.data(),
+                        static_cast<int64_t>(missing_sparse_ids.size())).value();
+                    const auto* sparse_dists = sparse_dists_result->GetDistances();
+                    for (size_t i = 0; i < missing_sparse_ids.size(); ++i) {
+                        auto& candidate = candidate_distances[missing_sparse_ids[i]];
+                        candidate.has_sparse = true;
+                        candidate.sparse_dist = sparse_dists[i];
+                    }
+                }
+
+                std::vector<std::pair<int64_t, float>> hybrid_results;
+                hybrid_results.reserve(candidate_distances.size());
+                for (const auto& [candidate_id, distances] : candidate_distances) {
+                    float dense_score = 1.0f - distances.dense_dist;
+                    float sparse_score = 1.0f - distances.sparse_dist;
+                    float hybrid_score =
+                        query_alpha * dense_score + (1.0f - query_alpha) * sparse_score;
+                    hybrid_results.emplace_back(candidate_id, hybrid_score);
+                }
+
+                int actual_k = std::min(params.k, (int)hybrid_results.size());
+                std::partial_sort(hybrid_results.begin(), hybrid_results.begin() + actual_k,
+                                  hybrid_results.end(),
+                                  [](const auto& a, const auto& b) { return a.second > b.second; });
+
+                std::vector<int64_t> search_results;
+                for (int i = 0; i < actual_k; i++) {
+                    search_results.push_back(hybrid_results[i].first);
+                }
+
+                int gt_k = std::min(params.k, (int)k_gt);
+                std::vector<int64_t> gt(ground_truth.begin() + query_idx * k_gt,
+                                       ground_truth.begin() + query_idx * k_gt + gt_k);
+                query_recalls[query_idx] = CalculateRecall(search_results, gt);
+            }
+
+            auto search_end = std::chrono::high_resolution_clock::now();
+            double elapsed_seconds = std::chrono::duration<double>(search_end - search_start).count();
+            double qps = actual_num_queries / elapsed_seconds;
+
+            double total_recall = 0.0;
+            for (float recall : query_recalls) total_recall += recall;
+            float avg_recall = static_cast<float>(total_recall / actual_num_queries);
+
+            std::cout << "\n========== Results ==========\n";
+            std::cout << "Dataset: " << params.h5_file << "\n";
+            std::cout << "k: " << params.k << "\n";
+            std::cout << "bk_dense: " << effective_bk_dense << "\n";
+            std::cout << "bk_sparse: " << effective_bk_sparse << "\n";
+            std::cout << "alpha: " << params.alpha << "\n";
+            std::cout << "mixed_alpha: " << (mixed_alpha_mode ? "true" : "false") << "\n";
+            std::cout << "ef_search: " << effective_ef_search << "\n";
+            std::cout << "query_prune_ratio: " << params.query_prune_ratio << "\n";
+            std::cout << "term_prune_ratio: " << params.term_prune_ratio << "\n";
+            std::cout << "num_queries: " << actual_num_queries << "\n";
+            std::cout << "threads: " << params.threads << "\n";
+            std::cout << "rebuild: " << (params.rebuild ? "true" : "false") << "\n";
+            std::cout << "index_dir: " << params.index_dir << "\n";
+            std::cout << "gt_file: " << gt_file_path << "\n";
+            std::cout << "----------------------------\n";
+            std::cout << "Recall: " << avg_recall << "\n";
+            std::cout << "QPS: " << qps << "\n";
+            std::cout << "============================\n";
+        }
 
         // Cleanup
         if (need_build) {

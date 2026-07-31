@@ -1,0 +1,13 @@
+# ablation: entry strategy
+# method=uhg dataset=hotpotqa alpha=0.7 k=50 num_queries=-1 threads=1
+# fixed index: /tbase-project/vsag/scripts/UHG/data/index_hybrid_union/703_hotpotqa_hybrid_index.index (SINDI + dense-entry + UHG main graph embedded at build time)
+# direct UHG baseline; compare with main auto result at the same alpha and ef_search
+# build-time paths (graph/sindi/dense_entry) are NOT passed: index already has them
+# build_alpha=0.5 hybrid_prune_scale=0.3 max_hops=0
+# sindi_query_prune_ratio=0.5 sindi_term_prune_ratio=0
+# result_dir=/tbase-project/vsag/scripts/UHG/results_50/ablation/hotpotqa/uhg
+uhg ef_search=50 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.70398 QPS: 434.329
+uhg ef_search=100 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.80608 QPS: 266.872
+uhg ef_search=150 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.85246 QPS: 193.653
+uhg ef_search=250 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.89762 QPS: 125.487
+uhg ef_search=500 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.9397 QPS: 68.2439

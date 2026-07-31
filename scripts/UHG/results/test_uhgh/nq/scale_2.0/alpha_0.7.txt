@@ -1,0 +1,13 @@
+# UHGH dense-entry HNSW scaled sweep
+# method=uhgh dataset=nq alpha=0.7 k=100 num_queries=-1 threads=1
+# fixed index=/tbase-project/vsag/scripts/UHG/data/index_hybrid_union/703_nq_hybrid_index.index (load only; no rebuild)
+# build_alpha=0.5 hybrid_prune_scale=0.3 max_hops=0
+# dense_entry_ef_search = dense_entry_bk = 2.0 * ef_search (scale=2.0)
+# sindi_query_prune_ratio=0.5 sindi_term_prune_ratio=0
+# ef_search points: 100 200 300 500 1000
+# result_dir=/tbase-project/vsag/scripts/UHG/results/test_uhgh/nq/scale_2.0
+uhgh ef_search=100 dense_entry_ef=200 dense_entry_bk=200 entry_scale=2.0 prune_scale=0.3 threads=1 Recall: 0.95708 QPS: 114.497
+uhgh ef_search=200 dense_entry_ef=400 dense_entry_bk=400 entry_scale=2.0 prune_scale=0.3 threads=1 Recall: 0.98294 QPS: 62.3368
+uhgh ef_search=300 dense_entry_ef=600 dense_entry_bk=600 entry_scale=2.0 prune_scale=0.3 threads=1 Recall: 0.99023 QPS: 43.9139
+uhgh ef_search=500 dense_entry_ef=1000 dense_entry_bk=1000 entry_scale=2.0 prune_scale=0.3 threads=1 Recall: 0.99517 QPS: 27.9856
+uhgh ef_search=1000 dense_entry_ef=2000 dense_entry_bk=2000 entry_scale=2.0 prune_scale=0.3 threads=1 Recall: 0.99818 QPS: 15.3475

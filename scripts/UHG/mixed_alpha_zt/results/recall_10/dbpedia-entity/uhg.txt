@@ -1,0 +1,15 @@
+# experiment=mixed_alpha_zt dataset=dbpedia-entity method=uhg recall_at=10
+# distribution=truncated_normal alpha_min=0.3 alpha_max=0.7 normal_mean=0.5 normal_stddev=0.1 seed=42
+# k=10 num_queries=-1 threads=1
+# points=10 20 30 50 80 100
+# mixed_alpha_file=/tbase-project/vsag/scripts/UHG/mixed_alpha_zt/data/gt_top200/dbpedia-entity/alphas.npy
+# mixed_gt_file=/tbase-project/vsag/scripts/UHG/mixed_alpha_zt/data/gt_top200/dbpedia-entity/ground_truth.npy
+# sindi_query_prune_ratio=0.5 sindi_term_prune_ratio=0
+# method=auto build_alpha=0.5 hybrid_prune_scale=0.3 max_hops=0
+# auto_rule=alpha<=0.5:uhgs,alpha>0.5:uhgh
+uhg ef_search=10 threads=1 Recall: 0.777516 QPS: 739.374
+uhg ef_search=20 threads=1 Recall: 0.867666 QPS: 544.844
+uhg ef_search=30 threads=1 Recall: 0.905353 QPS: 428.068
+uhg ef_search=50 threads=1 Recall: 0.935118 QPS: 286.322
+uhg ef_search=80 threads=1 Recall: 0.956531 QPS: 177.561
+uhg ef_search=100 threads=1 Recall: 0.965096 QPS: 144.561

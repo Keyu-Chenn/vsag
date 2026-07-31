@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Truncated-normal Mixed Alpha QPS–Recall</title>
+<style>
+:root { color-scheme: light; --paper: #fff; --page: #f5f5f5; --ink: #111; }
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 18px; background: var(--page); color: var(--ink);
+  font-family: "Times New Roman", Times, serif;
+}
+.toolbar {
+  width: min(1480px, 100%); margin: 0 auto 10px; display: flex;
+  align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+label { font-size: 14px; }
+select, button {
+  appearance: none; border: 1px solid #bdbdbd; border-radius: 4px;
+  padding: 7px 11px; background: #fff; color: #111;
+  font: 14px "Times New Roman", Times, serif;
+}
+button { cursor: pointer; }
+button:hover, select:hover { background: #f8f8f8; }
+.status { color: #555; font-size: 13px; }
+.page {
+  width: min(1480px, 100%); margin: 0 auto; padding: 8px; background: var(--paper);
+  border: 1px solid #d7d7d7;
+}
+svg { display: block; width: 100%; height: auto; }
+@page { size: 11in 3.5in; margin: 0.08in; }
+@media print {
+  body { padding: 0; background: #fff; }
+  .toolbar { display: none; }
+  .page { width: 100%; padding: 0; border: 0; }
+}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <div class="controls">
+    <label for="recall-select">Metric</label>
+    <select id="recall-select" aria-label="Recall top-k"></select>
+  </div>
+  <div class="controls">
+    <span id="status" class="status"></span>
+    <button type="button" id="print-button">Print PDF</button>
+    <button type="button" id="save-button">Save SVG</button>
+  </div>
+</div>
+<main class="page" aria-label="Mixed-alpha QPS-Recall figure">
+  <svg id="figure" viewBox="0 0 1480 376" role="img"
+       aria-labelledby="figure-title figure-desc"></svg>
+</main>
+<script id="plot-data" type="application/json">{"title":"Truncated-normal Mixed Alpha QPS–Recall","subtitle":"Per-query α follows N(0.5, 0.1²) truncated to [0.3, 0.7]; QPS is shown on a logarithmic scale by default.","downloadStem":"mixed_alpha_zt_qps_recall","sourceTsv":"/tbase-project/vsag/scripts/UHG/mixed_alpha_zt/results/mixed_alpha_zt_points.tsv","recallValues":[10,20,50,100,200],"defaultRecall":100,"datasets":["nq","hotpotqa","fever","dbpedia-entity"],"datasetLabels":{"nq":"NQ","hotpotqa":"HotpotQA","fever":"FEVER","dbpedia-entity":"DBpedia-Entity"},"methods":["hnsw","sindi","hnsw_sindi","fhg","uhg"],"methodLabels":{"hnsw":"HNSW","sindi":"SINDI","hnsw_sindi":"HNSW+SINDI","fhg":"FHG","uhg":"UHG"},"methodColors":{"hnsw":"#9CA3AF","sindi":"#4C78A8","hnsw_sindi":"#59A14F","fhg":"#B07AA1","uhg":"#E45756"},"methodMarkers":{"hnsw":"circle","sindi":"square","hnsw_sindi":"cross","fhg":"triangle","uhg":"pentagon"},"methodParameters":{"hnsw":"ef_search","sindi":"bk","hnsw_sindi":"point","fhg":"ef_search","uhg":"ef_search"},"pointCounts":{"10":120,"20":120,"50":108,"100":108,"200":108},"totalPoints":564,"figureHeight":376,"points":{"10":{"nq":{"hnsw":[{"point":10,"recall":0.5507,"qps":1515.5},{"point":20,"recall":0.7115,"qps":991.235},{"point":30,"recall":0.7774,"qps":751.104},{"point":50,"recall":0.8397,"qps":513.15},{"point":80,"recall":0.8831,"qps":354.205},{"point":100,"recall":0.8996,"qps":294.22}],"sindi":[{"point":100,"recall":0.6277,"qps":511.041},{"point":150,"recall":0.6656,"qps":471.252},{"point":200,"recall":0.6886,"qps":437.05},{"point":300,"recall":0.7194,"qps":378.005},{"point":500,"recall":0.76,"qps":307.919},{"point":1000,"recall":0.7998,"qps":206.185}],"hnsw_sindi":[{"point":10,"recall":0.7201,"qps":226.145},{"point":15,"recall":0.8106,"qps":318.35},{"point":20,"recall":0.8593,"qps":284.779},{"point":30,"recall":0.9102,"qps":225.396},{"point":50,"recall":0.9493,"qps":205.977},{"point":100,"recall":0.9786,"qps":123.805}],"fhg":[{"point":10,"recall":0.5438,"qps":946.017},{"point":20,"recall":0.6965,"qps":640.262},{"point":30,"recall":0.7667,"qps":503.713},{"point":50,"recall":0.8411,"qps":371.838},{"point":80,"recall":0.8895,"qps":277.113},{"point":100,"recall":0.9141,"qps":235.279}],"uhg":[{"point":10,"recall":0.8308,"qps":545.789},{"point":20,"recall":0.9036,"qps":433.786},{"point":30,"recall":0.9297,"qps":402.216},{"point":50,"recall":0.9563,"qps":299.761},{"point":80,"recall":0.9709,"qps":217.593},{"point":100,"recall":0.9774,"qps":170.571}]},"hotpotqa":{"hnsw":[{"point":10,"recall":0.4146,"qps":1134.45},{"point":20,"recall":0.5698,"qps":723.603},{"point":30,"recall":0.6589,"qps":543.565},{"point":50,"recall":0.7402,"qps":367.521},{"point":80,"recall":0.8082,"qps":248.735},{"point":100,"recall":0.8351,"qps":204.081}],"sindi":[{"point":100,"recall":0.8074,"qps":354.345},{"point":150,"recall":0.8426,"qps":332.739},{"point":200,"recall":0.8646,"qps":314.821},{"point":300,"recall":0.8901,"qps":284.148},{"point":500,"recall":0.9173,"qps":237.754},{"point":1000,"recall":0.9427,"qps":171.424}],"hnsw_sindi":[{"point":10,"recall":0.6875,"qps":281.873},{"point":15,"recall":0.7833,"qps":260.495},{"point":20,"recall":0.8365,"qps":245.695},{"point":30,"recall":0.8953,"qps":217.72},{"point":50,"recall":0.9372,"qps":179.35},{"point":100,"recall":0.9756,"qps":126.86}],"fhg":[{"point":10,"recall":0.5008,"qps":720.25},{"point":20,"recall":0.6527,"qps":469.451},{"point":30,"recall":0.7203,"qps":365.58},{"point":50,"recall":0.7976,"qps":258.173},{"point":80,"recall":0.8477,"qps":182.918},{"point":100,"recall":0.8683,"qps":158.037}],"uhg":[{"point":10,"recall":0.7588,"qps":431.324},{"point":20,"recall":0.86,"qps":332.255},{"point":30,"recall":0.8984,"qps":274.616},{"point":50,"recall":0.9316,"qps":204.641},{"point":80,"recall":0.9567,"qps":147.856},{"point":100,"recall":0.9655,"qps":125.46}]},"fever":{"hnsw":[{"point":10,"recall":0.4962,"qps":1174.1},{"point":20,"recall":0.6585,"qps":758.972},{"point":30,"recall":0.7242,"qps":560.109},{"point":50,"recall":0.7952,"qps":374.639},{"point":80,"recall":0.8445,"qps":249.732},{"point":100,"recall":0.8622,"qps":204.794}],"sindi":[{"point":100,"recall":0.8863,"qps":317.596},{"point":150,"recall":0.9098,"qps":297.91},{"point":200,"recall":0.9229,"qps":283.094},{"point":300,"recall":0.9374,"qps":257.934},{"point":500,"recall":0.9554,"qps":217.844},{"point":1000,"recall":0.9724,"qps":157.989}],"hnsw_sindi":[{"point":10,"recall":0.7694,"qps":239.073},{"point":15,"recall":0.8559,"qps":242.477},{"point":20,"recall":0.8962,"qps":230.235},{"point":30,"recall":0.9347,"qps":206.774},{"point":50,"recall":0.9621,"qps":172.214},{"point":100,"recall":0.9837,"qps":122.363}],"fhg":[{"point":10,"recall":0.2025,"qps":1390.91},{"point":20,"recall":0.4121,"qps":618.732},{"point":30,"recall":0.5494,"qps":401.396},{"point":50,"recall":0.7178,"qps":255.488},{"point":80,"recall":0.836,"qps":166.86},{"point":100,"recall":0.8751,"qps":138.371}],"uhg":[{"point":10,"recall":0.8116,"qps":377.507},{"point":20,"recall":0.8963,"qps":297.645},{"point":30,"recall":0.9233,"qps":247.325},{"point":50,"recall":0.9505,"qps":181.195},{"point":80,"recall":0.9688,"qps":129.649},{"point":100,"recall":0.9751,"qps":107.557}]},"dbpedia-entity":{"hnsw":[{"point":10,"recall":0.514561,"qps":1292.77},{"point":20,"recall":0.700857,"qps":849.95},{"point":30,"recall":0.774518,"qps":637.95},{"point":50,"recall":0.838972,"qps":431.365},{"point":80,"recall":0.879229,"qps":291.739},{"point":100,"recall":0.891006,"qps":237.275}],"sindi":[{"point":100,"recall":0.584582,"qps":756.77},{"point":150,"recall":0.615846,"qps":673.325},{"point":200,"recall":0.643683,"qps":608.051},{"point":300,"recall":0.679015,"qps":511.098},{"point":500,"recall":0.717773,"qps":390.764},{"point":1000,"recall":0.76788,"qps":248.857}],"hnsw_sindi":[{"point":10,"recall":0.662955,"qps":523.267},{"point":15,"recall":0.7606,"qps":466.432},{"point":20,"recall":0.822484,"qps":419.724},{"point":30,"recall":0.877944,"qps":358.933},{"point":50,"recall":0.920557,"qps":278.434},{"point":100,"recall":0.956103,"qps":178.975}],"fhg":[{"point":10,"recall":0.659743,"qps":900.97},{"point":20,"recall":0.760171,"qps":612.559},{"point":30,"recall":0.822484,"qps":464.938},{"point":50,"recall":0.862955,"qps":332.899},{"point":80,"recall":0.895717,"qps":231.929},{"point":100,"recall":0.907709,"qps":195.853}],"uhg":[{"point":10,"recall":0.777516,"qps":739.374},{"point":20,"recall":0.867666,"qps":544.844},{"point":30,"recall":0.905353,"qps":428.068},{"point":50,"recall":0.935118,"qps":286.322},{"point":80,"recall":0.956531,"qps":177.561},{"point":100,"recall":0.965096,"qps":144.561}]}},"20":{"nq":{"hnsw":[{"point":20,"recall":0.55535,"qps":1001.21},{"point":40,"recall":0.714,"qps":602.905},{"point":60,"recall":0.78055,"qps":448.718},{"point":100,"recall":0.84355,"qps":296.994},{"point":160,"recall":0.88795,"qps":200.46},{"point":200,"recall":0.9055,"qps":165.069}],"sindi":[{"point":200,"recall":0.63255,"qps":440.476},{"point":300,"recall":0.67145,"qps":386.746},{"point":400,"recall":0.69755,"qps":344.063},{"point":600,"recall":0.73125,"qps":280.618},{"point":1000,"recall":0.76905,"qps":207.266},{"point":2000,"recall":0.8097,"qps":124.856}],"hnsw_sindi":[{"point":20,"recall":0.72455,"qps":284.445},{"point":30,"recall":0.82235,"qps":247.928},{"point":40,"recall":0.87105,"qps":188.136},{"point":60,"recall":0.9172,"qps":182.615},{"point":100,"recall":0.9535,"qps":138.151},{"point":200,"recall":0.98085,"qps":89.6285}],"fhg":[{"point":20,"recall":0.67395,"qps":642.468},{"point":40,"recall":0.7967,"qps":426.138},{"point":60,"recall":0.8459,"qps":327.092},{"point":100,"recall":0.8991,"qps":233.773},{"point":160,"recall":0.93115,"qps":165.349},{"point":200,"recall":0.942,"qps":139.581}],"uhg":[{"point":20,"recall":0.86125,"qps":478.868},{"point":40,"recall":0.91765,"qps":332.592},{"point":60,"recall":0.94335,"qps":261.417},{"point":100,"recall":0.96515,"qps":182.836},{"point":160,"recall":0.97925,"qps":125.547},{"point":200,"recall":0.98365,"qps":104.976}]},"hotpotqa":{"hnsw":[{"point":20,"recall":0.44425,"qps":733.346},{"point":40,"recall":0.60375,"qps":437.567},{"point":60,"recall":0.6831,"qps":316.011},{"point":100,"recall":0.7703,"qps":204.953},{"point":160,"recall":0.83075,"qps":135.363},{"point":200,"recall":0.85495,"qps":111.52}],"sindi":[{"point":200,"recall":0.77845,"qps":314.322},{"point":300,"recall":0.81675,"qps":283.123},{"point":400,"recall":0.8411,"qps":259.311},{"point":600,"recall":0.86935,"qps":218.46},{"point":1000,"recall":0.8995,"qps":170.328},{"point":2000,"recall":0.9298,"qps":109.148}],"hnsw_sindi":[{"point":20,"recall":0.6967,"qps":246.91},{"point":30,"recall":0.7961,"qps":217.948},{"point":40,"recall":0.8471,"qps":198.231},{"point":60,"recall":0.9013,"qps":166.475},{"point":100,"recall":0.9493,"qps":127.229},{"point":200,"recall":0.9795,"qps":81.3904}],"fhg":[{"point":20,"recall":0.628,"qps":465.037},{"point":40,"recall":0.74455,"qps":303.29},{"point":60,"recall":0.80085,"qps":229.204},{"point":100,"recall":0.8529,"qps":159.144},{"point":160,"recall":0.8988,"qps":109.363},{"point":200,"recall":0.9166,"qps":91.0031}],"uhg":[{"point":20,"recall":0.7965,"qps":340.092},{"point":40,"recall":0.8803,"qps":238.016},{"point":60,"recall":0.9172,"qps":183.338},{"point":100,"recall":0.9514,"qps":126.545},{"point":160,"recall":0.97085,"qps":86.455},{"point":200,"recall":0.9767,"qps":71.9002}]},"fever":{"hnsw":[{"point":20,"recall":0.51025,"qps":759.568},{"point":40,"recall":0.66745,"qps":450.874},{"point":60,"recall":0.7336,"qps":321.126},{"point":100,"recall":0.80325,"qps":204.947},{"point":160,"recall":0.85015,"qps":133.726},{"point":200,"recall":0.869,"qps":108.943}],"sindi":[{"point":200,"recall":0.86035,"qps":278.672},{"point":300,"recall":0.88755,"qps":256.781},{"point":400,"recall":0.90545,"qps":234.941},{"point":600,"recall":0.9251,"qps":201.506},{"point":1000,"recall":0.9455,"qps":157.079},{"point":2000,"recall":0.9638,"qps":101.45}],"hnsw_sindi":[{"point":20,"recall":0.762,"qps":208.155},{"point":30,"recall":0.8535,"qps":191.849},{"point":40,"recall":0.8947,"qps":187.625},{"point":60,"recall":0.93445,"qps":158.956},{"point":100,"recall":0.96675,"qps":122.646},{"point":200,"recall":0.98575,"qps":78.6583}],"fhg":[{"point":20,"recall":0.39435,"qps":596.188},{"point":40,"recall":0.63435,"qps":289.46},{"point":60,"recall":0.7558,"qps":199.241},{"point":100,"recall":0.8616,"qps":123.832},{"point":160,"recall":0.9151,"qps":90.9422},{"point":200,"recall":0.9294,"qps":82.264}],"uhg":[{"point":20,"recall":0.84215,"qps":323.504},{"point":40,"recall":0.9159,"qps":226.071},{"point":60,"recall":0.9423,"qps":173.516},{"point":100,"recall":0.96455,"qps":118.578},{"point":160,"recall":0.97855,"qps":78.867},{"point":200,"recall":0.98315,"qps":55.0403}]},"dbpedia-entity":{"hnsw":[{"point":20,"recall":0.558779,"qps":844.831},{"point":40,"recall":0.721092,"qps":513.131},{"point":60,"recall":0.789615,"qps":370.314},{"point":100,"recall":0.847216,"qps":240.26},{"point":160,"recall":0.891113,"qps":157.906},{"point":200,"recall":0.905353,"qps":129.237}],"sindi":[{"point":200,"recall":0.594861,"qps":610.31},{"point":300,"recall":0.632441,"qps":513.907},{"point":400,"recall":0.660385,"qps":446.269},{"point":600,"recall":0.69636,"qps":350.756},{"point":1000,"recall":0.733512,"qps":247.422},{"point":2000,"recall":0.782334,"qps":144.171}],"hnsw_sindi":[{"point":20,"recall":0.707388,"qps":424.64},{"point":30,"recall":0.800428,"qps":359.023},{"point":40,"recall":0.844325,"qps":312.494},{"point":60,"recall":0.892077,"qps":248.659},{"point":100,"recall":0.933619,"qps":178.316},{"point":200,"recall":0.968094,"qps":104.5}],"fhg":[{"point":20,"recall":0.727944,"qps":602.959},{"point":40,"recall":0.826552,"qps":383.787},{"point":60,"recall":0.854818,"qps":289.232},{"point":100,"recall":0.890257,"qps":195.554},{"point":160,"recall":0.913062,"qps":133.696},{"point":200,"recall":0.9303,"qps":110.425}],"uhg":[{"point":20,"recall":0.817559,"qps":448.391},{"point":40,"recall":0.894325,"qps":294.42},{"point":60,"recall":0.929229,"qps":217.286},{"point":100,"recall":0.952034,"qps":149.623},{"point":160,"recall":0.970664,"qps":99.5969},{"point":200,"recall":0.977302,"qps":81.0568}]}},"50":{"nq":{"hnsw":[{"point":50,"recall":0.54804,"qps":520.448},{"point":100,"recall":0.70678,"qps":295.307},{"point":150,"recall":0.77762,"qps":211.505},{"point":250,"recall":0.84352,"qps":137.04},{"point":400,"recall":0.88884,"qps":90.9011},{"point":500,"recall":0.9057,"qps":74.7139}],"sindi":[{"point":500,"recall":0.63462,"qps":308.031},{"point":750,"recall":0.67504,"qps":245.843},{"point":1000,"recall":0.70234,"qps":206.025},{"point":1500,"recall":0.73826,"qps":155.281},{"point":2500,"recall":0.77726,"qps":103.657},{"point":5000,"recall":0.82972,"qps":56.9258}],"hnsw_sindi":[{"point":50,"recall":0.7221,"qps":195.906},{"point":75,"recall":0.81942,"qps":162.165},{"point":100,"recall":0.86792,"qps":143.042},{"point":150,"recall":0.91886,"qps":108.543},{"point":250,"recall":0.9565,"qps":76.2824}],"fhg":[{"point":50,"recall":0.78128,"qps":371.804},{"point":100,"recall":0.86546,"qps":234.871},{"point":150,"recall":0.9,"qps":173.506},{"point":250,"recall":0.92878,"qps":116.288},{"point":500,"recall":0.95794,"qps":64.8434}],"uhg":[{"point":50,"recall":0.87174,"qps":298.348},{"point":100,"recall":0.92958,"qps":183.256},{"point":150,"recall":0.95356,"qps":133.681},{"point":250,"recall":0.97232,"qps":87.4451},{"point":500,"recall":0.98728,"qps":48.2053}]},"hotpotqa":{"hnsw":[{"point":50,"recall":0.468,"qps":368.721},{"point":100,"recall":0.6296,"qps":203.912},{"point":150,"recall":0.7101,"qps":143.778},{"point":250,"recall":0.7925,"qps":91.4871},{"point":400,"recall":0.8508,"qps":60.0392},{"point":500,"recall":0.87352,"qps":49.3671}],"sindi":[{"point":500,"recall":0.75534,"qps":239.196},{"point":750,"recall":0.79624,"qps":199.095},{"point":1000,"recall":0.82152,"qps":170.45},{"point":1500,"recall":0.85152,"qps":132.888},{"point":2500,"recall":0.8855,"qps":92.4968},{"point":5000,"recall":0.92238,"qps":52.4586}],"hnsw_sindi":[{"point":50,"recall":0.7041,"qps":181.011},{"point":75,"recall":0.80654,"qps":148.114},{"point":100,"recall":0.86256,"qps":126.877},{"point":150,"recall":0.91964,"qps":98.4851},{"point":250,"recall":0.96014,"qps":69.0588}],"fhg":[{"point":50,"recall":0.73258,"qps":258.818},{"point":100,"recall":0.82122,"qps":158.38},{"point":150,"recall":0.86682,"qps":115.691},{"point":250,"recall":0.90728,"qps":76.5303},{"point":500,"recall":0.94646,"qps":42.1894}],"uhg":[{"point":50,"recall":0.83108,"qps":207.108},{"point":100,"recall":0.91268,"qps":126.26},{"point":150,"recall":0.94274,"qps":91.4257},{"point":250,"recall":0.9659,"qps":59.3488},{"point":500,"recall":0.98422,"qps":32.425}]},"fever":{"hnsw":[{"point":50,"recall":0.50234,"qps":377.169},{"point":100,"recall":0.6539,"qps":199.499},{"point":150,"recall":0.72466,"qps":142.706},{"point":250,"recall":0.79608,"qps":89.4284},{"point":400,"recall":0.8468,"qps":57.886},{"point":500,"recall":0.86756,"qps":47.0664}],"sindi":[{"point":500,"recall":0.83514,"qps":217.242},{"point":750,"recall":0.86776,"qps":182.768},{"point":1000,"recall":0.88888,"qps":157.427},{"point":1500,"recall":0.91092,"qps":123.684},{"point":2500,"recall":0.93514,"qps":86.7},{"point":5000,"recall":0.95844,"qps":50.0863}],"hnsw_sindi":[{"point":50,"recall":0.75562,"qps":172.652},{"point":75,"recall":0.84758,"qps":142.72},{"point":100,"recall":0.89152,"qps":121.733},{"point":150,"recall":0.93488,"qps":94.7479},{"point":250,"recall":0.96554,"qps":66.3665}],"fhg":[{"point":50,"recall":0.6617,"qps":255.685},{"point":100,"recall":0.82692,"qps":142.45},{"point":150,"recall":0.8852,"qps":101.008},{"point":250,"recall":0.92452,"qps":66.8681},{"point":500,"recall":0.95378,"qps":37.2199}],"uhg":[{"point":50,"recall":0.86556,"qps":155.103},{"point":100,"recall":0.93472,"qps":91.9909},{"point":150,"recall":0.95648,"qps":65.7333},{"point":250,"recall":0.97376,"qps":48.293},{"point":500,"recall":0.98772,"qps":26.6815}]},"dbpedia-entity":{"hnsw":[{"point":50,"recall":0.568051,"qps":433.056},{"point":100,"recall":0.728094,"qps":237.179},{"point":150,"recall":0.797045,"qps":166.517},{"point":250,"recall":0.859358,"qps":105.528},{"point":400,"recall":0.8994,"qps":68.9432},{"point":500,"recall":0.913319,"qps":56.1587}],"sindi":[{"point":500,"recall":0.602612,"qps":390.853},{"point":750,"recall":0.643555,"qps":303.369},{"point":1000,"recall":0.669036,"qps":247.648},{"point":1500,"recall":0.704625,"qps":180.357},{"point":2500,"recall":0.747366,"qps":119.171},{"point":5000,"recall":0.799229,"qps":64.9649}],"hnsw_sindi":[{"point":50,"recall":0.716488,"qps":280.476},{"point":75,"recall":0.81242,"qps":216.957},{"point":100,"recall":0.859101,"qps":178.266},{"point":150,"recall":0.908737,"qps":131.966},{"point":250,"recall":0.946381,"qps":87.8622}],"fhg":[{"point":50,"recall":0.797388,"qps":334.088},{"point":100,"recall":0.858929,"qps":194.598},{"point":150,"recall":0.885782,"qps":141.284},{"point":250,"recall":0.922912,"qps":91.0731},{"point":500,"recall":0.954818,"qps":49.2727}],"uhg":[{"point":50,"recall":0.853362,"qps":248.368},{"point":100,"recall":0.920557,"qps":148.917},{"point":150,"recall":0.945525,"qps":104.631},{"point":250,"recall":0.966081,"qps":65.8352},{"point":500,"recall":0.980771,"qps":35.0071}]}},"100":{"nq":{"hnsw":[{"point":100,"recall":0.53863,"qps":294.341},{"point":200,"recall":0.70115,"qps":165.459},{"point":300,"recall":0.77383,"qps":116.417},{"point":500,"recall":0.84459,"qps":74.7581},{"point":800,"recall":0.89299,"qps":49.528},{"point":1000,"recall":0.91166,"qps":40.6866}],"sindi":[{"point":1000,"recall":0.63546,"qps":206.42},{"point":1500,"recall":0.67868,"qps":155.188},{"point":2000,"recall":0.70688,"qps":123.965},{"point":3000,"recall":0.74493,"qps":88.874},{"point":5000,"recall":0.79086,"qps":56.8834},{"point":10000,"recall":0.84463,"qps":30.0615}],"hnsw_sindi":[{"point":100,"recall":0.71764,"qps":132.418},{"point":150,"recall":0.81765,"qps":106.907},{"point":200,"recall":0.8707,"qps":76.0724},{"point":300,"recall":0.9224,"qps":61.9059},{"point":500,"recall":0.96114,"qps":40.2125}],"fhg":[{"point":100,"recall":0.81989,"qps":234.715},{"point":200,"recall":0.8861,"qps":138.151},{"point":300,"recall":0.91391,"qps":99.6598},{"point":500,"recall":0.94007,"qps":64.5115},{"point":1000,"recall":0.96538,"qps":35.92}],"uhg":[{"point":100,"recall":0.8769,"qps":184.026},{"point":200,"recall":0.93678,"qps":104.837},{"point":300,"recall":0.95866,"qps":75.1393},{"point":500,"recall":0.97613,"qps":48.2258},{"point":1000,"recall":0.98965,"qps":26.1361}]},"hotpotqa":{"hnsw":[{"point":100,"recall":0.48044,"qps":206.037},{"point":200,"recall":0.64295,"qps":111.409},{"point":300,"recall":0.72466,"qps":77.7125},{"point":500,"recall":0.80705,"qps":49.512},{"point":800,"recall":0.86528,"qps":32.6619},{"point":1000,"recall":0.88769,"qps":26.8338}],"sindi":[{"point":1000,"recall":0.73669,"qps":170.978},{"point":1500,"recall":0.78004,"qps":132.756},{"point":2000,"recall":0.80768,"qps":108.605},{"point":3000,"recall":0.84243,"qps":79.2751},{"point":5000,"recall":0.87984,"qps":52.1582},{"point":10000,"recall":0.91714,"qps":28.3328}],"hnsw_sindi":[{"point":100,"recall":0.71131,"qps":127.554},{"point":150,"recall":0.81517,"qps":98.058},{"point":200,"recall":0.87129,"qps":80.4589},{"point":300,"recall":0.92691,"qps":59.7959},{"point":500,"recall":0.96509,"qps":40.2767}],"fhg":[{"point":100,"recall":0.77791,"qps":159.765},{"point":200,"recall":0.8626,"qps":88.2546},{"point":300,"recall":0.89553,"qps":65.7737},{"point":500,"recall":0.92999,"qps":41.8184},{"point":1000,"recall":0.95835,"qps":23.4129}],"uhg":[{"point":100,"recall":0.85504,"qps":125.818},{"point":200,"recall":0.92711,"qps":71.8843},{"point":300,"recall":0.95276,"qps":50.5359},{"point":500,"recall":0.97325,"qps":32.4904},{"point":1000,"recall":0.98808,"qps":17.6781}]},"fever":{"hnsw":[{"point":100,"recall":0.49146,"qps":206.64},{"point":200,"recall":0.64269,"qps":109.619},{"point":300,"recall":0.71627,"qps":75.4542},{"point":500,"recall":0.79012,"qps":47.1757},{"point":800,"recall":0.84451,"qps":30.7852},{"point":1000,"recall":0.86578,"qps":25.1316}],"sindi":[{"point":1000,"recall":0.81474,"qps":157.562},{"point":1500,"recall":0.84975,"qps":123.576},{"point":2000,"recall":0.87187,"qps":101.82},{"point":3000,"recall":0.89819,"qps":75.6015},{"point":5000,"recall":0.92535,"qps":50.1375},{"point":10000,"recall":0.95224,"qps":27.3241}],"hnsw_sindi":[{"point":100,"recall":0.74494,"qps":121.018},{"point":150,"recall":0.83642,"qps":91.4917},{"point":200,"recall":0.88444,"qps":76.5454},{"point":300,"recall":0.93034,"qps":56.2796},{"point":500,"recall":0.96452,"qps":37.3666}],"fhg":[{"point":100,"recall":0.78054,"qps":142.762},{"point":200,"recall":0.87642,"qps":80.7827},{"point":300,"recall":0.91076,"qps":57.8572},{"point":500,"recall":0.93562,"qps":37.4898},{"point":1000,"recall":0.95783,"qps":20.7171}],"uhg":[{"point":100,"recall":0.87608,"qps":119.297},{"point":200,"recall":0.93869,"qps":66.3411},{"point":300,"recall":0.95935,"qps":46.4382},{"point":500,"recall":0.9768,"qps":29.2615},{"point":1000,"recall":0.98871,"qps":12.7797}]},"dbpedia-entity":{"hnsw":[{"point":100,"recall":0.567366,"qps":241.392},{"point":200,"recall":0.732655,"qps":128.971},{"point":300,"recall":0.800385,"qps":89.2418},{"point":500,"recall":0.861221,"qps":56.0791},{"point":800,"recall":0.904069,"qps":36.4299},{"point":1000,"recall":0.919829,"qps":29.9072}],"sindi":[{"point":1000,"recall":0.605246,"qps":246.924},{"point":1500,"recall":0.646702,"qps":181.02},{"point":2000,"recall":0.675032,"qps":143.322},{"point":3000,"recall":0.715096,"qps":101.738},{"point":5000,"recall":0.759893,"qps":64.5842},{"point":10000,"recall":0.808351,"qps":34.7513}],"hnsw_sindi":[{"point":100,"recall":0.722869,"qps":179.717},{"point":150,"recall":0.822013,"qps":131.929},{"point":200,"recall":0.871906,"qps":105.04},{"point":300,"recall":0.919679,"qps":74.6569},{"point":500,"recall":0.953426,"qps":48.7278}],"fhg":[{"point":100,"recall":0.817216,"qps":195.812},{"point":200,"recall":0.88182,"qps":107.977},{"point":300,"recall":0.909636,"qps":77.3105},{"point":500,"recall":0.938865,"qps":49.0089},{"point":1000,"recall":0.960193,"qps":26.2743}],"uhg":[{"point":100,"recall":0.872206,"qps":149.224},{"point":200,"recall":0.936253,"qps":78.7961},{"point":300,"recall":0.954604,"qps":56.7668},{"point":500,"recall":0.971178,"qps":35.1974},{"point":1000,"recall":0.985246,"qps":19.4915}]}},"200":{"nq":{"hnsw":[{"point":200,"recall":0.537275,"qps":164.447},{"point":400,"recall":0.70262,"qps":89.6498},{"point":600,"recall":0.778865,"qps":63.2522},{"point":1000,"recall":0.85257,"qps":40.3365},{"point":1600,"recall":0.90084,"qps":26.6217},{"point":2000,"recall":0.918925,"qps":21.9756}],"sindi":[{"point":2000,"recall":0.63542,"qps":123.87},{"point":3000,"recall":0.68139,"qps":89.0214},{"point":4000,"recall":0.71341,"qps":69.4001},{"point":6000,"recall":0.75349,"qps":48.2519},{"point":10000,"recall":0.80135,"qps":30.07},{"point":20000,"recall":0.85449,"qps":15.508}],"hnsw_sindi":[{"point":200,"recall":0.720455,"qps":84.7525},{"point":300,"recall":0.823085,"qps":60.2342},{"point":400,"recall":0.876635,"qps":52.4307},{"point":600,"recall":0.929155,"qps":33.6766},{"point":1000,"recall":0.966825,"qps":24.2594}],"fhg":[{"point":200,"recall":0.837225,"qps":140.255},{"point":400,"recall":0.89794,"qps":79.1016},{"point":600,"recall":0.922075,"qps":56.2031},{"point":1000,"recall":0.947865,"qps":36.0163},{"point":2000,"recall":0.970355,"qps":19.8025}],"uhg":[{"point":200,"recall":0.88635,"qps":105.788},{"point":400,"recall":0.94308,"qps":58.2549},{"point":600,"recall":0.96362,"qps":40.9296},{"point":1000,"recall":0.97987,"qps":26.016},{"point":2000,"recall":0.991825,"qps":14.1016}]},"hotpotqa":{"hnsw":[{"point":200,"recall":0.49284,"qps":111.927},{"point":400,"recall":0.658275,"qps":60.0216},{"point":600,"recall":0.73944,"qps":42.0286},{"point":1000,"recall":0.82266,"qps":26.8223},{"point":1600,"recall":0.88064,"qps":17.7852},{"point":2000,"recall":0.90195,"qps":14.6233}],"sindi":[{"point":2000,"recall":0.724395,"qps":108.513},{"point":3000,"recall":0.76993,"qps":79.6232},{"point":4000,"recall":0.799445,"qps":63.1665},{"point":6000,"recall":0.835315,"qps":44.7497},{"point":10000,"recall":0.874145,"qps":28.2796},{"point":20000,"recall":0.915405,"qps":14.8579}],"hnsw_sindi":[{"point":200,"recall":0.71854,"qps":67.0146},{"point":300,"recall":0.824825,"qps":54.8439},{"point":400,"recall":0.881725,"qps":48.3124},{"point":600,"recall":0.93623,"qps":35.032},{"point":1000,"recall":0.9723,"qps":23.022}],"fhg":[{"point":200,"recall":0.814845,"qps":90.6876},{"point":400,"recall":0.88368,"qps":51.1279},{"point":600,"recall":0.914675,"qps":36.1474},{"point":1000,"recall":0.94225,"qps":23.3454},{"point":2000,"recall":0.96661,"qps":12.9491}],"uhg":[{"point":200,"recall":0.872425,"qps":72.0313},{"point":400,"recall":0.938155,"qps":39.5909},{"point":600,"recall":0.960835,"qps":27.7189},{"point":1000,"recall":0.978695,"qps":17.7164},{"point":2000,"recall":0.990805,"qps":9.69309}]},"fever":{"hnsw":[{"point":200,"recall":0.48083,"qps":108.824},{"point":400,"recall":0.633965,"qps":57.8428},{"point":600,"recall":0.709795,"qps":39.8062},{"point":1000,"recall":0.78815,"qps":25.0906},{"point":1600,"recall":0.84708,"qps":16.4847},{"point":2000,"recall":0.86987,"qps":13.511}],"sindi":[{"point":2000,"recall":0.79148,"qps":101.862},{"point":3000,"recall":0.829965,"qps":75.4858},{"point":4000,"recall":0.85381,"qps":59.9264},{"point":6000,"recall":0.882895,"qps":42.6884},{"point":10000,"recall":0.91328,"qps":27.1473},{"point":20000,"recall":0.944115,"qps":14.3213}],"hnsw_sindi":[{"point":200,"recall":0.7329,"qps":76.8301},{"point":300,"recall":0.82828,"qps":56.772},{"point":400,"recall":0.878795,"qps":45.4818},{"point":600,"recall":0.92764,"qps":32.7733},{"point":1000,"recall":0.964075,"qps":21.4196}],"fhg":[{"point":200,"recall":0.824195,"qps":81.815},{"point":400,"recall":0.89277,"qps":45.2493},{"point":600,"recall":0.91853,"qps":31.6341},{"point":1000,"recall":0.94141,"qps":20.0446},{"point":2000,"recall":0.963105,"qps":11.3724}],"uhg":[{"point":200,"recall":0.882055,"qps":60.8973},{"point":400,"recall":0.943185,"qps":32.3731},{"point":600,"recall":0.96326,"qps":23.1263},{"point":1000,"recall":0.979025,"qps":15.3115},{"point":2000,"recall":0.990745,"qps":6.79124}]},"dbpedia-entity":{"hnsw":[{"point":200,"recall":0.568062,"qps":129.171},{"point":400,"recall":0.737152,"qps":68.6065},{"point":600,"recall":0.806991,"qps":47.7642},{"point":1000,"recall":0.869829,"qps":29.8973},{"point":1600,"recall":0.910867,"qps":19.6415},{"point":2000,"recall":0.925632,"qps":16.0048}],"sindi":[{"point":2000,"recall":0.608769,"qps":143.32},{"point":3000,"recall":0.655118,"qps":101.458},{"point":4000,"recall":0.685493,"qps":78.7861},{"point":6000,"recall":0.724593,"qps":54.639},{"point":10000,"recall":0.767366,"qps":34.6164},{"point":20000,"recall":0.810546,"qps":18.8648}],"hnsw_sindi":[{"point":200,"recall":0.731328,"qps":105.769},{"point":300,"recall":0.832602,"qps":75.1867},{"point":400,"recall":0.881552,"qps":58.7049},{"point":600,"recall":0.928276,"qps":41.6475},{"point":1000,"recall":0.962666,"qps":26.5348}],"fhg":[{"point":200,"recall":0.840171,"qps":108.522},{"point":400,"recall":0.902966,"qps":59.723},{"point":600,"recall":0.926563,"qps":41.7067},{"point":1000,"recall":0.947248,"qps":26.4986},{"point":2000,"recall":0.966188,"qps":14.2871}],"uhg":[{"point":200,"recall":0.891221,"qps":94.6121},{"point":400,"recall":0.944176,"qps":49.6649},{"point":600,"recall":0.962238,"qps":34.1212},{"point":1000,"recall":0.977313,"qps":21.1206},{"point":2000,"recall":0.989251,"qps":11.157}]}}}}</script>
+<script>
+"use strict";
+const DATA = JSON.parse(document.getElementById("plot-data").textContent);
+const SVG_NS = "http://www.w3.org/2000/svg";
+const STATE = {
+  recallAt: String(DATA.defaultRecall),
+};
+
+function node(name, attrs = {}, text = null) {
+  const element = document.createElementNS(SVG_NS, name);
+  for (const [key, value] of Object.entries(attrs)) element.setAttribute(key, value);
+  if (text !== null) element.textContent = text;
+  return element;
+}
+
+function xScale(recall, xMin, xMax, plotLeft, plotWidth) {
+  return plotLeft + ((recall - xMin) / (xMax - xMin)) * plotWidth;
+}
+
+function yScale(qps, bounds, plotTop, plotHeight) {
+  const logMin = Math.log10(bounds.min);
+  const logMax = Math.log10(bounds.max);
+  return plotTop + (logMax - Math.log10(qps)) / (logMax - logMin) * plotHeight;
+}
+
+function superscript(value) {
+  const digits = {"-": "⁻", "0": "⁰", "1": "¹", "2": "²", "3": "³",
+                  "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹"};
+  return String(value).split("").map((digit) => digits[digit]).join("");
+}
+
+function formatLogTick(value) {
+  return `10${superscript(Math.round(Math.log10(value)))}`;
+}
+
+function drawMarker(target, type, x, y, color, size = 5.4, tooltip = null) {
+  const group = node("g", tooltip ? {class: "data-marker"} : {});
+  if (tooltip) group.appendChild(node("title", {}, tooltip));
+  if (type === "square") {
+    group.appendChild(node("rect", {
+      x: x - size / 2, y: y - size / 2, width: size, height: size,
+      fill: color, stroke: "#111", "stroke-width": 0.5,
+    }));
+  } else if (type === "circle") {
+    group.appendChild(node("circle", {
+      cx: x, cy: y, r: size / 2, fill: color, stroke: "#111", "stroke-width": 0.5,
+    }));
+  } else if (type === "triangle") {
+    group.appendChild(node("polygon", {
+      points: `${x},${y - size / 2} ${x - size / 2},${y + size / 2} ${x + size / 2},${y + size / 2}`,
+      fill: color, stroke: "#111", "stroke-width": 0.5,
+    }));
+  } else if (type === "pentagon") {
+    const points = [];
+    for (let index = 0; index < 5; index++) {
+      const angle = -Math.PI / 2 + (2 * Math.PI * index) / 5;
+      points.push(`${x + Math.cos(angle) * size / 2},${y + Math.sin(angle) * size / 2}`);
+    }
+    group.appendChild(node("polygon", {
+      points: points.join(" "), fill: color, stroke: "#111", "stroke-width": 0.5,
+    }));
+  } else {
+    group.appendChild(node("line", {
+      x1: x - size / 2, y1: y - size / 2, x2: x + size / 2, y2: y + size / 2,
+      stroke: color, "stroke-width": 2,
+    }));
+    group.appendChild(node("line", {
+      x1: x - size / 2, y1: y + size / 2, x2: x + size / 2, y2: y - size / 2,
+      stroke: color, "stroke-width": 2,
+    }));
+  }
+  target.appendChild(group);
+}
+
+function pointsFor(recallAt) {
+  return DATA.points[String(recallAt)];
+}
+
+function recallTicks() {
+  return [0.7, 0.8, 0.9, 1.0];
+}
+
+function globalQpsBounds() {
+  return {min: 10, max: 1000};
+}
+
+function qpsTicks(bounds) {
+  const ticks = [];
+  const start = Math.round(Math.log10(bounds.min));
+  const end = Math.round(Math.log10(bounds.max));
+  for (let exponent = start; exponent <= end; exponent++) ticks.push(10 ** exponent);
+  return ticks;
+}
+
+function drawLegend(svg, width) {
+  const y = 51;
+  const labelWidths = {hnsw: 56, sindi: 52, hnsw_sindi: 92, fhg: 40, uhg: 42};
+  const gap = 33;
+  const widths = DATA.methods.map((method) => 22 + labelWidths[method]);
+  const total = widths.reduce((sum, width) => sum + width, 0) + gap * (widths.length - 1);
+  let x = width / 2 - total / 2;
+  DATA.methods.forEach((method, index) => {
+    drawMarker(svg, DATA.methodMarkers[method], x + 8, y - 4,
+               DATA.methodColors[method], 9);
+    svg.appendChild(node("text", {x: x + 21, y, class: "legend"},
+                         DATA.methodLabels[method]));
+    x += widths[index] + gap;
+  });
+}
+
+function drawPanel(svg, recallAt, dataset, panelIndex, panelX, panelY, panelWidth,
+                   panelHeight, recallDomain, qpsDomain) {
+  const plotLeft = panelX + 44;
+  const plotTop = panelY + 13;
+  const plotWidth = panelWidth - 54;
+  const plotHeight = panelHeight - 80;
+  const plotBottom = plotTop + plotHeight;
+  const clipId = `clip-${recallAt}-${dataset}`;
+  const defs = svg.querySelector("defs");
+  const clip = node("clipPath", {id: clipId});
+  clip.appendChild(node("rect", {
+    x: plotLeft, y: plotTop, width: plotWidth, height: plotHeight,
+  }));
+  defs.appendChild(clip);
+
+  svg.appendChild(node("rect", {
+    x: plotLeft, y: plotTop, width: plotWidth, height: plotHeight,
+    fill: "#fff", stroke: "#111", "stroke-width": 1,
+  }));
+
+  recallTicks().forEach((tick) => {
+    const x = xScale(tick, recallDomain.min, recallDomain.max, plotLeft, plotWidth);
+    svg.appendChild(node("line", {
+      x1: x, y1: plotTop, x2: x, y2: plotBottom,
+      class: "grid-line",
+    }));
+    svg.appendChild(node("text", {
+      x, y: plotBottom + 13, "text-anchor": "middle", class: "tick",
+    }, tick.toFixed(1)));
+  });
+
+  qpsTicks(qpsDomain).forEach((tick) => {
+    const y = yScale(tick, qpsDomain, plotTop, plotHeight);
+    svg.appendChild(node("line", {
+      x1: plotLeft, y1: y, x2: plotLeft + plotWidth, y2: y,
+      class: "grid-line",
+    }));
+    svg.appendChild(node("text", {
+      x: plotLeft - 7, y: y + 3, "text-anchor": "end", class: "tick",
+    }, formatLogTick(tick)));
+  });
+
+  const seriesGroup = node("g", {"clip-path": `url(#${clipId})`});
+  svg.appendChild(seriesGroup);
+  DATA.methods.forEach((method) => {
+    const points = pointsFor(recallAt)[dataset][method];
+    const color = DATA.methodColors[method];
+    const coordinates = points.map((point) => [
+      xScale(point.recall, recallDomain.min, recallDomain.max, plotLeft, plotWidth),
+      yScale(point.qps, qpsDomain, plotTop, plotHeight),
+    ]);
+    seriesGroup.appendChild(node("polyline", {
+      points: coordinates.map(([x, y]) => `${x},${y}`).join(" "),
+      fill: "none", stroke: color,
+      "stroke-width": method === "uhg" ? 2.4 : 1.25,
+    }));
+    points.forEach((point, index) => {
+      const tooltip = `${DATA.datasetLabels[dataset]} · ${DATA.methodLabels[method]}
+${DATA.methodParameters[method]}=${point.point}
+Recall@${recallAt}=${point.recall}
+QPS=${point.qps}`;
+      drawMarker(seriesGroup, DATA.methodMarkers[method],
+                 coordinates[index][0], coordinates[index][1], color,
+                 method === "uhg" ? 7.4 : 5.6, tooltip);
+    });
+  });
+
+  svg.appendChild(node("text", {
+    x: plotLeft + plotWidth / 2, y: plotBottom + 29,
+    "text-anchor": "middle", class: "axis-label",
+  }, `Recall@${recallAt}`));
+  svg.appendChild(node("text", {
+    x: panelX + 11, y: plotTop + plotHeight / 2,
+    transform: `rotate(-90 ${panelX + 11} ${plotTop + plotHeight / 2})`,
+    "text-anchor": "middle", class: "axis-label",
+  }, "QPS"));
+  svg.appendChild(node("text", {
+    x: plotLeft + plotWidth / 2, y: panelY + panelHeight - 5,
+    "text-anchor": "middle", class: "panel-label",
+  }, `(${String.fromCharCode(97 + panelIndex)}) ${DATA.datasetLabels[dataset]}`));
+}
+
+function draw() {
+  const svg = document.getElementById("figure");
+  const width = 1480;
+  const panelWidth = 274;
+  const panelHeight = 274;
+  const colGap = 18;
+  const startY = 80;
+  const height = DATA.figureHeight;
+  const usedWidth = panelWidth * DATA.datasets.length +
+    colGap * (DATA.datasets.length - 1);
+  const startX = (width - usedWidth) / 2;
+  const recallDomain = {min: 0.7, max: 1.0};
+  const qpsDomain = globalQpsBounds();
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.replaceChildren();
+
+  const defs = node("defs");
+  const style = node("style");
+  style.textContent = `
+    .figure-heading { font: bold 18px "Times New Roman", Times, serif; fill: #111; }
+    .figure-subtitle { font: 13px "Times New Roman", Times, serif; fill: #444; }
+    .legend { font: 17px "Times New Roman", Times, serif; fill: #111; }
+    .tick { font: 11px "Times New Roman", Times, serif; fill: #111; }
+    .axis-label { font: 13px "Times New Roman", Times, serif; fill: #111; }
+    .panel-label { font: 15px "Times New Roman", Times, serif; fill: #111; }
+    .grid-line { stroke: #929292; stroke-width: 0.72; stroke-dasharray: 2 2; }
+    .data-marker { cursor: crosshair; }
+  `;
+  defs.appendChild(style);
+  svg.appendChild(defs);
+  svg.appendChild(node("title", {id: "figure-title"},
+                       `${DATA.title}, Recall@${STATE.recallAt}`));
+  svg.appendChild(node("desc", {id: "figure-desc"},
+                       "Five retrieval methods evaluated with one alpha per query."));
+  svg.appendChild(node("rect", {x: 0, y: 0, width, height, fill: "#fff"}));
+  svg.appendChild(node("text", {
+    x: width / 2, y: 21, "text-anchor": "middle", class: "figure-heading",
+  }, `${DATA.title} · Recall@${STATE.recallAt}`));
+  drawLegend(svg, width);
+  DATA.datasets.forEach((dataset, columnIndex) => {
+    drawPanel(
+      svg,
+      Number(STATE.recallAt),
+      dataset,
+      columnIndex,
+      startX + columnIndex * (panelWidth + colGap),
+      startY,
+      panelWidth,
+      panelHeight,
+      recallDomain,
+      qpsDomain
+    );
+  });
+
+  document.getElementById("status").textContent =
+    `${DATA.datasets.length} datasets · ${DATA.pointCounts[STATE.recallAt]} points`;
+}
+
+function downloadSvg() {
+  const svg = document.getElementById("figure");
+  const source = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([source], {type: "image/svg+xml;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${DATA.downloadStem}_recall_${STATE.recallAt}.svg`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+const recallSelect = document.getElementById("recall-select");
+DATA.recallValues.forEach((recallAt) => {
+  const option = document.createElement("option");
+  option.value = String(recallAt);
+  option.textContent = `Recall@${recallAt}`;
+  if (recallAt === DATA.defaultRecall) option.selected = true;
+  recallSelect.appendChild(option);
+});
+recallSelect.addEventListener("change", (event) => {
+  STATE.recallAt = event.target.value;
+  draw();
+});
+document.getElementById("print-button").addEventListener("click", () => window.print());
+document.getElementById("save-button").addEventListener("click", downloadSvg);
+draw();
+</script>
+</body>
+</html>

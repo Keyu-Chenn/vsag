@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hybrid Top-100 Source Composition</title>
+<style>
+:root {
+  color-scheme: light;
+  --ink: #1f2328;
+  --page-bg: #f5f6f8;
+  --paper: #ffffff;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 24px;
+  background: var(--page-bg);
+  color: var(--ink);
+  font-family: "Times New Roman", Times, "Nimbus Roman No9 L", serif;
+}
+.toolbar {
+  width: min(1240px, 100%);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+button {
+  appearance: none;
+  border: 1px solid #c8ced6;
+  border-radius: 6px;
+  padding: 7px 13px;
+  background: #ffffff;
+  color: #1f2328;
+  font: 14px "Times New Roman", Times, "Nimbus Roman No9 L", serif;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(31, 35, 40, 0.08);
+}
+button:hover {
+  background: #f7f8fa;
+}
+.page {
+  width: min(1240px, 100%);
+  background: var(--paper);
+  border: 1px solid #dde2e8;
+  padding: 16px;
+  box-shadow: 0 22px 60px rgba(31, 35, 40, 0.12);
+}
+svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@page {
+  size: 7.4in 3.32in;
+  margin: 0;
+}
+@media print {
+  html,
+  body {
+    width: 7.4in;
+    height: 3.32in;
+    display: block;
+    min-height: auto;
+    padding: 0;
+    overflow: hidden;
+    background: #ffffff;
+  }
+  .toolbar {
+    display: none;
+  }
+  .page {
+    width: 7.4in;
+    height: 3.32in;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+  }
+  svg {
+    width: 100%;
+    height: 100%;
+  }
+}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button type="button" onclick="window.print()">Print PDF</button>
+  <button type="button" onclick="downloadSvg()">Save SVG</button>
+</div>
+<main class="page" aria-label="Top-k composition figure">
+  <svg id="figure" viewBox="0 0 1200 538" role="img"
+       aria-labelledby="figure-title figure-desc"></svg>
+</main>
+<script id="figure-data" type="application/json">{"title": "Hybrid Top-100 Source Composition", "topk": 100, "alphas": ["0.0", "0.3", "0.5", "0.7", "1.0"], "height": 538, "pageHeightIn": 3.32, "datasets": ["nq", "msmarco", "hotpotqa"], "datasetLabels": {"nq": "NQ", "msmarco": "MS MARCO", "hotpotqa": "HotpotQA"}, "segmentOrder": ["sparse_only", "both", "dense_only", "neither"], "segmentLabels": {"sparse_only": "Sparse only", "both": "Both", "dense_only": "Dense only", "neither": "Neither"}, "segmentColors": {"sparse_only": "#EE8E7A", "both": "#78BEA8", "dense_only": "#78A6C8", "neither": "#D9DCE3"}, "segmentTextColors": {"sparse_only": "#1F2328", "both": "#1F2328", "dense_only": "#1F2328", "neither": "#222222"}, "data": {"nq": {"0.0": {"both": 0.15314, "dense_only": 0.0, "sparse_only": 0.8468600000000002, "neither": 0.0}, "0.3": {"both": 0.15314, "dense_only": 0.20332999999999998, "sparse_only": 0.40138, "neither": 0.24215000000000003}, "0.5": {"both": 0.15314, "dense_only": 0.39246000000000003, "sparse_only": 0.21294, "neither": 0.24145999999999998}, "0.7": {"both": 0.15314, "dense_only": 0.59559, "sparse_only": 0.09489000000000002, "neither": 0.15638}, "1.0": {"both": 0.15314, "dense_only": 0.8468600000000002, "sparse_only": 0.0, "neither": 0.0}}, "msmarco": {"0.0": {"both": 0.26954999999999996, "dense_only": 0.0, "sparse_only": 0.7304499999999999, "neither": 0.0}, "0.3": {"both": 0.26954999999999996, "dense_only": 0.20753, "sparse_only": 0.3518200000000001, "neither": 0.17110000000000003}, "0.5": {"both": 0.26954999999999996, "dense_only": 0.36416999999999994, "sparse_only": 0.20392000000000002, "neither": 0.16236}, "0.7": {"both": 0.26954999999999996, "dense_only": 0.5196400000000001, "sparse_only": 0.10252000000000001, "neither": 0.10829000000000003}, "1.0": {"both": 0.26954999999999996, "dense_only": 0.7304499999999999, "sparse_only": 0.0, "neither": 0.0}}, "hotpotqa": {"0.0": {"both": 0.18777, "dense_only": 0.0, "sparse_only": 0.81223, "neither": 0.0}, "0.3": {"both": 0.18775999999999998, "dense_only": 0.15994, "sparse_only": 0.45048, "neither": 0.20182}, "0.5": {"both": 0.18777, "dense_only": 0.31278999999999996, "sparse_only": 0.27735000000000004, "neither": 0.22209000000000004}, "0.7": {"both": 0.18775999999999998, "dense_only": 0.5045200000000001, "sparse_only": 0.14155, "neither": 0.16617}, "1.0": {"both": 0.18777, "dense_only": 0.81223, "sparse_only": 0.0, "neither": 0.0}}}}</script>
+<script>
+const FIGURE = JSON.parse(document.getElementById("figure-data").textContent);
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function node(name, attrs = {}, text = null) {
+  const element = document.createElementNS(SVG_NS, name);
+  for (const [key, value] of Object.entries(attrs)) {
+    element.setAttribute(key, value);
+  }
+  if (text !== null) element.textContent = text;
+  return element;
+}
+
+function formatPercent(value) {
+  return `${Math.round(value * 100)}%`;
+}
+
+function labelColor(segment) {
+  return FIGURE.segmentTextColors?.[segment] || "#111111";
+}
+
+function segmentColor(segment) {
+  return FIGURE.segmentColors[segment] || "#999999";
+}
+
+function draw() {
+  const svg = document.getElementById("figure");
+  const width = 1200;
+  const height = FIGURE.height;
+  const margin = { top: 34, right: 38, bottom: 58, left: 82 };
+  const panelGap = 54;
+  const legendY = 82;
+  const panelTop = 162;
+  const panelTitleY = 134;
+  const barHeight = 38;
+  const rowGap = 25;
+  const panelWidth =
+    (width - margin.left - margin.right - panelGap * (FIGURE.datasets.length - 1)) /
+    FIGURE.datasets.length;
+  const axisY = panelTop + FIGURE.alphas.length * barHeight +
+    (FIGURE.alphas.length - 1) * rowGap + 28;
+
+  svg.replaceChildren();
+
+  const defs = node("defs");
+  const style = node("style");
+  style.textContent = `
+    text {
+      font-family: "Times New Roman", Times, "Nimbus Roman No9 L", serif;
+      fill: #1f2328;
+    }
+    .title { font-size: 24px; font-weight: 700; }
+    .panel-title { font-size: 20px; font-weight: 700; }
+    .legend { font-size: 20px; fill: #272b30; }
+    .tick { font-size: 20px; fill: #000000; }
+    .alpha { font-size: 20px; fill: #272b30; }
+    .axis-label { font-size: 20px; fill: #272b30; }
+    .bar-label { font-size: 15px; font-weight: 700; }
+  `;
+  defs.appendChild(style);
+
+  svg.appendChild(defs);
+  svg.appendChild(node("title", { id: "figure-title" }, FIGURE.title));
+  svg.appendChild(node("desc", { id: "figure-desc" },
+    `Stacked source composition of hybrid top-${FIGURE.topk} results.`));
+
+  svg.appendChild(node("text", {
+    x: width / 2,
+    y: margin.top,
+    "text-anchor": "middle",
+    class: "title"
+  }, FIGURE.title));
+
+  const swatchWidth = 26;
+  const swatchTextGap = 8;
+  const legendItemGap = 28;
+  const legendItems = FIGURE.segmentOrder.map((segment) => ({
+    segment,
+    label: FIGURE.segmentLabels[segment],
+    width: swatchWidth + swatchTextGap +
+      FIGURE.segmentLabels[segment].length * 10
+  }));
+  const legendWidth = legendItems.reduce((total, item) => total + item.width, 0) +
+    (legendItems.length - 1) * legendItemGap;
+  const legendStartX = (width - legendWidth) / 2;
+  let legendX = legendStartX;
+  for (const item of legendItems) {
+    svg.appendChild(node("rect", {
+      x: legendX,
+      y: legendY - 14,
+      width: swatchWidth,
+      height: 17,
+      rx: 2,
+      fill: segmentColor(item.segment),
+      stroke: "none"
+    }));
+    svg.appendChild(node("text", {
+      x: legendX + swatchWidth + swatchTextGap,
+      y: legendY,
+      "text-anchor": "start",
+      class: "legend"
+    }, item.label));
+    legendX += item.width + legendItemGap;
+  }
+
+  FIGURE.datasets.forEach((dataset, datasetIndex) => {
+    const panelX = margin.left + datasetIndex * (panelWidth + panelGap);
+    const panelLabel = FIGURE.datasetLabels[dataset] || dataset;
+
+    svg.appendChild(node("text", {
+      x: panelX + panelWidth / 2,
+      y: panelTitleY,
+      "text-anchor": "middle",
+      class: "panel-title"
+    }, panelLabel));
+
+    for (const tick of [0, 0.25, 0.5, 0.75, 1]) {
+      const x = panelX + panelWidth * tick;
+      svg.appendChild(node("line", {
+        x1: x,
+        y1: panelTop - 10,
+        x2: x,
+        y2: axisY,
+        stroke: tick === 0 || tick === 1 ? "#9aa3ad" : "#e7eaee",
+        "stroke-width": tick === 0 || tick === 1 ? 1 : 0.85
+      }));
+      svg.appendChild(node("text", {
+        x,
+        y: axisY + 24,
+        "text-anchor": "middle",
+        class: "tick"
+      }, formatPercent(tick)));
+    }
+
+    svg.appendChild(node("line", {
+      x1: panelX,
+      y1: axisY,
+      x2: panelX + panelWidth,
+      y2: axisY,
+      stroke: "#7b848e",
+      "stroke-width": 1
+    }));
+
+    FIGURE.alphas.forEach((alpha, alphaIndex) => {
+      const y = panelTop + alphaIndex * (barHeight + rowGap);
+      const clipId = `clip-${dataset}-${alphaIndex}`;
+      const clip = node("clipPath", { id: clipId });
+      clip.appendChild(node("rect", {
+        x: panelX,
+        y,
+        width: panelWidth,
+        height: barHeight,
+        rx: 6,
+        ry: 6
+      }));
+      defs.appendChild(clip);
+
+      if (datasetIndex === 0) {
+        svg.appendChild(node("text", {
+          x: panelX - 18,
+          y: y + barHeight / 2 + 6,
+          "text-anchor": "end",
+          class: "alpha"
+        }, `\u03b1 = ${alpha}`));
+      }
+
+      svg.appendChild(node("rect", {
+        x: panelX,
+        y,
+        width: panelWidth,
+        height: barHeight,
+        rx: 6,
+        ry: 6,
+        fill: "#ffffff",
+        stroke: "#9aa3ad",
+        "stroke-width": 0.9
+      }));
+
+      let cursor = panelX;
+      for (const segment of FIGURE.segmentOrder) {
+        const value = FIGURE.data[dataset][alpha][segment];
+        const segmentWidth = panelWidth * value;
+        const rect = node("rect", {
+          x: cursor,
+          y,
+          width: Math.max(segmentWidth, 0),
+          height: barHeight,
+          fill: segmentColor(segment),
+          "clip-path": `url(#${clipId})`
+        });
+        rect.appendChild(node("title", {},
+          `${panelLabel}, \u03b1=${alpha}, ${FIGURE.segmentLabels[segment]}: ${(value * 100).toFixed(1)}%`));
+        svg.appendChild(rect);
+
+        if (segmentWidth >= 28) {
+          svg.appendChild(node("text", {
+            x: cursor + segmentWidth / 2,
+            y: y + barHeight / 2 + 5,
+            "text-anchor": "middle",
+            class: "bar-label",
+            style: `fill: ${labelColor(segment)}`
+          }, formatPercent(value)));
+        }
+        cursor += segmentWidth;
+      }
+    });
+  });
+
+}
+
+function downloadSvg() {
+  const svg = document.getElementById("figure").cloneNode(true);
+  svg.setAttribute("xmlns", SVG_NS);
+  const blob = new Blob([new XMLSerializer().serializeToString(svg)], {
+    type: "image/svg+xml;charset=utf-8"
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "topk_composition.svg";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+draw();
+</script>
+</body>
+</html>

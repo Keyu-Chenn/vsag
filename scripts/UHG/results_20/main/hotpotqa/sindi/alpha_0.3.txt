@@ -1,0 +1,12 @@
+# recall@20 fixed-alpha baseline
+# method=sindi dataset=hotpotqa alpha=0.3 k=20 num_queries=-1 threads=1
+# data_dir=/tbase-project/vsag/scripts/UHG/data
+# index_dir=/tbase-project/vsag/scripts/UHG/data/index
+# result_dir=/tbase-project/vsag/scripts/UHG/results_20/main/hotpotqa/sindi
+# sindi_query_prune_ratio=0.5 sindi_term_prune_ratio=0
+sindi bk=200 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.88935 QPS: 315.431
+sindi bk=300 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.91665 QPS: 284.621
+sindi bk=400 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.9308 QPS: 260.056
+sindi bk=600 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.94785 QPS: 221.995
+sindi bk=1000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.9644 QPS: 171.486
+sindi bk=2000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.9777 QPS: 109.545

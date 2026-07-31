@@ -1,0 +1,12 @@
+# experiment=mixed_alpha method=sindi dataset=fever
+# distribution=uniform alpha_min=0.3 alpha_max=0.7 seed=42
+# k=100 num_queries=-1 threads=1
+# mixed_alpha_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/fever/alphas.npy
+# mixed_gt_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/fever/ground_truth.npy
+# sindi_query_prune_ratio=0.5 sindi_term_prune_ratio=0
+sindi point=1000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.81031 QPS: 158.643
+sindi point=1500 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.84507 QPS: 124.714
+sindi point=2000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.86694 QPS: 102.547
+sindi point=3000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.89344 QPS: 76.3025
+sindi point=5000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.92076 QPS: 50.4108
+sindi point=10000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.94794 QPS: 27.5027

@@ -62,6 +62,11 @@ public:
     void
     GetNeighbors(InnerIdType id, Vector<InnerIdType>& neighbor_ids) const override;
 
+    bool
+    TryGetNeighborsView(InnerIdType id,
+                        const InnerIdType*& neighbor_ids,
+                        uint32_t& neighbor_count) const override;
+
     void
     Resize(InnerIdType new_size) override;
 
@@ -237,6 +242,39 @@ GraphDataCell<IOTmpl>::GetNeighbors(InnerIdType id, Vector<InnerIdType>& neighbo
         this->io_->Read(
             neighbor_ids.size() * sizeof(InnerIdType), start, (uint8_t*)(neighbor_ids.data()));
     }
+}
+
+template <typename IOTmpl>
+bool
+GraphDataCell<IOTmpl>::TryGetNeighborsView(InnerIdType id,
+                                           const InnerIdType*& neighbor_ids,
+                                           uint32_t& neighbor_count) const {
+    neighbor_ids = nullptr;
+    neighbor_count = 0;
+    if (is_support_delete_) {
+        return false;
+    }
+
+    const auto start =
+        static_cast<uint64_t>(id) * static_cast<uint64_t>(this->code_line_size_);
+    bool need_release = false;
+    const auto* row = this->io_->Read(this->code_line_size_, start, need_release);
+    if (row == nullptr) {
+        return false;
+    }
+    if (need_release) {
+        this->io_->Release(row);
+        return false;
+    }
+
+    std::memcpy(&neighbor_count, row, sizeof(neighbor_count));
+    CHECK_ARGUMENT(neighbor_count <= this->maximum_degree_,
+                   fmt::format("invalid neighbor count {} for graph node {}",
+                               neighbor_count,
+                               id));
+    neighbor_ids =
+        reinterpret_cast<const InnerIdType*>(row + sizeof(neighbor_count));
+    return true;
 }
 
 template <typename IOTmpl>

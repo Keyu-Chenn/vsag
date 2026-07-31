@@ -1,0 +1,24 @@
+Dataset: nq
+Ground truth dir: /tbase-project/vsag/scripts/UHG/data/ground_truth/nq
+Queries: 1000
+
+Dense topk vs Sparse topk overlap
+k	overlap
+10	0.179800
+20	0.174450
+50	0.164240
+100	0.153140
+
+Alpha topk overlap with Dense topk and Sparse topk
+alpha	topk	alpha_dense_overlap	alpha_sparse_overlap
+0.0	100	0.153140	1.000000
+0.1	100	0.209120	0.830820
+0.2	100	0.276600	0.680660
+0.3	100	0.356470	0.554520
+0.4	100	0.447680	0.449860
+0.5	100	0.545600	0.366080
+0.6	100	0.647760	0.300140
+0.7	100	0.748730	0.248030
+0.8	100	0.842230	0.209380
+0.9	100	0.925390	0.177960
+1.0	100	1.000000	0.153140

@@ -1,0 +1,12 @@
+# exp_7 baseline
+# method=sindi dataset=nq alpha=0.5 k=100 num_queries=-1 threads=1
+# data_dir=/tbase-project/vsag/scripts/UHG/data
+# index_dir=/tbase-project/vsag/scripts/UHG/data/index
+# result_dir=/tbase-project/vsag/scripts/UHG/results/main/nq/sindi
+# sindi_query_prune_ratio=0.5 sindi_term_prune_ratio=0
+sindi bk=1000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.63286 QPS: 206.331
+sindi bk=1500 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.67724 QPS: 154.812
+sindi bk=2000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.70621 QPS: 124.06
+sindi bk=3000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.74579 QPS: 88.9959
+sindi bk=5000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.793 QPS: 56.8705
+sindi bk=10000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.84812 QPS: 30.0473

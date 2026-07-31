@@ -1,0 +1,24 @@
+Dataset: msmarco
+Ground truth dir: /tbase-project/vsag/scripts/UHG/data/ground_truth/msmarco
+Queries: 1000
+
+Dense topk vs Sparse topk overlap
+k	overlap
+10	0.247100
+20	0.265400
+50	0.272880
+100	0.269550
+
+Alpha topk overlap with Dense topk and Sparse topk
+alpha	topk	alpha_dense_overlap	alpha_sparse_overlap
+0.0	100	0.269550	1.000000
+0.1	100	0.333960	0.846680
+0.2	100	0.403560	0.722490
+0.3	100	0.477080	0.621370
+0.4	100	0.554490	0.540270
+0.5	100	0.633720	0.473470
+0.6	100	0.711280	0.418500
+0.7	100	0.789190	0.372070
+0.8	100	0.863820	0.332190
+0.9	100	0.934180	0.298420
+1.0	100	1.000000	0.269550

@@ -1,0 +1,10 @@
+# experiment=mixed_alpha method=uhg dataset=dbpedia-entity
+# distribution=uniform alpha_min=0.3 alpha_max=0.7 seed=42
+# k=100 num_queries=-1 threads=1
+# mixed_alpha_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/dbpedia-entity/alphas.npy
+# mixed_gt_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/dbpedia-entity/ground_truth.npy
+uhg ef_search=100 threads=1 Recall: 0.875717 QPS: 173.436
+uhg ef_search=200 threads=1 Recall: 0.937066 QPS: 94.2439
+uhg ef_search=300 threads=1 Recall: 0.955974 QPS: 65.4797
+uhg ef_search=500 threads=1 Recall: 0.971734 QPS: 40.7898
+uhg ef_search=1000 threads=1 Recall: 0.98546 QPS: 21.4354

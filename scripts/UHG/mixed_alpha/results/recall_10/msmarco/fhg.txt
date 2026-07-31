@@ -1,0 +1,13 @@
+# experiment=mixed_alpha dataset=msmarco method=fhg recall_at=10
+# distribution=uniform alpha_min=0.3 alpha_max=0.7 seed=42
+# k=10 num_queries=-1 threads=1
+# points=10 20 30 50 80 100
+# mixed_alpha_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/msmarco/alphas.npy
+# mixed_gt_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/msmarco/ground_truth.npy
+# build_alpha=0.5 hybrid_pruning=false max_hops=0
+fhg ef_search=10 threads=1 Recall: 0.2484 QPS: 1091.13
+fhg ef_search=20 threads=1 Recall: 0.3944 QPS: 736.313
+fhg ef_search=30 threads=1 Recall: 0.4946 QPS: 523.536
+fhg ef_search=50 threads=1 Recall: 0.6137 QPS: 373.86
+fhg ef_search=80 threads=1 Recall: 0.7068 QPS: 261.504
+fhg ef_search=100 threads=1 Recall: 0.7602 QPS: 251.381

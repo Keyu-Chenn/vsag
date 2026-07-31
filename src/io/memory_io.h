@@ -16,6 +16,7 @@
 #pragma once
 
 #include <cstring>
+#include <limits>
 
 #include "basic_io.h"
 #include "index_common_param.h"
@@ -32,6 +33,7 @@ public:
 public:
     explicit MemoryIO(Allocator* allocator) : BasicIO<MemoryIO>(allocator) {
         start_ = static_cast<uint8_t*>(allocator->Allocate(1));
+        capacity_ = 1;
     }
 
     explicit MemoryIO(const MemoryIOParamPtr& param, const IndexCommonParam& common_param)
@@ -64,14 +66,25 @@ public:
 private:
     void
     check_and_realloc(uint64_t size) {
-        if (size <= this->size_) {
+        if (size <= capacity_) {
             return;
         }
-        start_ = reinterpret_cast<uint8_t*>(this->allocator_->Reallocate(start_, size));
-        this->size_ = size;
+
+        uint64_t new_capacity = capacity_;
+        while (new_capacity < size) {
+            if (new_capacity > std::numeric_limits<uint64_t>::max() / 2) {
+                new_capacity = size;
+                break;
+            }
+            new_capacity *= 2;
+        }
+        start_ = reinterpret_cast<uint8_t*>(
+            this->allocator_->Reallocate(start_, new_capacity));
+        capacity_ = new_capacity;
     }
 
 private:
     uint8_t* start_{nullptr};
+    uint64_t capacity_{0};
 };
 }  // namespace vsag

@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Main Results Fig. 8 Style</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f5f5f5;
+  --paper: #ffffff;
+  --ink: #111111;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-height: 100vh;
+  padding: 20px;
+  background: var(--page);
+  color: var(--ink);
+  font-family: "Times New Roman", Times, serif;
+}
+.toolbar {
+  width: min(1480px, 100%);
+  margin: 0 auto 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+button {
+  appearance: none;
+  border: 1px solid #c7c7c7;
+  border-radius: 4px;
+  padding: 7px 12px;
+  background: #ffffff;
+  color: #111111;
+  font: 14px "Times New Roman", Times, serif;
+  cursor: pointer;
+}
+button:hover {
+  background: #f7f7f7;
+}
+.page {
+  width: min(1480px, 100%);
+  margin: 0 auto;
+  padding: 10px;
+  background: var(--paper);
+  border: 1px solid #dddddd;
+}
+svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@page {
+  size: 11in 8.5in;
+  margin: 0.08in;
+}
+@media print {
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+  body {
+    min-height: 0;
+    padding: 0;
+    background: #ffffff;
+  }
+  .toolbar {
+    display: none;
+  }
+  .page {
+    width: 8.05in;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 0;
+    border: 0;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button type="button" onclick="window.print()">Print PDF</button>
+  <button type="button" onclick="downloadSvg()">Save SVG</button>
+</div>
+<main class="page" aria-label="Main results figure">
+  <svg id="figure" viewBox="0 0 1480 1507" role="img"
+       aria-labelledby="figure-title figure-desc"></svg>
+</main>
+<script id="plot-data" type="application/json">{"datasets":["nq","hotpotqa","msmarco","fever","dbpedia-entity"],"datasetLabels":{"nq":"NQ","hotpotqa":"HotpotQA","msmarco":"MS MARCO","fever":"FEVER","dbpedia-entity":"DBpedia-Entity"},"alphas":["0.3","0.4","0.5","0.6","0.7"],"methods":["hnsw","sindi","hnsw_sindi","fhg","uhg"],"methodLabels":{"hnsw":"HNSW","sindi":"SINDI","hnsw_sindi":"HNSW+SINDI","fhg":"FHG","uhg":"UHG"},"methodColors":{"hnsw":"#9CA3AF","sindi":"#4C78A8","hnsw_sindi":"#59A14F","fhg":"#B07AA1","uhg":"#E45756"},"methodMarkers":{"hnsw":"circle","sindi":"square","hnsw_sindi":"cross","fhg":"triangle","uhg":"pentagon"},"points":{"nq":{"0.3":{"hnsw":[{"recall":0.62854,"qps":137.905,"param":"ef=250"},{"recall":0.69512,"qps":91.3808,"param":"ef=400"},{"recall":0.72414,"qps":75.1763,"param":"ef=500"}],"sindi":[{"recall":0.80246,"qps":310.618,"param":"bk=500"},{"recall":0.83754,"qps":248.684,"param":"bk=750"},{"recall":0.85946,"qps":207.322,"param":"bk=1000"},{"recall":0.88566,"qps":155.961,"param":"bk=1500"},{"recall":0.91308,"qps":104.279,"param":"bk=2500"},{"recall":0.9433,"qps":57.1592,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.66654,"qps":262.37,"param":"ef=50"},{"recall":0.75848,"qps":216.306,"param":"ef=75"},{"recall":0.80828,"qps":184.893,"param":"ef=100"},{"recall":0.8657,"qps":144.713,"param":"ef=150"},{"recall":0.91558,"qps":102.471,"param":"ef=250"}],"fhg":[{"recall":0.68918,"qps":343.699,"param":"ef=50"},{"recall":0.79074,"qps":216.613,"param":"ef=100"},{"recall":0.839,"qps":160.21,"param":"ef=150"},{"recall":0.87932,"qps":108.991,"param":"ef=250"},{"recall":0.92654,"qps":61.4183,"param":"ef=500"}],"uhg":[{"recall":0.85002,"qps":280.056,"param":"ef=50"},{"recall":0.91652,"qps":189.756,"param":"ef=100"},{"recall":0.94316,"qps":144.573,"param":"ef=150"},{"recall":0.96602,"qps":98.9149,"param":"ef=250"},{"recall":0.98508,"qps":56.366,"param":"ef=500"}]},"0.4":{"hnsw":[{"recall":0.6722,"qps":213.192,"param":"ef=150"},{"recall":0.7513,"qps":137.968,"param":"ef=250"},{"recall":0.81326,"qps":91.8551,"param":"ef=400"},{"recall":0.83776,"qps":75.5444,"param":"ef=500"}],"sindi":[{"recall":0.71742,"qps":310.503,"param":"bk=500"},{"recall":0.75774,"qps":248.651,"param":"bk=750"},{"recall":0.78446,"qps":207.209,"param":"bk=1000"},{"recall":0.81794,"qps":155.874,"param":"bk=1500"},{"recall":0.85268,"qps":104.214,"param":"bk=2500"},{"recall":0.8953,"qps":57.1435,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.6845,"qps":262.408,"param":"ef=50"},{"recall":0.7792,"qps":215.66,"param":"ef=75"},{"recall":0.83048,"qps":184.586,"param":"ef=100"},{"recall":0.8878,"qps":144.343,"param":"ef=150"},{"recall":0.935,"qps":102.027,"param":"ef=250"}],"fhg":[{"recall":0.74958,"qps":368.476,"param":"ef=50"},{"recall":0.8391,"qps":230.256,"param":"ef=100"},{"recall":0.87498,"qps":172.113,"param":"ef=150"},{"recall":0.91134,"qps":115.282,"param":"ef=250"},{"recall":0.94782,"qps":64.7156,"param":"ef=500"}],"uhg":[{"recall":0.85924,"qps":292.535,"param":"ef=50"},{"recall":0.9212,"qps":200.722,"param":"ef=100"},{"recall":0.94588,"qps":153.92,"param":"ef=150"},{"recall":0.96672,"qps":106.089,"param":"ef=250"},{"recall":0.98472,"qps":60.5957,"param":"ef=500"}]},"0.5":{"hnsw":[{"recall":0.71136,"qps":299.888,"param":"ef=100"},{"recall":0.78626,"qps":212.935,"param":"ef=150"},{"recall":0.85594,"qps":137.909,"param":"ef=250"},{"recall":0.9036,"qps":91.8433,"param":"ef=400"},{"recall":0.92022,"qps":75.5411,"param":"ef=500"}],"sindi":[{"recall":0.6311,"qps":310.829,"param":"bk=500"},{"recall":0.67262,"qps":247.725,"param":"bk=750"},{"recall":0.70108,"qps":207.298,"param":"bk=1000"},{"recall":0.73844,"qps":155.98,"param":"bk=1500"},{"recall":0.77888,"qps":104.251,"param":"bk=2500"},{"recall":0.8326,"qps":57.1453,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.71774,"qps":263.071,"param":"ef=50"},{"recall":0.81602,"qps":216.129,"param":"ef=75"},{"recall":0.86648,"qps":184.296,"param":"ef=100"},{"recall":0.91956,"qps":144.421,"param":"ef=150"},{"recall":0.95814,"qps":102.268,"param":"ef=250"}],"fhg":[{"recall":0.78318,"qps":377.691,"param":"ef=50"},{"recall":0.86372,"qps":241.781,"param":"ef=100"},{"recall":0.89984,"qps":179.766,"param":"ef=150"},{"recall":0.93276,"qps":120.262,"param":"ef=250"},{"recall":0.95956,"qps":67.1876,"param":"ef=500"}],"uhg":[{"recall":0.86716,"qps":304.565,"param":"ef=50"},{"recall":0.92306,"qps":212.737,"param":"ef=100"},{"recall":0.94716,"qps":164.264,"param":"ef=150"},{"recall":0.96726,"qps":113.546,"param":"ef=250"},{"recall":0.9844,"qps":65.1103,"param":"ef=500"}]},"0.6":{"hnsw":[{"recall":0.64048,"qps":524.393,"param":"ef=50"},{"recall":0.81332,"qps":299.367,"param":"ef=100"},{"recall":0.87904,"qps":212.74,"param":"ef=150"},{"recall":0.93074,"qps":137.719,"param":"ef=250"},{"recall":0.95942,"qps":91.8224,"param":"ef=400"},{"recall":0.9682,"qps":75.5167,"param":"ef=500"}],"sindi":[{"recall":0.61998,"qps":207.227,"param":"bk=1000"},{"recall":0.65832,"qps":155.886,"param":"bk=1500"},{"recall":0.70156,"qps":104.197,"param":"bk=2500"},{"recall":0.76166,"qps":57.1516,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.76006,"qps":262.819,"param":"ef=50"},{"recall":0.86056,"qps":216.498,"param":"ef=75"},{"recall":0.90574,"qps":185.031,"param":"ef=100"},{"recall":0.94858,"qps":144.654,"param":"ef=150"},{"recall":0.97598,"qps":102.303,"param":"ef=250"}],"fhg":[{"recall":0.81304,"qps":400.0,"param":"ef=50"},{"recall":0.88452,"qps":251.765,"param":"ef=100"},{"recall":0.91508,"qps":187.182,"param":"ef=150"},{"recall":0.94296,"qps":125.154,"param":"ef=250"},{"recall":0.96666,"qps":69.6476,"param":"ef=500"}],"uhg":[{"recall":0.89196,"qps":312.102,"param":"ef=50"},{"recall":0.94566,"qps":171.415,"param":"ef=100"},{"recall":0.96536,"qps":119.366,"param":"ef=150"},{"recall":0.98022,"qps":75.754,"param":"ef=250"},{"recall":0.99116,"qps":40.5699,"param":"ef=500"}]},"0.7":{"hnsw":[{"recall":0.72836,"qps":523.006,"param":"ef=50"},{"recall":0.89452,"qps":297.999,"param":"ef=100"},{"recall":0.94172,"qps":212.876,"param":"ef=150"},{"recall":0.97108,"qps":137.917,"param":"ef=250"},{"recall":0.98426,"qps":91.859,"param":"ef=400"},{"recall":0.9876,"qps":75.4481,"param":"ef=500"}],"sindi":[{"recall":0.62562,"qps":104.258,"param":"bk=2500"},{"recall":0.68922,"qps":57.1567,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.80974,"qps":262.939,"param":"ef=50"},{"recall":0.9053,"qps":216.354,"param":"ef=75"},{"recall":0.94122,"qps":184.989,"param":"ef=100"},{"recall":0.97014,"qps":144.827,"param":"ef=150"},{"recall":0.9862,"qps":102.218,"param":"ef=250"}],"fhg":[{"recall":0.82832,"qps":413.629,"param":"ef=50"},{"recall":0.89244,"qps":260.876,"param":"ef=100"},{"recall":0.9239,"qps":192.477,"param":"ef=150"},{"recall":0.94714,"qps":128.435,"param":"ef=250"},{"recall":0.9689,"qps":71.4341,"param":"ef=500"}],"uhg":[{"recall":0.91748,"qps":330.404,"param":"ef=50"},{"recall":0.96358,"qps":181.873,"param":"ef=100"},{"recall":0.97852,"qps":127.181,"param":"ef=150"},{"recall":0.98824,"qps":80.5862,"param":"ef=250"},{"recall":0.9946,"qps":43.336,"param":"ef=500"}]}},"hotpotqa":{"0.3":{"hnsw":[{"recall":0.61704,"qps":92.0069,"param":"ef=250"},{"recall":0.68942,"qps":60.588,"param":"ef=400"},{"recall":0.72156,"qps":49.766,"param":"ef=500"}],"sindi":[{"recall":0.88186,"qps":239.602,"param":"bk=500"},{"recall":0.9112,"qps":199.639,"param":"bk=750"},{"recall":0.92674,"qps":171.214,"param":"bk=1000"},{"recall":0.94454,"qps":133.474,"param":"bk=1500"},{"recall":0.96162,"qps":92.6535,"param":"bk=2500"},{"recall":0.97734,"qps":52.6414,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.6943,"qps":182.466,"param":"ef=50"},{"recall":0.79102,"qps":149.854,"param":"ef=75"},{"recall":0.84494,"qps":127.832,"param":"ef=100"},{"recall":0.90188,"qps":99.4146,"param":"ef=150"},{"recall":0.94662,"qps":69.7143,"param":"ef=250"}],"fhg":[{"recall":0.69602,"qps":256.705,"param":"ef=50"},{"recall":0.78896,"qps":155.962,"param":"ef=100"},{"recall":0.83866,"qps":112.928,"param":"ef=150"},{"recall":0.88434,"qps":74.4716,"param":"ef=250"},{"recall":0.92916,"qps":41.2637,"param":"ef=500"}],"uhg":[{"recall":0.86012,"qps":197.055,"param":"ef=50"},{"recall":0.93514,"qps":132.788,"param":"ef=100"},{"recall":0.95972,"qps":101.045,"param":"ef=150"},{"recall":0.97924,"qps":68.7359,"param":"ef=250"},{"recall":0.99178,"qps":38.9973,"param":"ef=500"}]},"0.4":{"hnsw":[{"recall":0.62242,"qps":144.574,"param":"ef=150"},{"recall":0.71122,"qps":91.9943,"param":"ef=250"},{"recall":0.7813,"qps":60.6019,"param":"ef=400"},{"recall":0.81012,"qps":49.7341,"param":"ef=500"}],"sindi":[{"recall":0.82728,"qps":239.786,"param":"bk=500"},{"recall":0.8644,"qps":199.678,"param":"bk=750"},{"recall":0.88564,"qps":171.167,"param":"bk=1000"},{"recall":0.91032,"qps":133.424,"param":"bk=1500"},{"recall":0.93564,"qps":92.5543,"param":"bk=2500"},{"recall":0.96062,"qps":52.5936,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.69194,"qps":183.033,"param":"ef=50"},{"recall":0.79252,"qps":150.199,"param":"ef=75"},{"recall":0.84858,"qps":128.067,"param":"ef=100"},{"recall":0.9083,"qps":99.6378,"param":"ef=150"},{"recall":0.95314,"qps":69.7602,"param":"ef=250"}],"fhg":[{"recall":0.72312,"qps":264.489,"param":"ef=50"},{"recall":0.8183,"qps":157.278,"param":"ef=100"},{"recall":0.86026,"qps":115.013,"param":"ef=150"},{"recall":0.89862,"qps":76.076,"param":"ef=250"},{"recall":0.93976,"qps":42.2125,"param":"ef=500"}],"uhg":[{"recall":0.84784,"qps":203.718,"param":"ef=50"},{"recall":0.9236,"qps":139.549,"param":"ef=100"},{"recall":0.95064,"qps":106.714,"param":"ef=150"},{"recall":0.97276,"qps":73.0906,"param":"ef=250"},{"recall":0.9882,"qps":41.5974,"param":"ef=500"}]},"0.5":{"hnsw":[{"recall":0.631,"qps":206.42,"param":"ef=100"},{"recall":0.7136,"qps":144.682,"param":"ef=150"},{"recall":0.79852,"qps":92.0052,"param":"ef=250"},{"recall":0.85928,"qps":60.6036,"param":"ef=400"},{"recall":0.88236,"qps":49.6916,"param":"ef=500"}],"sindi":[{"recall":0.7589,"qps":236.255,"param":"bk=500"},{"recall":0.80164,"qps":197.598,"param":"bk=750"},{"recall":0.82748,"qps":169.836,"param":"bk=1000"},{"recall":0.85876,"qps":132.49,"param":"bk=1500"},{"recall":0.89286,"qps":92.0412,"param":"bk=2500"},{"recall":0.92944,"qps":52.3584,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.70092,"qps":183.032,"param":"ef=50"},{"recall":0.80398,"qps":150.29,"param":"ef=75"},{"recall":0.86078,"qps":128.103,"param":"ef=100"},{"recall":0.91914,"qps":99.6468,"param":"ef=150"},{"recall":0.96004,"qps":69.8273,"param":"ef=250"}],"fhg":[{"recall":0.7241,"qps":269.809,"param":"ef=50"},{"recall":0.82746,"qps":160.714,"param":"ef=100"},{"recall":0.87028,"qps":116.96,"param":"ef=150"},{"recall":0.90762,"qps":77.4447,"param":"ef=250"},{"recall":0.94792,"qps":43.0699,"param":"ef=500"}],"uhg":[{"recall":0.83394,"qps":211.957,"param":"ef=50"},{"recall":0.91068,"qps":147.633,"param":"ef=100"},{"recall":0.9404,"qps":113.414,"param":"ef=150"},{"recall":0.96448,"qps":78.1908,"param":"ef=250"},{"recall":0.98336,"qps":44.8036,"param":"ef=500"}]},"0.6":{"hnsw":[{"recall":0.71598,"qps":206.196,"param":"ef=100"},{"recall":0.79652,"qps":144.497,"param":"ef=150"},{"recall":0.86976,"qps":91.962,"param":"ef=250"},{"recall":0.9158,"qps":60.6117,"param":"ef=400"},{"recall":0.93198,"qps":49.7543,"param":"ef=500"}],"sindi":[{"recall":0.67988,"qps":240.454,"param":"bk=500"},{"recall":0.72566,"qps":200.38,"param":"bk=750"},{"recall":0.75486,"qps":171.467,"param":"bk=1000"},{"recall":0.79144,"qps":133.831,"param":"bk=1500"},{"recall":0.83394,"qps":92.7824,"param":"bk=2500"},{"recall":0.8831,"qps":52.7964,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.71986,"qps":182.367,"param":"ef=50"},{"recall":0.82336,"qps":149.91,"param":"ef=75"},{"recall":0.87702,"qps":127.57,"param":"ef=100"},{"recall":0.93064,"qps":99.3403,"param":"ef=150"},{"recall":0.9651,"qps":70.1455,"param":"ef=250"}],"fhg":[{"recall":0.73898,"qps":269.318,"param":"ef=50"},{"recall":0.8309,"qps":163.118,"param":"ef=100"},{"recall":0.87136,"qps":119.312,"param":"ef=150"},{"recall":0.91026,"qps":78.247,"param":"ef=250"},{"recall":0.9494,"qps":43.5721,"param":"ef=500"}],"uhg":[{"recall":0.82102,"qps":211.751,"param":"ef=50"},{"recall":0.90688,"qps":114.745,"param":"ef=100"},{"recall":0.93906,"qps":79.3688,"param":"ef=150"},{"recall":0.9645,"qps":49.879,"param":"ef=250"},{"recall":0.98244,"qps":26.7004,"param":"ef=500"}]},"0.7":{"hnsw":[{"recall":0.61622,"qps":371.832,"param":"ef=50"},{"recall":0.79538,"qps":206.453,"param":"ef=100"},{"recall":0.8636,"qps":144.669,"param":"ef=150"},{"recall":0.91894,"qps":92.096,"param":"ef=250"},{"recall":0.94916,"qps":60.6217,"param":"ef=400"},{"recall":0.95866,"qps":49.7846,"param":"ef=500"}],"sindi":[{"recall":0.6421,"qps":200.406,"param":"bk=750"},{"recall":0.6721,"qps":171.6,"param":"bk=1000"},{"recall":0.71118,"qps":133.572,"param":"bk=1500"},{"recall":0.75964,"qps":92.7845,"param":"bk=2500"},{"recall":0.81842,"qps":52.7848,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.74662,"qps":183.057,"param":"ef=50"},{"recall":0.84662,"qps":150.196,"param":"ef=75"},{"recall":0.89412,"qps":127.988,"param":"ef=100"},{"recall":0.93818,"qps":99.5545,"param":"ef=150"},{"recall":0.96692,"qps":69.7851,"param":"ef=250"}],"fhg":[{"recall":0.7347,"qps":269.012,"param":"ef=50"},{"recall":0.82422,"qps":163.938,"param":"ef=100"},{"recall":0.86484,"qps":118.433,"param":"ef=150"},{"recall":0.90598,"qps":78.5611,"param":"ef=250"},{"recall":0.94464,"qps":43.8331,"param":"ef=500"}],"uhg":[{"recall":0.83226,"qps":225.699,"param":"ef=50"},{"recall":0.91574,"qps":123.101,"param":"ef=100"},{"recall":0.94488,"qps":85.8084,"param":"ef=150"},{"recall":0.96844,"qps":54.1353,"param":"ef=250"},{"recall":0.98482,"qps":29.0781,"param":"ef=500"}]}},"msmarco":{"0.3":{"hnsw":[{"recall":0.62584,"qps":459.848,"param":"ef=100"},{"recall":0.69804,"qps":329.276,"param":"ef=150"},{"recall":0.77486,"qps":212.689,"param":"ef=250"},{"recall":0.82476,"qps":139.785,"param":"ef=400"},{"recall":0.84546,"qps":113.504,"param":"ef=500"}],"sindi":[{"recall":0.81108,"qps":293.828,"param":"bk=500"},{"recall":0.83816,"qps":239.228,"param":"bk=750"},{"recall":0.85562,"qps":202.29,"param":"bk=1000"},{"recall":0.87762,"qps":155.359,"param":"bk=1500"},{"recall":0.89924,"qps":105.844,"param":"bk=2500"},{"recall":0.92524,"qps":59.4294,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.7202,"qps":291.319,"param":"ef=50"},{"recall":0.81108,"qps":251.89,"param":"ef=75"},{"recall":0.85738,"qps":222.666,"param":"ef=100"},{"recall":0.90236,"qps":182.568,"param":"ef=150"},{"recall":0.94094,"qps":134.761,"param":"ef=250"}],"fhg":[{"recall":0.68108,"qps":289.411,"param":"ef=100"},{"recall":0.75918,"qps":216.746,"param":"ef=150"},{"recall":0.83258,"qps":149.817,"param":"ef=250"},{"recall":0.8932,"qps":87.7985,"param":"ef=500"}],"uhg":[{"recall":0.81798,"qps":334.816,"param":"ef=50"},{"recall":0.91926,"qps":257.467,"param":"ef=100"},{"recall":0.9474,"qps":207.378,"param":"ef=150"},{"recall":0.96882,"qps":149.076,"param":"ef=250"},{"recall":0.98252,"qps":86.6322,"param":"ef=500"}]},"0.4":{"hnsw":[{"recall":0.7115,"qps":457.757,"param":"ef=100"},{"recall":0.78116,"qps":331.82,"param":"ef=150"},{"recall":0.84966,"qps":214.067,"param":"ef=250"},{"recall":0.89028,"qps":140.738,"param":"ef=400"},{"recall":0.90594,"qps":114.238,"param":"ef=500"}],"sindi":[{"recall":0.75796,"qps":291.231,"param":"bk=500"},{"recall":0.78818,"qps":238.137,"param":"bk=750"},{"recall":0.80812,"qps":201.304,"param":"bk=1000"},{"recall":0.83374,"qps":154.713,"param":"bk=1500"},{"recall":0.85988,"qps":105.573,"param":"bk=2500"},{"recall":0.89182,"qps":59.2811,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.74046,"qps":293.526,"param":"ef=50"},{"recall":0.83264,"qps":253.618,"param":"ef=75"},{"recall":0.87846,"qps":224.035,"param":"ef=100"},{"recall":0.92136,"qps":183.3,"param":"ef=150"},{"recall":0.95588,"qps":135.02,"param":"ef=250"}],"fhg":[{"recall":0.72488,"qps":297.956,"param":"ef=100"},{"recall":0.78554,"qps":226.31,"param":"ef=150"},{"recall":0.85794,"qps":155.547,"param":"ef=250"},{"recall":0.9074,"qps":90.7319,"param":"ef=500"}],"uhg":[{"recall":0.83234,"qps":346.567,"param":"ef=50"},{"recall":0.92316,"qps":269.106,"param":"ef=100"},{"recall":0.9471,"qps":218.477,"param":"ef=150"},{"recall":0.96636,"qps":158.788,"param":"ef=250"},{"recall":0.98124,"qps":93.3811,"param":"ef=500"}]},"0.5":{"hnsw":[{"recall":0.61198,"qps":782.813,"param":"ef=50"},{"recall":0.78964,"qps":460.386,"param":"ef=100"},{"recall":0.85126,"qps":329.753,"param":"ef=150"},{"recall":0.90532,"qps":212.452,"param":"ef=250"},{"recall":0.93484,"qps":139.884,"param":"ef=400"},{"recall":0.94558,"qps":113.243,"param":"ef=500"}],"sindi":[{"recall":0.70352,"qps":291.954,"param":"bk=500"},{"recall":0.73618,"qps":238.406,"param":"bk=750"},{"recall":0.7581,"qps":201.801,"param":"bk=1000"},{"recall":0.78604,"qps":154.964,"param":"bk=1500"},{"recall":0.81546,"qps":105.798,"param":"bk=2500"},{"recall":0.85182,"qps":59.3571,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.768,"qps":293.212,"param":"ef=50"},{"recall":0.86084,"qps":252.61,"param":"ef=75"},{"recall":0.90326,"qps":223.358,"param":"ef=100"},{"recall":0.94014,"qps":182.531,"param":"ef=150"},{"recall":0.96726,"qps":134.85,"param":"ef=250"}],"fhg":[{"recall":0.74636,"qps":308.447,"param":"ef=100"},{"recall":0.80178,"qps":232.269,"param":"ef=150"},{"recall":0.86882,"qps":159.722,"param":"ef=250"},{"recall":0.92508,"qps":92.2195,"param":"ef=500"}],"uhg":[{"recall":0.84176,"qps":351.3,"param":"ef=50"},{"recall":0.92398,"qps":276.39,"param":"ef=100"},{"recall":0.9459,"qps":228.402,"param":"ef=150"},{"recall":0.96416,"qps":167.052,"param":"ef=250"},{"recall":0.97974,"qps":99.9721,"param":"ef=500"}]},"0.6":{"hnsw":[{"recall":0.68066,"qps":780.645,"param":"ef=50"},{"recall":0.85382,"qps":459.096,"param":"ef=100"},{"recall":0.90318,"qps":328.658,"param":"ef=150"},{"recall":0.94164,"qps":211.885,"param":"ef=250"},{"recall":0.9607,"qps":139.514,"param":"ef=400"},{"recall":0.96708,"qps":113.269,"param":"ef=500"}],"sindi":[{"recall":0.65074,"qps":292.613,"param":"bk=500"},{"recall":0.68474,"qps":237.961,"param":"bk=750"},{"recall":0.70782,"qps":201.912,"param":"bk=1000"},{"recall":0.7378,"qps":154.869,"param":"bk=1500"},{"recall":0.76928,"qps":105.754,"param":"bk=2500"},{"recall":0.80894,"qps":59.3445,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.79918,"qps":293.332,"param":"ef=50"},{"recall":0.88814,"qps":253.364,"param":"ef=75"},{"recall":0.92528,"qps":224.143,"param":"ef=100"},{"recall":0.95518,"qps":183.376,"param":"ef=150"},{"recall":0.97498,"qps":135.021,"param":"ef=250"}],"fhg":[{"recall":0.62372,"qps":499.522,"param":"ef=50"},{"recall":0.7583,"qps":309.354,"param":"ef=100"},{"recall":0.81316,"qps":234.117,"param":"ef=150"},{"recall":0.8726,"qps":161.782,"param":"ef=250"},{"recall":0.92906,"qps":93.2411,"param":"ef=500"}],"uhg":[{"recall":0.85734,"qps":478.322,"param":"ef=50"},{"recall":0.94216,"qps":274.188,"param":"ef=100"},{"recall":0.96134,"qps":192.979,"param":"ef=150"},{"recall":0.97644,"qps":121.902,"param":"ef=250"},{"recall":0.98714,"qps":63.7201,"param":"ef=500"}]},"0.7":{"hnsw":[{"recall":0.74416,"qps":784.493,"param":"ef=50"},{"recall":0.9001,"qps":460.695,"param":"ef=100"},{"recall":0.9344,"qps":330.204,"param":"ef=150"},{"recall":0.95974,"qps":212.911,"param":"ef=250"},{"recall":0.97112,"qps":140.0,"param":"ef=400"},{"recall":0.97548,"qps":113.671,"param":"ef=500"}],"sindi":[{"recall":0.63468,"qps":238.339,"param":"bk=750"},{"recall":0.65826,"qps":201.299,"param":"bk=1000"},{"recall":0.68894,"qps":154.188,"param":"bk=1500"},{"recall":0.72246,"qps":105.423,"param":"bk=2500"},{"recall":0.76446,"qps":59.1408,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.82922,"qps":293.442,"param":"ef=50"},{"recall":0.91102,"qps":254.727,"param":"ef=75"},{"recall":0.94032,"qps":224.11,"param":"ef=100"},{"recall":0.96262,"qps":183.562,"param":"ef=150"},{"recall":0.97714,"qps":135.16,"param":"ef=250"}],"fhg":[{"recall":0.61722,"qps":492.169,"param":"ef=50"},{"recall":0.76102,"qps":311.837,"param":"ef=100"},{"recall":0.81774,"qps":235.988,"param":"ef=150"},{"recall":0.8754,"qps":161.791,"param":"ef=250"},{"recall":0.92768,"qps":93.3632,"param":"ef=500"}],"uhg":[{"recall":0.87972,"qps":484.72,"param":"ef=50"},{"recall":0.95026,"qps":279.493,"param":"ef=100"},{"recall":0.96594,"qps":197.599,"param":"ef=150"},{"recall":0.97894,"qps":125.195,"param":"ef=250"},{"recall":0.98802,"qps":65.7193,"param":"ef=500"}]}},"fever":{"0.3":{"hnsw":[{"recall":0.66034,"qps":89.4052,"param":"ef=250"},{"recall":0.72176,"qps":58.1776,"param":"ef=400"},{"recall":0.74932,"qps":47.4082,"param":"ef=500"}],"sindi":[{"recall":0.90948,"qps":214.817,"param":"bk=500"},{"recall":0.93236,"qps":181.717,"param":"bk=750"},{"recall":0.9455,"qps":157.339,"param":"bk=1000"},{"recall":0.95854,"qps":122.805,"param":"bk=1500"},{"recall":0.9717,"qps":86.5774,"param":"bk=2500"},{"recall":0.98422,"qps":49.9691,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.73736,"qps":174.437,"param":"ef=50"},{"recall":0.82744,"qps":143.718,"param":"ef=75"},{"recall":0.87206,"qps":122.775,"param":"ef=100"},{"recall":0.91782,"qps":95.7615,"param":"ef=150"},{"recall":0.95236,"qps":66.5809,"param":"ef=250"}],"fhg":[{"recall":0.6188,"qps":248.768,"param":"ef=50"},{"recall":0.79808,"qps":137.854,"param":"ef=100"},{"recall":0.8671,"qps":97.6992,"param":"ef=150"},{"recall":0.914,"qps":64.5826,"param":"ef=250"},{"recall":0.94776,"qps":35.6004,"param":"ef=500"}],"uhg":[{"recall":0.88536,"qps":172.486,"param":"ef=50"},{"recall":0.9514,"qps":119.379,"param":"ef=100"},{"recall":0.97048,"qps":90.7983,"param":"ef=150"},{"recall":0.98498,"qps":55.6972,"param":"ef=250"},{"recall":0.99434,"qps":27.5815,"param":"ef=500"}]},"0.4":{"hnsw":[{"recall":0.65344,"qps":141.217,"param":"ef=150"},{"recall":0.7314,"qps":88.5659,"param":"ef=250"},{"recall":0.78942,"qps":57.7236,"param":"ef=400"},{"recall":0.81496,"qps":47.1009,"param":"ef=500"}],"sindi":[{"recall":0.88218,"qps":219.864,"param":"bk=500"},{"recall":0.90992,"qps":184.495,"param":"bk=750"},{"recall":0.92662,"qps":158.632,"param":"bk=1000"},{"recall":0.94336,"qps":123.543,"param":"bk=1500"},{"recall":0.96006,"qps":87.5298,"param":"bk=2500"},{"recall":0.97656,"qps":50.3752,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.7444,"qps":173.291,"param":"ef=50"},{"recall":0.8362,"qps":143.053,"param":"ef=75"},{"recall":0.88124,"qps":122.295,"param":"ef=100"},{"recall":0.92644,"qps":95.3665,"param":"ef=150"},{"recall":0.96024,"qps":66.5605,"param":"ef=250"}],"fhg":[{"recall":0.64304,"qps":254.633,"param":"ef=50"},{"recall":0.82006,"qps":139.651,"param":"ef=100"},{"recall":0.88556,"qps":99.7129,"param":"ef=150"},{"recall":0.92404,"qps":65.6814,"param":"ef=250"},{"recall":0.95356,"qps":36.4132,"param":"ef=500"}],"uhg":[{"recall":0.88206,"qps":187.611,"param":"ef=50"},{"recall":0.9476,"qps":127.347,"param":"ef=100"},{"recall":0.96704,"qps":96.0531,"param":"ef=150"},{"recall":0.98292,"qps":64.7951,"param":"ef=250"},{"recall":0.99288,"qps":36.1689,"param":"ef=500"}]},"0.5":{"hnsw":[{"recall":0.65324,"qps":205.889,"param":"ef=100"},{"recall":0.72612,"qps":142.686,"param":"ef=150"},{"recall":0.79994,"qps":89.5191,"param":"ef=250"},{"recall":0.85156,"qps":58.2341,"param":"ef=400"},{"recall":0.8727,"qps":36.756,"param":"ef=500"}],"sindi":[{"recall":0.84088,"qps":218.713,"param":"bk=500"},{"recall":0.87384,"qps":183.613,"param":"bk=750"},{"recall":0.89474,"qps":158.192,"param":"bk=1000"},{"recall":0.91656,"qps":124.495,"param":"bk=1500"},{"recall":0.94002,"qps":87.3617,"param":"bk=2500"},{"recall":0.9628,"qps":50.3081,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.75378,"qps":174.335,"param":"ef=50"},{"recall":0.84736,"qps":143.661,"param":"ef=75"},{"recall":0.89184,"qps":122.918,"param":"ef=100"},{"recall":0.93608,"qps":95.6991,"param":"ef=150"},{"recall":0.9678,"qps":66.8113,"param":"ef=250"}],"fhg":[{"recall":0.6578,"qps":258.555,"param":"ef=50"},{"recall":0.8287,"qps":143.642,"param":"ef=100"},{"recall":0.88918,"qps":101.76,"param":"ef=150"},{"recall":0.9282,"qps":67.2605,"param":"ef=250"},{"recall":0.9557,"qps":37.3849,"param":"ef=500"}],"uhg":[{"recall":0.87254,"qps":195.201,"param":"ef=50"},{"recall":0.93958,"qps":133.835,"param":"ef=100"},{"recall":0.96096,"qps":101.669,"param":"ef=150"},{"recall":0.97834,"qps":69.0167,"param":"ef=250"},{"recall":0.99012,"qps":38.5717,"param":"ef=500"}]},"0.6":{"hnsw":[{"recall":0.7275,"qps":205.088,"param":"ef=100"},{"recall":0.79652,"qps":141.676,"param":"ef=150"},{"recall":0.86134,"qps":89.4945,"param":"ef=250"},{"recall":0.90256,"qps":58.2475,"param":"ef=400"},{"recall":0.91848,"qps":47.4192,"param":"ef=500"}],"sindi":[{"recall":0.78402,"qps":218.892,"param":"bk=500"},{"recall":0.82122,"qps":183.569,"param":"bk=750"},{"recall":0.84612,"qps":157.809,"param":"bk=1000"},{"recall":0.87364,"qps":124.39,"param":"bk=1500"},{"recall":0.90412,"qps":87.0272,"param":"bk=2500"},{"recall":0.93546,"qps":50.1774,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.76606,"qps":173.547,"param":"ef=50"},{"recall":0.86034,"qps":143.683,"param":"ef=75"},{"recall":0.90268,"qps":122.633,"param":"ef=100"},{"recall":0.94356,"qps":95.388,"param":"ef=150"},{"recall":0.97128,"qps":66.7797,"param":"ef=250"}],"fhg":[{"recall":0.66988,"qps":184.536,"param":"ef=50"},{"recall":0.82768,"qps":114.075,"param":"ef=100"},{"recall":0.8903,"qps":74.6593,"param":"ef=150"},{"recall":0.92954,"qps":57.6325,"param":"ef=250"},{"recall":0.95498,"qps":38.3851,"param":"ef=500"}],"uhg":[{"recall":0.85638,"qps":213.885,"param":"ef=50"},{"recall":0.9264,"qps":111.902,"param":"ef=100"},{"recall":0.9489,"qps":76.0563,"param":"ef=150"},{"recall":0.96824,"qps":46.6632,"param":"ef=250"},{"recall":0.98412,"qps":24.2663,"param":"ef=500"}]},"0.7":{"hnsw":[{"recall":0.63264,"qps":372.576,"param":"ef=50"},{"recall":0.79968,"qps":203.922,"param":"ef=100"},{"recall":0.85846,"qps":142.78,"param":"ef=150"},{"recall":0.90844,"qps":89.1324,"param":"ef=250"},{"recall":0.93758,"qps":58.0397,"param":"ef=400"},{"recall":0.9479,"qps":47.371,"param":"ef=500"}],"sindi":[{"recall":0.71406,"qps":218.923,"param":"bk=500"},{"recall":0.75438,"qps":183.88,"param":"bk=750"},{"recall":0.78194,"qps":158.527,"param":"bk=1000"},{"recall":0.8143,"qps":124.327,"param":"bk=1500"},{"recall":0.8514,"qps":87.3037,"param":"bk=2500"},{"recall":0.89064,"qps":50.2034,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.78456,"qps":174.263,"param":"ef=50"},{"recall":0.876,"qps":142.495,"param":"ef=75"},{"recall":0.9142,"qps":122.828,"param":"ef=100"},{"recall":0.94926,"qps":95.7474,"param":"ef=150"},{"recall":0.9731,"qps":66.7444,"param":"ef=250"}],"fhg":[{"recall":0.66154,"qps":268.313,"param":"ef=50"},{"recall":0.81954,"qps":148.254,"param":"ef=100"},{"recall":0.87968,"qps":105.255,"param":"ef=150"},{"recall":0.91968,"qps":69.2328,"param":"ef=250"},{"recall":0.94844,"qps":39.0155,"param":"ef=500"}],"uhg":[{"recall":0.86316,"qps":228.894,"param":"ef=50"},{"recall":0.93198,"qps":120.848,"param":"ef=100"},{"recall":0.95392,"qps":82.7132,"param":"ef=150"},{"recall":0.97098,"qps":50.9266,"param":"ef=250"},{"recall":0.98544,"qps":23.4413,"param":"ef=500"}]}},"dbpedia-entity":{"0.3":{"hnsw":[{"recall":0.612719,"qps":166.8,"param":"ef=150"},{"recall":0.696103,"qps":105.719,"param":"ef=250"},{"recall":0.7606,"qps":68.7576,"param":"ef=400"},{"recall":0.786724,"qps":55.962,"param":"ef=500"}],"sindi":[{"recall":0.717388,"qps":392.059,"param":"bk=500"},{"recall":0.75409,"qps":303.009,"param":"bk=750"},{"recall":0.77636,"qps":246.894,"param":"bk=1000"},{"recall":0.805782,"qps":181.493,"param":"bk=1500"},{"recall":0.841585,"qps":118.826,"param":"bk=2500"},{"recall":0.88227,"qps":64.7351,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.651135,"qps":280.159,"param":"ef=50"},{"recall":0.740428,"qps":216.274,"param":"ef=75"},{"recall":0.789165,"qps":177.562,"param":"ef=100"},{"recall":0.845139,"qps":131.858,"param":"ef=150"},{"recall":0.898373,"qps":87.9746,"param":"ef=250"}],"fhg":[{"recall":0.736617,"qps":314.38,"param":"ef=50"},{"recall":0.81349,"qps":183.256,"param":"ef=100"},{"recall":0.855332,"qps":131.032,"param":"ef=150"},{"recall":0.896017,"qps":85.9574,"param":"ef=250"},{"recall":0.935418,"qps":46.5882,"param":"ef=500"}],"uhg":[{"recall":0.832677,"qps":326.113,"param":"ef=50"},{"recall":0.90818,"qps":199.585,"param":"ef=100"},{"recall":0.934861,"qps":144.143,"param":"ef=150"},{"recall":0.955717,"qps":92.9549,"param":"ef=250"},{"recall":0.974347,"qps":49.5832,"param":"ef=500"}]},"0.4":{"hnsw":[{"recall":0.641114,"qps":239.054,"param":"ef=100"},{"recall":0.716231,"qps":166.557,"param":"ef=150"},{"recall":0.794475,"qps":105.168,"param":"ef=250"},{"recall":0.849593,"qps":68.7504,"param":"ef=400"},{"recall":0.870278,"qps":56.3129,"param":"ef=500"}],"sindi":[{"recall":0.658758,"qps":391.826,"param":"bk=500"},{"recall":0.698458,"qps":302.413,"param":"bk=750"},{"recall":0.722955,"qps":246.896,"param":"bk=1000"},{"recall":0.756745,"qps":182.442,"param":"bk=1500"},{"recall":0.796788,"qps":118.989,"param":"bk=2500"},{"recall":0.844154,"qps":64.8226,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.680557,"qps":279.827,"param":"ef=50"},{"recall":0.774218,"qps":216.406,"param":"ef=75"},{"recall":0.823726,"qps":178.159,"param":"ef=100"},{"recall":0.878587,"qps":132.048,"param":"ef=150"},{"recall":0.926552,"qps":87.9632,"param":"ef=250"}],"fhg":[{"recall":0.783041,"qps":321.091,"param":"ef=50"},{"recall":0.852206,"qps":190.146,"param":"ef=100"},{"recall":0.881028,"qps":138.221,"param":"ef=150"},{"recall":0.915589,"qps":89.9731,"param":"ef=250"},{"recall":0.950835,"qps":48.8742,"param":"ef=500"}],"uhg":[{"recall":0.838458,"qps":350.472,"param":"ef=50"},{"recall":0.911906,"qps":218.222,"param":"ef=100"},{"recall":0.93636,"qps":159.241,"param":"ef=150"},{"recall":0.957045,"qps":103.061,"param":"ef=250"},{"recall":0.977773,"qps":54.9558,"param":"ef=500"}]},"0.5":{"hnsw":[{"recall":0.734647,"qps":239.738,"param":"ef=100"},{"recall":0.806595,"qps":166.992,"param":"ef=150"},{"recall":0.873405,"qps":105.763,"param":"ef=250"},{"recall":0.912934,"qps":68.8245,"param":"ef=400"},{"recall":0.927066,"qps":56.2299,"param":"ef=500"}],"sindi":[{"recall":0.601071,"qps":391.427,"param":"bk=500"},{"recall":0.64197,"qps":303.523,"param":"bk=750"},{"recall":0.667323,"qps":247.098,"param":"bk=1000"},{"recall":0.703169,"qps":181.442,"param":"bk=1500"},{"recall":0.747195,"qps":118.434,"param":"bk=2500"},{"recall":0.799829,"qps":64.1843,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.718116,"qps":277.819,"param":"ef=50"},{"recall":0.814604,"qps":215.664,"param":"ef=75"},{"recall":0.861585,"qps":176.829,"param":"ef=100"},{"recall":0.911906,"qps":130.852,"param":"ef=150"},{"recall":0.951863,"qps":87.064,"param":"ef=250"}],"fhg":[{"recall":0.7994,"qps":333.113,"param":"ef=50"},{"recall":0.864754,"qps":197.51,"param":"ef=100"},{"recall":0.897173,"qps":141.118,"param":"ef=150"},{"recall":0.927066,"qps":91.5799,"param":"ef=250"},{"recall":0.958415,"qps":50.23,"param":"ef=500"}],"uhg":[{"recall":0.841114,"qps":371.189,"param":"ef=50"},{"recall":0.913276,"qps":234.409,"param":"ef=100"},{"recall":0.937816,"qps":172.696,"param":"ef=150"},{"recall":0.959657,"qps":111.921,"param":"ef=250"},{"recall":0.978587,"qps":60.2002,"param":"ef=500"}]},"0.6":{"hnsw":[{"recall":0.648094,"qps":433.423,"param":"ef=50"},{"recall":0.812548,"qps":239.798,"param":"ef=100"},{"recall":0.874946,"qps":167.183,"param":"ef=150"},{"recall":0.923426,"qps":105.401,"param":"ef=250"},{"recall":0.948137,"qps":68.9966,"param":"ef=400"},{"recall":0.956488,"qps":56.1215,"param":"ef=500"}],"sindi":[{"recall":0.611692,"qps":245.954,"param":"bk=1000"},{"recall":0.649422,"qps":181.583,"param":"bk=1500"},{"recall":0.694946,"qps":118.968,"param":"bk=2500"},{"recall":0.751092,"qps":64.7881,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.75773,"qps":280.319,"param":"ef=50"},{"recall":0.854304,"qps":217.191,"param":"ef=75"},{"recall":0.895931,"qps":177.488,"param":"ef=100"},{"recall":0.938116,"qps":132.011,"param":"ef=150"},{"recall":0.967066,"qps":87.9156,"param":"ef=250"}],"fhg":[{"recall":0.806767,"qps":339.72,"param":"ef=50"},{"recall":0.868865,"qps":197.768,"param":"ef=100"},{"recall":0.900899,"qps":144.188,"param":"ef=150"},{"recall":0.931092,"qps":93.5921,"param":"ef=250"},{"recall":0.959957,"qps":50.8136,"param":"ef=500"}],"uhg":[{"recall":0.873319,"qps":265.126,"param":"ef=50"},{"recall":0.936702,"qps":143.32,"param":"ef=100"},{"recall":0.957045,"qps":98.8418,"param":"ef=150"},{"recall":0.974518,"qps":61.5989,"param":"ef=250"},{"recall":0.986467,"qps":32.343,"param":"ef=500"}]},"0.7":{"hnsw":[{"recall":0.720171,"qps":436.17,"param":"ef=50"},{"recall":0.873405,"qps":241.25,"param":"ef=100"},{"recall":0.9206,"qps":167.053,"param":"ef=150"},{"recall":0.951734,"qps":105.457,"param":"ef=250"},{"recall":0.966338,"qps":68.8081,"param":"ef=400"},{"recall":0.970964,"qps":56.1685,"param":"ef=500"}],"sindi":[{"recall":0.638544,"qps":118.669,"param":"bk=2500"},{"recall":0.696959,"qps":64.7703,"param":"bk=5000"}],"hnsw_sindi":[{"recall":0.797345,"qps":280.268,"param":"ef=50"},{"recall":0.886681,"qps":217.207,"param":"ef=75"},{"recall":0.920214,"qps":177.942,"param":"ef=100"},{"recall":0.952077,"qps":131.89,"param":"ef=150"},{"recall":0.972719,"qps":88.024,"param":"ef=250"}],"fhg":[{"recall":0.806552,"qps":335.414,"param":"ef=50"},{"recall":0.869293,"qps":203.742,"param":"ef=100"},{"recall":0.903983,"qps":144.339,"param":"ef=150"},{"recall":0.930964,"qps":94.7888,"param":"ef=250"},{"recall":0.960343,"qps":51.1583,"param":"ef=500"}],"uhg":[{"recall":0.887152,"qps":273.586,"param":"ef=50"},{"recall":0.943769,"qps":149.006,"param":"ef=100"},{"recall":0.962698,"qps":102.915,"param":"ef=150"},{"recall":0.97773,"qps":64.3704,"param":"ef=250"},{"recall":0.988266,"qps":34.0068,"param":"ef=500"}]}}}}</script>
+<script>
+const DATA = JSON.parse(document.getElementById("plot-data").textContent);
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function node(name, attrs = {}, text = null) {
+  const element = document.createElementNS(SVG_NS, name);
+  for (const [key, value] of Object.entries(attrs)) {
+    element.setAttribute(key, value);
+  }
+  if (text !== null) element.textContent = text;
+  return element;
+}
+
+function xScale(recall, plotLeft, plotWidth) {
+  return plotLeft + ((recall - 0.7) / 0.3) * plotWidth;
+}
+
+function yScale(qps, yMin, yMax, plotTop, plotHeight) {
+  const logMin = Math.log10(yMin);
+  const logMax = Math.log10(yMax);
+  return plotTop + (logMax - Math.log10(qps)) / (logMax - logMin) * plotHeight;
+}
+
+function logTicks(yMin, yMax) {
+  const ticks = [];
+  const start = Math.floor(Math.log10(yMin));
+  const end = Math.ceil(Math.log10(yMax));
+  for (let exp = start; exp <= end; exp++) {
+    const value = Math.pow(10, exp);
+    if (value >= yMin * 0.999 && value <= yMax * 1.001) ticks.push(value);
+  }
+  return ticks;
+}
+
+function formatYTick(value) {
+  if (value >= 1000) return "10³";
+  if (value >= 100) return "10²";
+  if (value >= 10) return "10¹";
+  return "10⁰";
+}
+
+function drawMarker(svg, type, x, y, color, size = 5.2) {
+  if (type === "square") {
+    svg.appendChild(node("rect", {
+      x: x - size / 2,
+      y: y - size / 2,
+      width: size,
+      height: size,
+      fill: color,
+      stroke: "#111111",
+      "stroke-width": 0.5,
+    }));
+  } else if (type === "circle") {
+    svg.appendChild(node("circle", {
+      cx: x,
+      cy: y,
+      r: size / 2,
+      fill: color,
+      stroke: "#111111",
+      "stroke-width": 0.5,
+    }));
+  } else if (type === "triangle") {
+    const points = [
+      `${x},${y - size / 2}`,
+      `${x - size / 2},${y + size / 2}`,
+      `${x + size / 2},${y + size / 2}`,
+    ].join(" ");
+    svg.appendChild(node("polygon", {
+      points,
+      fill: color,
+      stroke: "#111111",
+      "stroke-width": 0.5,
+    }));
+  } else if (type === "pentagon") {
+    const points = [];
+    for (let i = 0; i < 5; i++) {
+      const angle = -Math.PI / 2 + (2 * Math.PI * i) / 5;
+      points.push(`${x + Math.cos(angle) * size / 2},${y + Math.sin(angle) * size / 2}`);
+    }
+    svg.appendChild(node("polygon", {
+      points: points.join(" "),
+      fill: color,
+      stroke: "#111111",
+      "stroke-width": 0.5,
+    }));
+  } else {
+    svg.appendChild(node("line", {
+      x1: x - size / 2,
+      y1: y - size / 2,
+      x2: x + size / 2,
+      y2: y + size / 2,
+      stroke: color,
+      "stroke-width": 2,
+    }));
+    svg.appendChild(node("line", {
+      x1: x - size / 2,
+      y1: y + size / 2,
+      x2: x + size / 2,
+      y2: y - size / 2,
+      stroke: color,
+      "stroke-width": 2,
+    }));
+  }
+}
+
+function drawLegend(svg, width) {
+  const y = 51;
+  const labelWidths = {
+    hnsw: 56,
+    sindi: 52,
+    hnsw_sindi: 92,
+    fhg: 40,
+    uhg: 42,
+  };
+  const gap = 33;
+  const itemWidths = DATA.methods.map((method) => 22 + labelWidths[method]);
+  const totalWidth = itemWidths.reduce((sum, value) => sum + value, 0) + gap * (DATA.methods.length - 1);
+  let x = width / 2 - totalWidth / 2;
+
+  DATA.methods.forEach((method, index) => {
+    const color = DATA.methodColors[method];
+    drawMarker(svg, DATA.methodMarkers[method], x + 8, y - 3, color, 9);
+    svg.appendChild(node("text", {
+      x: x + 21,
+      y: y,
+      class: "legend",
+    }, DATA.methodLabels[method]));
+    x += itemWidths[index] + gap;
+  });
+}
+
+function panelYBounds(dataset, alpha) {
+  const qpsValues = [];
+  DATA.methods.forEach((method) => {
+    DATA.points[dataset][alpha][method].forEach((point) => qpsValues.push(point.qps));
+  });
+  const maxQps = Math.max(...qpsValues, 10);
+  const upper = Math.pow(10, Math.ceil(Math.log10(maxQps * 1.12)));
+  return { min: 10, max: upper };
+}
+
+function drawPanel(svg, dataset, alpha, panelIndex, panelX, panelY, panelWidth, panelHeight) {
+  const plotLeft = panelX + 44;
+  const plotTop = panelY + 13;
+  const plotWidth = panelWidth - 54;
+  const plotHeight = panelHeight - 59;
+  const plotBottom = plotTop + plotHeight;
+  const bounds = panelYBounds(dataset, alpha);
+  const clipId = `clip-${dataset}-${alpha.replace(".", "_")}`;
+
+  const defs = svg.querySelector("defs");
+  const clip = node("clipPath", { id: clipId });
+  clip.appendChild(node("rect", {
+    x: plotLeft,
+    y: plotTop,
+    width: plotWidth,
+    height: plotHeight,
+  }));
+  defs.appendChild(clip);
+
+  svg.appendChild(node("rect", {
+    x: plotLeft,
+    y: plotTop,
+    width: plotWidth,
+    height: plotHeight,
+    fill: "#ffffff",
+    stroke: "#111111",
+    "stroke-width": 1,
+  }));
+
+  [0.7, 0.8, 0.9, 1.0].forEach((tick) => {
+    const x = xScale(tick, plotLeft, plotWidth);
+    svg.appendChild(node("line", {
+      x1: x,
+      y1: plotTop,
+      x2: x,
+      y2: plotBottom,
+      class: tick === 0.7 || tick === 1.0 ? "axis-grid-edge" : "grid-line",
+    }));
+    svg.appendChild(node("text", {
+      x,
+      y: plotBottom + 13,
+      "text-anchor": "middle",
+      class: "tick",
+    }, tick.toFixed(1)));
+  });
+
+  logTicks(bounds.min, bounds.max).forEach((tick) => {
+    const y = yScale(tick, bounds.min, bounds.max, plotTop, plotHeight);
+    svg.appendChild(node("line", {
+      x1: plotLeft,
+      y1: y,
+      x2: plotLeft + plotWidth,
+      y2: y,
+      class: "grid-line",
+    }));
+    svg.appendChild(node("text", {
+      x: plotLeft - 7,
+      y: y + 3,
+      "text-anchor": "end",
+      class: "tick",
+    }, formatYTick(tick)));
+  });
+
+  const seriesGroup = node("g", { "clip-path": `url(#${clipId})` });
+  svg.appendChild(seriesGroup);
+
+  DATA.methods.forEach((method) => {
+    const points = DATA.points[dataset][alpha][method];
+    if (!points.length) return;
+    const color = DATA.methodColors[method];
+    const coords = points.map((point) => [
+      xScale(point.recall, plotLeft, plotWidth),
+      yScale(point.qps, bounds.min, bounds.max, plotTop, plotHeight),
+    ]);
+    seriesGroup.appendChild(node("polyline", {
+      points: coords.map(([x, y]) => `${x},${y}`).join(" "),
+      fill: "none",
+      stroke: color,
+      "stroke-width": method === "uhg" ? 2.4 : 1.2,
+    }));
+    coords.forEach(([x, y]) => drawMarker(seriesGroup, DATA.methodMarkers[method], x, y, color, method === "uhg" ? 7.4 : 5.4));
+  });
+
+  svg.appendChild(node("text", {
+    x: plotLeft + plotWidth / 2,
+    y: plotBottom + 29,
+    "text-anchor": "middle",
+    class: "axis-label",
+  }, "Recall"));
+  svg.appendChild(node("text", {
+    x: panelX + 11,
+    y: plotTop + plotHeight / 2,
+    transform: `rotate(-90 ${panelX + 11} ${plotTop + plotHeight / 2})`,
+    "text-anchor": "middle",
+    class: "axis-label",
+  }, "QPS"));
+  svg.appendChild(node("text", {
+    x: plotLeft + plotWidth / 2,
+    y: plotBottom + 54,
+    "text-anchor": "middle",
+    class: "panel-label",
+  }, `(${String.fromCharCode(97 + panelIndex)}) ${DATA.datasetLabels[dataset]} α=${alpha}`));
+}
+
+function draw() {
+  const svg = document.getElementById("figure");
+  const width = 1480;
+  const height = 1507;
+  const panelWidth = 274;
+  const panelHeight = 253;
+  const colGap = 18;
+  const rowGap = 35;
+  const startX = (width - DATA.alphas.length * panelWidth - (DATA.alphas.length - 1) * colGap) / 2;
+  const startY = 80;
+
+  svg.replaceChildren();
+
+  const defs = node("defs");
+  const style = node("style");
+  style.textContent = `
+    .figure-heading { font: bold 18px "Times New Roman", Times, serif; fill: #111111; }
+    .legend { font: 17px "Times New Roman", Times, serif; fill: #111111; }
+    .tick { font: 11px "Times New Roman", Times, serif; fill: #111111; }
+    .axis-label { font: 13px "Times New Roman", Times, serif; fill: #111111; }
+    .panel-label { font: 15px "Times New Roman", Times, serif; fill: #111111; }
+    .grid-line { stroke: #8f8f8f; stroke-width: 0.75; stroke-dasharray: 2 2; }
+    .axis-grid-edge { stroke: #111111; stroke-width: 0.9; }
+  `;
+  defs.appendChild(style);
+  svg.appendChild(defs);
+
+  svg.appendChild(node("title", { id: "figure-title" }, "QPS–Recall Performance under Fixed Alpha"));
+  svg.appendChild(node("desc", { id: "figure-desc" }, "Fig. 8 style QPS versus Recall curves for all UHG main-result methods across datasets and alpha values."));
+  svg.appendChild(node("rect", { x: 0, y: 0, width, height, fill: "#ffffff" }));
+
+  svg.appendChild(node("text", {
+    x: width / 2, y: 21, "text-anchor": "middle", class: "figure-heading",
+  }, "QPS–Recall Performance under Fixed Alpha"));
+  drawLegend(svg, width);
+
+  let panelIndex = 0;
+  DATA.datasets.forEach((dataset, rowIndex) => {
+    DATA.alphas.forEach((alpha, colIndex) => {
+      drawPanel(
+        svg,
+        dataset,
+        alpha,
+        panelIndex,
+        startX + colIndex * (panelWidth + colGap),
+        startY + rowIndex * (panelHeight + rowGap),
+        panelWidth,
+        panelHeight
+      );
+      panelIndex += 1;
+    });
+  });
+}
+
+function downloadSvg() {
+  const svg = document.getElementById("figure");
+  const source = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "main_results_fig8.svg";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+draw();
+</script>
+</body>
+</html>

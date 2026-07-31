@@ -1,0 +1,13 @@
+# UHGH with dense-entry HNSW candidates and search width set to 2x ef_search
+# method=uhgh dataset=hotpotqa alpha=0.6 k=100 num_queries=-1 threads=1
+# fixed index=/tbase-project/vsag/scripts/UHG/data/index_hybrid_union/703_hotpotqa_hybrid_index.index (load only; no rebuild)
+# standard UHGH comparison=/tbase-project/vsag/scripts/UHG/results/main/hotpotqa/uhg/alpha_0.6.txt (dense_entry_bk=dense_entry_ef_search=ef_search)
+# build_alpha=0.5 hybrid_prune_scale=0.3 max_hops=0
+# dense_entry_bk=2*ef_search dense_entry_ef_search=2*ef_search
+# sindi_query_prune_ratio=0.5 sindi_term_prune_ratio=0
+# search_points=100 200 300 500 1000
+uhgh ef_search=100 dense_entry_bk=200 dense_entry_ef_search=200 prune_scale=0.3 threads=1 Recall: 0.90087 QPS: 69.7713
+uhgh ef_search=200 dense_entry_bk=400 dense_entry_ef_search=400 prune_scale=0.3 threads=1 Recall: 0.95531 QPS: 38.3058
+uhgh ef_search=300 dense_entry_bk=600 dense_entry_ef_search=600 prune_scale=0.3 threads=1 Recall: 0.97149 QPS: 27.2956
+uhgh ef_search=500 dense_entry_bk=1000 dense_entry_ef_search=1000 prune_scale=0.3 threads=1 Recall: 0.98384 QPS: 17.499
+uhgh ef_search=1000 dense_entry_bk=2000 dense_entry_ef_search=2000 prune_scale=0.3 threads=1 Recall: 0.99281 QPS: 9.78045

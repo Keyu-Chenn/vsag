@@ -1,0 +1,13 @@
+# experiment=mixed_alpha_zt dataset=fever method=fhg recall_at=10
+# distribution=truncated_normal alpha_min=0.3 alpha_max=0.7 normal_mean=0.5 normal_stddev=0.1 seed=42
+# k=10 num_queries=-1 threads=1
+# points=10 20 30 50 80 100
+# mixed_alpha_file=/tbase-project/vsag/scripts/UHG/mixed_alpha_zt/data/gt_top200/fever/alphas.npy
+# mixed_gt_file=/tbase-project/vsag/scripts/UHG/mixed_alpha_zt/data/gt_top200/fever/ground_truth.npy
+# build_alpha=0.5 hybrid_pruning=false max_hops=0
+fhg ef_search=10 threads=1 Recall: 0.2025 QPS: 1390.91
+fhg ef_search=20 threads=1 Recall: 0.4121 QPS: 618.732
+fhg ef_search=30 threads=1 Recall: 0.5494 QPS: 401.396
+fhg ef_search=50 threads=1 Recall: 0.7178 QPS: 255.488
+fhg ef_search=80 threads=1 Recall: 0.836 QPS: 166.86
+fhg ef_search=100 threads=1 Recall: 0.8751 QPS: 138.371

@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recall Improvement from Entry-Point Selection</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f5f5f5;
+  --paper: #ffffff;
+  --ink: #111111;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-height: 100vh;
+  padding: 20px;
+  background: var(--page);
+  color: var(--ink);
+  font-family: "Times New Roman", Times, serif;
+}
+.toolbar {
+  width: min(1480px, 100%);
+  margin: 0 auto 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+button {
+  appearance: none;
+  border: 1px solid #c7c7c7;
+  border-radius: 4px;
+  padding: 7px 12px;
+  background: #ffffff;
+  color: #111111;
+  font: 14px "Times New Roman", Times, serif;
+  cursor: pointer;
+}
+button:hover {
+  background: #f7f7f7;
+}
+.page {
+  width: min(1480px, 100%);
+  margin: 0 auto;
+  padding: 10px;
+  background: var(--paper);
+  border: 1px solid #dddddd;
+}
+svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@page {
+  size: 11in 5.27in;
+  margin: 0.08in;
+}
+@media print {
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+  body {
+    min-height: 0;
+    padding: 0;
+    background: #ffffff;
+  }
+  .toolbar {
+    display: none;
+  }
+  .page {
+    width: 100%;
+    margin: 0 auto;
+    padding: 0;
+    border: 0;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button type="button" onclick="window.print()">Print PDF</button>
+  <button type="button" onclick="downloadSvg()">Save SVG</button>
+</div>
+<main class="page" aria-label="Ablation results figure">
+  <svg id="figure" viewBox="0 0 1480 685" role="img"
+       aria-labelledby="figure-title figure-desc"></svg>
+</main>
+<script id="plot-data" type="application/json">{"datasets":["nq","hotpotqa","msmarco","fever","dbpedia-entity"],"datasetLabels":{"nq":"NQ","hotpotqa":"HotpotQA","msmarco":"MS MARCO","fever":"FEVER","dbpedia-entity":"DBpedia-Entity"},"alphas":["0.3","0.7"],"methods":["uhg","uhgs","uhgh"],"methodLabels":{"uhg":"UHG","uhgs":"UHG-S","uhgh":"UHG-H"},"methodColors":{"uhg":"#4B5563","uhgs":"#0072B2","uhgh":"#CC79A7"},"methodMarkers":{"uhg":"pentagon","uhgs":"square","uhgh":"triangle"},"targetEf":"150","points":{"nq":{"0.3":{"uhg":[{"recall":0.64728,"qps":405.307,"param":"ef=50"},{"recall":0.76086,"qps":247.984,"param":"ef=100"},{"recall":0.81618,"qps":185.588,"param":"ef=150"},{"recall":0.86734,"qps":124.423,"param":"ef=250"},{"recall":0.9171,"qps":69.2141,"param":"ef=500"}],"uhgs":[{"recall":0.85002,"qps":280.056,"param":"ef=50"},{"recall":0.91652,"qps":189.756,"param":"ef=100"},{"recall":0.94316,"qps":144.573,"param":"ef=150"},{"recall":0.96602,"qps":98.9149,"param":"ef=250"},{"recall":0.98508,"qps":56.366,"param":"ef=500"}],"uhgh":[]},"0.7":{"uhg":[{"recall":0.81046,"qps":573.001,"param":"ef=50"},{"recall":0.88618,"qps":371.119,"param":"ef=100"},{"recall":0.91556,"qps":273.039,"param":"ef=150"},{"recall":0.94386,"qps":181.764,"param":"ef=250"},{"recall":0.96936,"qps":99.6013,"param":"ef=500"}],"uhgs":[],"uhgh":[{"recall":0.91748,"qps":330.404,"param":"ef=50"},{"recall":0.96358,"qps":181.873,"param":"ef=100"},{"recall":0.97852,"qps":127.181,"param":"ef=150"},{"recall":0.98824,"qps":80.5862,"param":"ef=250"},{"recall":0.9946,"qps":43.336,"param":"ef=500"}]}},"hotpotqa":{"0.3":{"uhg":[{"recall":0.65198,"qps":301.634,"param":"ef=50"},{"recall":0.76682,"qps":182.002,"param":"ef=100"},{"recall":0.81864,"qps":130.21,"param":"ef=150"},{"recall":0.87442,"qps":84.203,"param":"ef=250"},{"recall":0.92156,"qps":45.7707,"param":"ef=500"}],"uhgs":[{"recall":0.86012,"qps":197.055,"param":"ef=50"},{"recall":0.93514,"qps":132.788,"param":"ef=100"},{"recall":0.95972,"qps":101.045,"param":"ef=150"},{"recall":0.97924,"qps":68.7359,"param":"ef=250"},{"recall":0.99178,"qps":38.9973,"param":"ef=500"}],"uhgh":[]},"0.7":{"uhg":[{"recall":0.70398,"qps":434.329,"param":"ef=50"},{"recall":0.80608,"qps":266.872,"param":"ef=100"},{"recall":0.85246,"qps":193.653,"param":"ef=150"},{"recall":0.89762,"qps":125.487,"param":"ef=250"},{"recall":0.9397,"qps":68.2439,"param":"ef=500"}],"uhgs":[],"uhgh":[{"recall":0.83226,"qps":225.699,"param":"ef=50"},{"recall":0.91574,"qps":123.101,"param":"ef=100"},{"recall":0.94488,"qps":85.8084,"param":"ef=150"},{"recall":0.96844,"qps":54.1353,"param":"ef=250"},{"recall":0.98482,"qps":29.0781,"param":"ef=500"}]}},"msmarco":{"0.3":{"uhg":[{"recall":0.66074,"qps":350.735,"param":"ef=100"},{"recall":0.75596,"qps":265.36,"param":"ef=150"},{"recall":0.8328,"qps":181.942,"param":"ef=250"},{"recall":0.89592,"qps":103.586,"param":"ef=500"}],"uhgs":[{"recall":0.81798,"qps":334.816,"param":"ef=50"},{"recall":0.91926,"qps":257.467,"param":"ef=100"},{"recall":0.9474,"qps":207.378,"param":"ef=150"},{"recall":0.96882,"qps":149.076,"param":"ef=250"},{"recall":0.98252,"qps":86.6322,"param":"ef=500"}],"uhgh":[]},"0.7":{"uhg":[{"recall":0.60164,"qps":677.681,"param":"ef=50"},{"recall":0.76214,"qps":442.828,"param":"ef=100"},{"recall":0.81548,"qps":345.271,"param":"ef=150"},{"recall":0.87746,"qps":239.825,"param":"ef=250"},{"recall":0.9324,"qps":138.419,"param":"ef=500"}],"uhgs":[],"uhgh":[{"recall":0.87972,"qps":484.72,"param":"ef=50"},{"recall":0.95026,"qps":279.493,"param":"ef=100"},{"recall":0.96594,"qps":197.599,"param":"ef=150"},{"recall":0.97894,"qps":125.195,"param":"ef=250"},{"recall":0.98802,"qps":65.7193,"param":"ef=500"}]}},"fever":{"0.3":{"uhg":[{"recall":0.66546,"qps":261.893,"param":"ef=50"},{"recall":0.80828,"qps":153.375,"param":"ef=100"},{"recall":0.8562,"qps":111.082,"param":"ef=150"},{"recall":0.90168,"qps":71.856,"param":"ef=250"},{"recall":0.94154,"qps":38.9807,"param":"ef=500"}],"uhgs":[{"recall":0.88536,"qps":172.486,"param":"ef=50"},{"recall":0.9514,"qps":119.379,"param":"ef=100"},{"recall":0.97048,"qps":90.7983,"param":"ef=150"},{"recall":0.98498,"qps":55.6972,"param":"ef=250"},{"recall":0.99434,"qps":27.5815,"param":"ef=500"}],"uhgh":[]},"0.7":{"uhg":[{"recall":0.74498,"qps":366.909,"param":"ef=50"},{"recall":0.84592,"qps":226.79,"param":"ef=100"},{"recall":0.8807,"qps":162.316,"param":"ef=150"},{"recall":0.91728,"qps":106.551,"param":"ef=250"},{"recall":0.95016,"qps":57.0942,"param":"ef=500"}],"uhgs":[],"uhgh":[{"recall":0.86316,"qps":228.894,"param":"ef=50"},{"recall":0.93198,"qps":120.848,"param":"ef=100"},{"recall":0.95392,"qps":82.7132,"param":"ef=150"},{"recall":0.97098,"qps":50.9266,"param":"ef=250"},{"recall":0.98544,"qps":23.4413,"param":"ef=500"}]}},"dbpedia-entity":{"0.3":{"uhg":[{"recall":0.694047,"qps":384.415,"param":"ef=50"},{"recall":0.800043,"qps":222.613,"param":"ef=100"},{"recall":0.847238,"qps":158.486,"param":"ef=150"},{"recall":0.884668,"qps":102.994,"param":"ef=250"},{"recall":0.925653,"qps":54.7206,"param":"ef=500"}],"uhgs":[{"recall":0.832677,"qps":326.113,"param":"ef=50"},{"recall":0.90818,"qps":199.585,"param":"ef=100"},{"recall":0.934861,"qps":144.143,"param":"ef=150"},{"recall":0.955717,"qps":92.9549,"param":"ef=250"},{"recall":0.974347,"qps":49.5832,"param":"ef=500"}],"uhgh":[]},"0.7":{"uhg":[{"recall":0.799358,"qps":556.273,"param":"ef=50"},{"recall":0.870664,"qps":338.384,"param":"ef=100"},{"recall":0.897002,"qps":244.696,"param":"ef=150"},{"recall":0.923897,"qps":158.053,"param":"ef=250"},{"recall":0.956917,"qps":84.1884,"param":"ef=500"}],"uhgs":[],"uhgh":[{"recall":0.887152,"qps":273.586,"param":"ef=50"},{"recall":0.943769,"qps":149.006,"param":"ef=100"},{"recall":0.962698,"qps":102.915,"param":"ef=150"},{"recall":0.97773,"qps":64.3704,"param":"ef=250"},{"recall":0.988266,"qps":34.0068,"param":"ef=500"}]}}}}</script>
+<script>
+const DATA = JSON.parse(document.getElementById("plot-data").textContent);
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function node(name, attrs = {}, text = null) {
+  const element = document.createElementNS(SVG_NS, name);
+  for (const [key, value] of Object.entries(attrs)) {
+    element.setAttribute(key, value);
+  }
+  if (text !== null) element.textContent = text;
+  return element;
+}
+
+function efValue(point) {
+  return Number(point.param.split("=").pop());
+}
+
+function yScale(value, minValue, maxValue, plotTop, plotHeight) {
+  return plotTop + (maxValue - value) / (maxValue - minValue) * plotHeight;
+}
+
+function localRecallBounds(firstRecall, secondRecall) {
+  const lowerValue = Math.min(firstRecall, secondRecall);
+  const upperValue = Math.max(firstRecall, secondRecall);
+  const difference = Math.max(upperValue - lowerValue, 0.1);
+  const rawStep = difference / 4;
+  const power = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const scaled = rawStep / power;
+  const step = (scaled <= 1.5 ? 1 : scaled <= 3.5 ? 2 : scaled <= 7 ? 5 : 10) * power;
+  const min = Math.max(0, Math.floor((lowerValue - difference * 0.2) / step) * step);
+  const max = Math.min(100, Math.ceil((upperValue + difference * 0.35) / step) * step);
+  const ticks = [];
+  for (let tick = min; tick <= max + step * 0.5; tick += step) {
+    ticks.push(Number(tick.toFixed(8)));
+  }
+  return { min, max, ticks };
+}
+
+function comparisonMethod(alpha) {
+  return alpha === "0.3" ? "uhgs" : "uhgh";
+}
+
+function drawMarker(svg, type, x, y, color, size = 5.5) {
+  if (type === "square") {
+    svg.appendChild(node("rect", {
+      x: x - size / 2,
+      y: y - size / 2,
+      width: size,
+      height: size,
+      fill: color,
+      stroke: "#111111",
+      "stroke-width": 0.5,
+    }));
+  } else if (type === "triangle") {
+    const points = [
+      `${x},${y - size / 2}`,
+      `${x - size / 2},${y + size / 2}`,
+      `${x + size / 2},${y + size / 2}`,
+    ].join(" ");
+    svg.appendChild(node("polygon", {
+      points,
+      fill: color,
+      stroke: "#111111",
+      "stroke-width": 0.5,
+    }));
+  } else {
+    const points = [];
+    for (let i = 0; i < 5; i++) {
+      const angle = -Math.PI / 2 + (2 * Math.PI * i) / 5;
+      points.push(`${x + Math.cos(angle) * size / 2},${y + Math.sin(angle) * size / 2}`);
+    }
+    svg.appendChild(node("polygon", {
+      points: points.join(" "),
+      fill: color,
+      stroke: "#111111",
+      "stroke-width": 0.5,
+    }));
+  }
+}
+
+function drawLegend(svg, width) {
+  const y = 51;
+  const methods = DATA.methods;
+  const labelWidths = { uhg: 44, uhgs: 56, uhgh: 58 };
+  const gap = 36;
+  const itemWidths = methods.map((method) => 22 + labelWidths[method]);
+  const totalWidth = itemWidths.reduce((sum, value) => sum + value, 0) + gap * (methods.length - 1);
+  let x = width / 2 - totalWidth / 2;
+
+  methods.forEach((method, index) => {
+    const color = DATA.methodColors[method];
+    drawMarker(svg, DATA.methodMarkers[method], x + 8, y - 3, color, 9);
+    svg.appendChild(node("text", {
+      x: x + 21,
+      y: y,
+      class: "legend",
+    }, DATA.methodLabels[method]));
+    x += itemWidths[index] + gap;
+  });
+}
+
+function matchedPoint(dataset, alpha, method) {
+  return DATA.points[dataset][alpha][method]
+    .find((point) => String(efValue(point)) === String(DATA.targetEf));
+}
+
+function drawPanel(svg, dataset, alpha, panelIndex, panelX, panelY, panelWidth, panelHeight) {
+  const improvedMethod = comparisonMethod(alpha);
+  const baseline = matchedPoint(dataset, alpha, "uhg");
+  const improved = matchedPoint(dataset, alpha, improvedMethod);
+  if (!baseline || !improved) return;
+
+  const baselineRecall = baseline.recall * 100;
+  const improvedRecall = improved.recall * 100;
+  const bounds = localRecallBounds(baselineRecall, improvedRecall);
+  const plotLeft = panelX + 50;
+  const plotTop = panelY + 13;
+  const plotWidth = panelWidth - 60;
+  const plotHeight = 205;
+  const plotBottom = plotTop + plotHeight;
+
+  svg.appendChild(node("rect", {
+    x: plotLeft,
+    y: plotTop,
+    width: plotWidth,
+    height: plotHeight,
+    fill: "#ffffff",
+    stroke: "#111111",
+    "stroke-width": 1,
+  }));
+
+  bounds.ticks.forEach((tick) => {
+    const y = yScale(tick, bounds.min, bounds.max, plotTop, plotHeight);
+    svg.appendChild(node("line", {
+      x1: plotLeft,
+      y1: y,
+      x2: plotLeft + plotWidth,
+      y2: y,
+      class: tick === bounds.min ? "baseline" : "grid-line",
+    }));
+    svg.appendChild(node("text", {
+      x: plotLeft - 10,
+      y: y + 4,
+      "text-anchor": "end",
+      class: "tick",
+    }, Number.isInteger(tick) ? String(tick) : tick.toFixed(1)));
+  });
+
+  const barWidth = 72;
+  const bars = [
+    {
+      point: baseline,
+      recall: baselineRecall,
+      method: "uhg",
+      center: Math.round(plotLeft + plotWidth * 0.31),
+    },
+    {
+      point: improved,
+      recall: improvedRecall,
+      method: improvedMethod,
+      center: Math.round(plotLeft + plotWidth * 0.69),
+    },
+  ];
+  bars.forEach((bar) => {
+    const y = yScale(bar.recall, bounds.min, bounds.max, plotTop, plotHeight);
+    const barLeft = bar.center - barWidth / 2;
+    svg.appendChild(node("rect", {
+      x: barLeft,
+      y,
+      width: barWidth,
+      height: plotBottom - y,
+      fill: DATA.methodColors[bar.method],
+      stroke: "#111111",
+      "stroke-width": 0.7,
+    }));
+    svg.appendChild(node("text", {
+      x: bar.center,
+      y: y - 7,
+      "text-anchor": "middle",
+      class: "bar-value",
+    }, bar.recall.toFixed(1)));
+    svg.appendChild(node("text", {
+      x: bar.center,
+      y: plotBottom + 8,
+      "text-anchor": "middle",
+      "dominant-baseline": "hanging",
+      class: "bar-label",
+    }, DATA.methodLabels[bar.method]));
+  });
+
+  svg.appendChild(node("polyline", {
+    points: `${plotLeft - 4},${plotBottom - 8} ${plotLeft + 4},${plotBottom - 4} ${plotLeft - 4},${plotBottom}`,
+    fill: "none",
+    stroke: "#111111",
+    "stroke-width": 1.2,
+  }));
+  svg.appendChild(node("text", {
+    x: panelX + 12,
+    y: plotTop + plotHeight / 2,
+    transform: `rotate(-90 ${panelX + 12} ${plotTop + plotHeight / 2})`,
+    "text-anchor": "middle",
+    class: "axis-label",
+  }, "Recall (%)"));
+  svg.appendChild(node("text", {
+    x: plotLeft + plotWidth / 2,
+    y: plotBottom + 61,
+    "text-anchor": "middle",
+    class: "panel-label",
+  }, `(${String.fromCharCode(97 + panelIndex)}) ${DATA.datasetLabels[dataset]} α=${alpha}`));
+}
+
+function draw() {
+  const svg = document.getElementById("figure");
+  const width = 1480;
+  const height = 685;
+  const panelWidth = 274;
+  const panelHeight = 274;
+  const colGap = 0;
+  const rowGap = 35;
+  const startX = (width - DATA.datasets.length * panelWidth - (DATA.datasets.length - 1) * colGap) / 2;
+  const startY = 80;
+
+  svg.replaceChildren();
+
+  const defs = node("defs");
+  const style = node("style");
+  style.textContent = `
+    .figure-heading { font: bold 18px "Times New Roman", Times, serif; fill: #111111; }
+    .legend { font: 17px "Times New Roman", Times, serif; fill: #111111; }
+    .tick { font: 11px "Times New Roman", Times, serif; fill: #111111; }
+    .axis-label { font: 13px "Times New Roman", Times, serif; fill: #111111; }
+    .panel-label { font: 15px "Times New Roman", Times, serif; fill: #111111; }
+    .bar-label { font: 12px "Times New Roman", Times, serif; fill: #111111; }
+    .bar-value { font: bold 13px "Times New Roman", Times, serif; fill: #111111; }
+    .grid-line { stroke: #8f8f8f; stroke-width: 0.75; stroke-dasharray: 2 2; }
+    .axis-grid-edge { stroke: #111111; stroke-width: 0.9; }
+    .baseline { stroke: #111111; stroke-width: 1.1; }
+  `;
+  defs.appendChild(style);
+  svg.appendChild(defs);
+
+  svg.appendChild(node("title", { id: "figure-title" }, "Recall Improvement from Entry-Point Selection"));
+  svg.appendChild(node("desc", { id: "figure-desc" }, "Recall comparison at a fixed, matched ef_search value."));
+  svg.appendChild(node("rect", { x: 0, y: 0, width, height, fill: "#ffffff" }));
+
+  svg.appendChild(node("text", {
+    x: width / 2, y: 21, "text-anchor": "middle", class: "figure-heading",
+  }, "Recall Improvement from Entry-Point Selection"));
+  drawLegend(svg, width);
+
+  let panelIndex = 0;
+  DATA.alphas.forEach((alpha, rowIndex) => {
+    DATA.datasets.forEach((dataset, colIndex) => {
+      drawPanel(
+        svg,
+        dataset,
+        alpha,
+        panelIndex,
+        startX + colIndex * (panelWidth + colGap),
+        startY + rowIndex * (panelHeight + rowGap),
+        panelWidth,
+        panelHeight
+      );
+      panelIndex += 1;
+    });
+  });
+}
+
+function downloadSvg() {
+  const svg = document.getElementById("figure");
+  const source = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "ablation_fig8.svg";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+draw();
+</script>
+</body>
+</html>

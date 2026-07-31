@@ -1,0 +1,12 @@
+# recall@20 fixed-alpha baseline
+# method=sindi dataset=dbpedia-entity alpha=0.5 k=20 num_queries=-1 threads=1
+# data_dir=/tbase-project/vsag/scripts/UHG/data
+# index_dir=/tbase-project/vsag/scripts/UHG/data/index
+# result_dir=/tbase-project/vsag/scripts/UHG/results_20/main/dbpedia-entity/sindi
+# sindi_query_prune_ratio=0.5 sindi_term_prune_ratio=0
+sindi bk=200 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.594111 QPS: 610.857
+sindi bk=300 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.631478 QPS: 513.575
+sindi bk=400 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.658779 QPS: 442.961
+sindi bk=600 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.693683 QPS: 349.86
+sindi bk=1000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.732334 QPS: 246.447
+sindi bk=2000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.783726 QPS: 142.956

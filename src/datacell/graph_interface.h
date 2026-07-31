@@ -62,6 +62,20 @@ public:
     virtual void
     GetNeighbors(InnerIdType id, Vector<InnerIdType>& neighbor_ids) const = 0;
 
+    /**
+     * Returns a non-owning view of a node's neighbors when the graph storage can expose one
+     * safely. The view remains valid only while the underlying graph storage is not modified.
+     * Callers must fall back to GetNeighbors when this method returns false.
+     */
+    virtual bool
+    TryGetNeighborsView(InnerIdType id,
+                        const InnerIdType*& neighbor_ids,
+                        uint32_t& neighbor_count) const {
+        neighbor_ids = nullptr;
+        neighbor_count = 0;
+        return false;
+    }
+
     virtual void
     Resize(InnerIdType new_size) = 0;
 

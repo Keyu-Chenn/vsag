@@ -1,0 +1,12 @@
+# experiment=mixed_alpha_zt dataset=nq method=fhg recall_at=200
+# distribution=truncated_normal alpha_min=0.3 alpha_max=0.7 normal_mean=0.5 normal_stddev=0.1 seed=42
+# k=200 num_queries=-1 threads=1
+# points=200 400 600 1000 2000
+# mixed_alpha_file=/tbase-project/vsag/scripts/UHG/mixed_alpha_zt/data/gt_top200/nq/alphas.npy
+# mixed_gt_file=/tbase-project/vsag/scripts/UHG/mixed_alpha_zt/data/gt_top200/nq/ground_truth.npy
+# build_alpha=0.5 hybrid_pruning=false max_hops=0
+fhg ef_search=200 threads=1 Recall: 0.837225 QPS: 140.255
+fhg ef_search=400 threads=1 Recall: 0.89794 QPS: 79.1016
+fhg ef_search=600 threads=1 Recall: 0.922075 QPS: 56.2031
+fhg ef_search=1000 threads=1 Recall: 0.947865 QPS: 36.0163
+fhg ef_search=2000 threads=1 Recall: 0.970355 QPS: 19.8025

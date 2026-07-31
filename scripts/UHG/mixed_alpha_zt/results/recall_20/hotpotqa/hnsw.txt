@@ -1,0 +1,12 @@
+# experiment=mixed_alpha_zt dataset=hotpotqa method=hnsw recall_at=20
+# distribution=truncated_normal alpha_min=0.3 alpha_max=0.7 normal_mean=0.5 normal_stddev=0.1 seed=42
+# k=20 num_queries=-1 threads=1
+# points=20 40 60 100 160 200
+# mixed_alpha_file=/tbase-project/vsag/scripts/UHG/mixed_alpha_zt/data/gt_top200/hotpotqa/alphas.npy
+# mixed_gt_file=/tbase-project/vsag/scripts/UHG/mixed_alpha_zt/data/gt_top200/hotpotqa/ground_truth.npy
+hnsw ef_search=20 threads=1 Recall: 0.44425 QPS: 733.346
+hnsw ef_search=40 threads=1 Recall: 0.60375 QPS: 437.567
+hnsw ef_search=60 threads=1 Recall: 0.6831 QPS: 316.011
+hnsw ef_search=100 threads=1 Recall: 0.7703 QPS: 204.953
+hnsw ef_search=160 threads=1 Recall: 0.83075 QPS: 135.363
+hnsw ef_search=200 threads=1 Recall: 0.85495 QPS: 111.52

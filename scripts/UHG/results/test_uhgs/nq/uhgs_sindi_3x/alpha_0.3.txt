@@ -1,0 +1,14 @@
+# UHGS with SINDI entry candidates set to 3x ef_search
+# method=uhgs dataset=nq alpha=0.3 k=100 num_queries=-1 threads=1
+# fixed index=/tbase-project/vsag/scripts/UHG/data/index_hybrid_union/703_nq_hybrid_index.index (load only; no rebuild)
+# standard UHGS comparison=/tbase-project/vsag/scripts/UHG/results/test_uhgs/nq/uhgs/alpha_0.3.txt (sindi_bk=ef_search)
+# main auto comparison=/tbase-project/vsag/scripts/UHG/results/main/nq/uhg/alpha_0.3.txt
+# build_alpha=0.5 hybrid_prune_scale=0.3 max_hops=0
+# sindi_bk=3*ef_search
+# sindi_query_prune_ratio=0.5 sindi_term_prune_ratio=0
+# search_points=100 200 300 500 1000
+uhgs ef_search=100 sindi_bk=300 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.90839 QPS: 154.418
+uhgs ef_search=200 sindi_bk=600 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.95381 QPS: 93.9289
+uhgs ef_search=300 sindi_bk=900 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.9705 QPS: 68.5342
+uhgs ef_search=500 sindi_bk=1500 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.98376 QPS: 44.7832
+uhgs ef_search=1000 sindi_bk=3000 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.99329 QPS: 24.3036

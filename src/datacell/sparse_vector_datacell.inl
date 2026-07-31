@@ -25,11 +25,18 @@ SparseVectorDataCell<QuantTmpl, IOTmpl>::query(float* result_dists,
                                                const InnerIdType* idx,
                                                InnerIdType id_count) {
     for (int i = 0; i < id_count; ++i) {
-        bool need_release{true};
+        bool need_release{false};
         auto codes = this->GetCodesById(idx[i], need_release);
-        computer->ComputeDist(codes, result_dists + i);
+        try {
+            computer->ComputeDist(codes, result_dists + i);
+        } catch (...) {
+            if (need_release) {
+                this->Release(codes);
+            }
+            throw;
+        }
         if (need_release) {
-            allocator_->Deallocate((void*)codes);
+            this->Release(codes);
         }
     }
 }
@@ -114,14 +121,25 @@ SparseVectorDataCell<QuantTmpl, IOTmpl>::InMemory() const {
 template <typename QuantTmpl, typename IOTmpl>
 const uint8_t*
 SparseVectorDataCell<QuantTmpl, IOTmpl>::GetCodesById(InnerIdType id, bool& need_release) const {
-    uint32_t offset;
-    offset_io_->Read(sizeof(offset), id * sizeof(offset), (uint8_t*)&offset);
-    uint32_t length;
-    io_->Read(sizeof(length), offset, (uint8_t*)&length);
-    need_release = true;
-    size_t read_size = sizeof(uint32_t) * (2 * length + 1);
-    auto* codes = (uint8_t*)allocator_->Allocate(read_size);
-    io_->Read(read_size, offset, codes);
+    CHECK_ARGUMENT(id < total_count_, fmt::format("sparse vector id {} is out of range", id));
+
+    uint32_t offset{0};
+    CHECK_ARGUMENT(offset_io_->Read(
+                       sizeof(offset), id * sizeof(offset), reinterpret_cast<uint8_t*>(&offset)),
+                   fmt::format("failed to read offset of sparse vector {}", id));
+
+    uint32_t length{0};
+    CHECK_ARGUMENT(io_->Read(
+                       sizeof(length), offset, reinterpret_cast<uint8_t*>(&length)),
+                   fmt::format("failed to read length of sparse vector {}", id));
+
+    const uint64_t read_size = sizeof(uint32_t) * (2ULL * length + 1ULL);
+    CHECK_ARGUMENT(read_size <= max_code_size_,
+                   fmt::format("invalid code size {} of sparse vector {}", read_size, id));
+
+    need_release = false;
+    auto* codes = io_->Read(read_size, offset, need_release);
+    CHECK_ARGUMENT(codes != nullptr, fmt::format("failed to read sparse vector {}", id));
     return codes;
 }
 
@@ -152,12 +170,37 @@ SparseVectorDataCell<QuantTmpl, IOTmpl>::Train(const void* data, uint64_t count)
 template <typename QuantTmpl, typename IOTmpl>
 float
 SparseVectorDataCell<QuantTmpl, IOTmpl>::ComputePairVectors(InnerIdType id1, InnerIdType id2) {
-    bool release1, release2;
+    bool release1{false};
+    bool release2{false};
     auto* codes1 = this->GetCodesById(id1, release1);
-    auto* codes2 = this->GetCodesById(id2, release2);
-    auto result = this->quantizer_->Compute(codes1, codes2);
-    allocator_->Deallocate((void*)codes1);
-    allocator_->Deallocate((void*)codes2);
+    const uint8_t* codes2{nullptr};
+    try {
+        codes2 = this->GetCodesById(id2, release2);
+    } catch (...) {
+        if (release1) {
+            this->Release(codes1);
+        }
+        throw;
+    }
+
+    float result{0.0F};
+    try {
+        result = this->quantizer_->Compute(codes1, codes2);
+    } catch (...) {
+        if (release1) {
+            this->Release(codes1);
+        }
+        if (release2) {
+            this->Release(codes2);
+        }
+        throw;
+    }
+    if (release1) {
+        this->Release(codes1);
+    }
+    if (release2) {
+        this->Release(codes2);
+    }
     return result;
 }
 

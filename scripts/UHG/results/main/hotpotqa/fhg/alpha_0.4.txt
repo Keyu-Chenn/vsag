@@ -1,0 +1,13 @@
+# exp_7 FHG
+# method=uhg dataset=hotpotqa alpha=0.4 k=100 num_queries=-1 threads=1
+# graph_build: bk=100 query_prune_ratio=0.9 refine=none fixed_alpha=0.5
+# build_alpha=0.5
+# graph_path=/tbase-project/vsag/scripts/UHG/data/fhg/hotpotqa_fhg_alpha_0_5.h5
+# hybrid_index_path=/tbase-project/vsag/scripts/UHG/data/index/703_hotpotqa_fhg_hybrid_index.index
+# hybrid_pruning=false max_hops=0 sindi_bk=100
+# result_dir=/tbase-project/vsag/scripts/UHG/results/main/hotpotqa/fhg
+fhg ef_search=100 hybrid_pruning=false threads=1 Recall: 0.77553 QPS: 158.466
+fhg ef_search=200 hybrid_pruning=false threads=1 Recall: 0.85279 QPS: 91.6263
+fhg ef_search=300 hybrid_pruning=false threads=1 Recall: 0.88845 QPS: 65.0607
+fhg ef_search=500 hybrid_pruning=false threads=1 Recall: 0.92261 QPS: 42.2212
+fhg ef_search=1000 hybrid_pruning=false threads=1 Recall: 0.95448 QPS: 23.2958

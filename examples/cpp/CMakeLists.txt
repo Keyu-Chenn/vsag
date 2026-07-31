@@ -138,12 +138,14 @@ target_link_libraries (608_hybrid_exp8 vsag libhdf5_cpp.a libhdf5.a z)
 
 add_executable (701_uhg_exp1 701_uhg_exp1.cpp)
 target_link_libraries (701_uhg_exp1 vsag libhdf5_cpp.a libhdf5.a z)
+target_link_libraries (701_uhg_exp1 OpenMP::OpenMP_CXX)
 
 add_executable (702_uhg_exp2 702_uhg_exp2.cpp)
 target_link_libraries (702_uhg_exp2 vsag libhdf5_cpp.a libhdf5.a z OpenMP::OpenMP_CXX)
 
 add_executable (703_uhg_exp3 703_uhg_exp3.cpp)
 target_link_libraries (703_uhg_exp3 vsag libhdf5_cpp.a libhdf5.a z)
+target_link_libraries (703_uhg_exp3 OpenMP::OpenMP_CXX)
 
 add_executable (704_uhg_exp4 704_uhg_exp4.cpp)
 target_link_libraries (704_uhg_exp4 vsag libhdf5_cpp.a libhdf5.a z OpenMP::OpenMP_CXX)
@@ -156,3 +158,20 @@ target_link_libraries (706_uhg_exp6 vsag libhdf5_cpp.a libhdf5.a z OpenMP::OpenM
 
 add_executable (707_uhg_exp7 707_uhg_exp7.cpp)
 target_link_libraries (707_uhg_exp7 vsag libhdf5_cpp.a libhdf5.a z)
+
+add_executable (708_uhg_exp8 708_uhg_exp8.cpp)
+target_link_libraries (708_uhg_exp8 vsag libhdf5_cpp.a libhdf5.a z)
+target_link_libraries (708_uhg_exp8 OpenMP::OpenMP_CXX)
+
+add_executable (709_uhg_exp9 709_uhg_exp9.cpp)
+target_link_libraries (709_uhg_exp9 vsag libhdf5_cpp.a libhdf5.a z)
+target_link_libraries (709_uhg_exp9 OpenMP::OpenMP_CXX)
+
+add_executable (710_uhg_exp10 710_uhg_exp10.cpp)
+target_link_libraries (710_uhg_exp10 vsag libhdf5_cpp.a libhdf5.a z OpenMP::OpenMP_CXX)
+
+add_executable (711_uhg_exp11 711_uhg_exp11.cpp)
+target_link_libraries (711_uhg_exp11 vsag libhdf5_cpp.a libhdf5.a z)
+
+add_executable (712_uhg_exp12 712_uhg_exp12.cpp)
+target_link_libraries (712_uhg_exp12 vsag libhdf5_cpp.a libhdf5.a z)

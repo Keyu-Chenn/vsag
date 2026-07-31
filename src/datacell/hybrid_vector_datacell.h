@@ -36,12 +36,27 @@ DEFINE_POINTER(HybridVectorDataCell);
  * HybridVectorDataCell manages both dense and sparse vectors
  * Each hybrid vector contains one dense vector and one sparse vector
  */
+struct HybridSearchScratch {
+    explicit HybridSearchScratch(Allocator* allocator)
+        : allocator_(allocator),
+          sparse_dists_(allocator),
+          sparse_ids_(allocator),
+          sparse_positions_(allocator),
+          selected_sparse_dists_(allocator) {
+    }
+
+    Allocator* allocator_{nullptr};
+    Vector<float> sparse_dists_;
+    Vector<InnerIdType> sparse_ids_;
+    Vector<InnerIdType> sparse_positions_;
+    Vector<float> selected_sparse_dists_;
+};
+
 // Hybrid Computer that combines dense and sparse computers
 class HybridComputer : public ComputerInterface {
 public:
     HybridComputer(const ComputerInterfacePtr& dense_computer,
                    const ComputerInterfacePtr& sparse_computer,
-                   float dense_query_norm,
                    float sparse_query_norm,
                    float dense_weight = 0.5f,
                    float sparse_weight = 0.5f);
@@ -88,23 +103,32 @@ public:
         return sparse_query_norm_;
     }
 
-    [[nodiscard]] float
-    GetDenseQueryNorm() const {
-        return dense_query_norm_;
+    HybridSearchScratch&
+    GetSearchScratch(Allocator* allocator) {
+        if (search_scratch_ == nullptr or search_scratch_->allocator_ != allocator) {
+            search_scratch_ = std::make_unique<HybridSearchScratch>(allocator);
+        }
+        return *search_scratch_;
     }
 
     void
-    SetSparseDistanceTable(const float* table, int64_t count) override {
-        sparse_distance_table_ = table;
-        sparse_distance_table_size_ = count;
+    SetHybridWeight(float dense_weight, float sparse_weight) override {
+        if (dense_weight < 0.0f || sparse_weight < 0.0f) {
+            throw VsagException(ErrorType::INVALID_ARGUMENT,
+                                "Weights must be non-negative");
+        }
+        dense_weight_ = dense_weight;
+        sparse_weight_ = sparse_weight;
     }
 
-    [[nodiscard]] bool
-    TryGetSparseDistance(InnerIdType inner_id, float& distance) const;
+    [[nodiscard]] float
+    GetDenseWeight() const {
+        return dense_weight_;
+    }
 
-    [[nodiscard]] bool
-    HasSparseDistanceTable() const {
-        return sparse_distance_table_ != nullptr;
+    [[nodiscard]] float
+    GetSparseWeight() const {
+        return sparse_weight_;
     }
 
 private:
@@ -115,10 +139,8 @@ private:
     float sparse_weight_;
     float lower_bound_{std::numeric_limits<float>::max()};
     float prune_scale_{1.0F};
-    float dense_query_norm_{0.0F};
     float sparse_query_norm_{0.0F};
-    const float* sparse_distance_table_{nullptr};
-    int64_t sparse_distance_table_size_{0};
+    std::unique_ptr<HybridSearchScratch> search_scratch_{nullptr};
 };
 
 
@@ -232,12 +254,12 @@ public:
 
     // Accessors for dense and sparse components
     FlattenInterfacePtr
-    GetDenseCell() {
+    GetDenseCell() const {
         return dense_cell_;
     }
 
     FlattenInterfacePtr
-    GetSparseCell() {
+    GetSparseCell() const {
         return sparse_cell_;
     }
 
@@ -286,9 +308,6 @@ private:
     [[nodiscard]] float
     compute_sparse_norm(const SparseVector& sparse_vector) const;
 
-    [[nodiscard]] float
-    compute_dense_norm(const float* dense_vector) const;
-
     void
     ensure_norm_capacity(InnerIdType capacity);
 
@@ -308,11 +327,9 @@ private:
 
     Allocator* allocator_{nullptr};
 
-    int64_t dense_dim_;
     // Weights for combining dense and sparse distances
     float dense_weight_{0.5f};
     float sparse_weight_{0.5f};
-    std::vector<float> dense_norms_;
     std::vector<float> sparse_norms_;
 };
 

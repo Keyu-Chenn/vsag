@@ -1,0 +1,11 @@
+# recall@20 fixed-alpha baseline
+# method=hnsw dataset=nq alpha=0.5 k=20 num_queries=-1 threads=1
+# data_dir=/tbase-project/vsag/scripts/UHG/data
+# index_dir=/tbase-project/vsag/scripts/UHG/data/index
+# result_dir=/tbase-project/vsag/scripts/UHG/results_20/main/nq/hnsw
+hnsw bk=20 ef_search=20 threads=1 Recall: 0.55845 QPS: 1014.29
+hnsw bk=40 ef_search=40 threads=1 Recall: 0.71985 QPS: 620.696
+hnsw bk=60 ef_search=60 threads=1 Recall: 0.7889 QPS: 451.794
+hnsw bk=100 ef_search=100 threads=1 Recall: 0.85475 QPS: 299.72
+hnsw bk=160 ef_search=160 threads=1 Recall: 0.89975 QPS: 201.928
+hnsw bk=200 ef_search=200 threads=1 Recall: 0.91795 QPS: 167.024

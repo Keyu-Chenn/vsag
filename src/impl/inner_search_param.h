@@ -16,6 +16,7 @@
 #pragma once
 
 #include <mutex>
+#include <vector>
 
 #include "typing.h"
 #include "utils/pointer_define.h"
@@ -46,11 +47,13 @@ public:
     int range_search_limit_size{-1};
     int64_t parallel_search_thread_count{1};
     bool is_hybrid{false};
+    bool enable_hybrid_pruning{true};
     float hybrid_prune_scale{1.0F};
+    float hybrid_dense_weight{0.5F};
+    float hybrid_sparse_weight{0.5F};
     uint64_t hybrid_candidate_set_size{0};
     uint32_t max_hops{0};
-    const float* sparse_distance_table{nullptr};
-    int64_t sparse_distance_table_size{0};
+    bool use_graph_neighbor_view{false};
 
     //​​Multi-threaded search for a single query​
     bool use_muti_threads_for_one_query{false};
@@ -87,11 +90,13 @@ public:
             range_search_limit_size = other.range_search_limit_size;
             is_inner_id_allowed = other.is_inner_id_allowed;
             is_hybrid = other.is_hybrid;
+            enable_hybrid_pruning = other.enable_hybrid_pruning;
             hybrid_prune_scale = other.hybrid_prune_scale;
+            hybrid_dense_weight = other.hybrid_dense_weight;
+            hybrid_sparse_weight = other.hybrid_sparse_weight;
             hybrid_candidate_set_size = other.hybrid_candidate_set_size;
             max_hops = other.max_hops;
-            sparse_distance_table = other.sparse_distance_table;
-            sparse_distance_table_size = other.sparse_distance_table_size;
+            use_graph_neighbor_view = other.use_graph_neighbor_view;
             scan_bucket_size = other.scan_bucket_size;
             factor = other.factor;
             first_order_scan_ratio = other.first_order_scan_ratio;

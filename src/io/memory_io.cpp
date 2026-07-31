@@ -15,12 +15,16 @@
 
 #include "memory_io.h"
 
+#include <algorithm>
+
 namespace vsag {
 
 void
 MemoryIO::WriteImpl(const uint8_t* data, uint64_t size, uint64_t offset) {
-    check_and_realloc(size + offset);
+    const uint64_t required_size = size + offset;
+    check_and_realloc(required_size);
     memcpy(start_ + offset, data, size);
+    this->size_ = std::max(this->size_, required_size);
 }
 
 bool

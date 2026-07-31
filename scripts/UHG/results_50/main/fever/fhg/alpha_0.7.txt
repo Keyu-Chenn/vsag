@@ -1,0 +1,13 @@
+# recall@50 fixed-alpha FHG
+# method=uhg dataset=fever alpha=0.7 k=50 num_queries=-1 threads=1
+# graph_build: bk=100 query_prune_ratio=0.9 refine=none fixed_alpha=0.5
+# build_alpha=0.5
+# graph_path=/tbase-project/vsag/scripts/UHG/data/fhg/fever_fhg_alpha_0_5.h5
+# hybrid_index_path=/tbase-project/vsag/scripts/UHG/data/index/703_fever_fhg_hybrid_index.index
+# hybrid_pruning=false max_hops=0 sindi_bk=100
+# result_dir=/tbase-project/vsag/scripts/UHG/results_50/main/fever/fhg
+fhg ef_search=50 hybrid_pruning=false threads=1 Recall: 0.66154 QPS: 268.313
+fhg ef_search=100 hybrid_pruning=false threads=1 Recall: 0.81954 QPS: 148.254
+fhg ef_search=150 hybrid_pruning=false threads=1 Recall: 0.87968 QPS: 105.255
+fhg ef_search=250 hybrid_pruning=false threads=1 Recall: 0.91968 QPS: 69.2328
+fhg ef_search=500 hybrid_pruning=false threads=1 Recall: 0.94844 QPS: 39.0155

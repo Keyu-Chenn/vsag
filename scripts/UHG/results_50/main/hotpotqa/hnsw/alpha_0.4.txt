@@ -1,0 +1,11 @@
+# recall@50 fixed-alpha baseline
+# method=hnsw dataset=hotpotqa alpha=0.4 k=50 num_queries=-1 threads=1
+# data_dir=/tbase-project/vsag/scripts/UHG/data
+# index_dir=/tbase-project/vsag/scripts/UHG/data/index
+# result_dir=/tbase-project/vsag/scripts/UHG/results_50/main/hotpotqa/hnsw
+hnsw bk=50 ef_search=50 threads=1 Recall: 0.39876 QPS: 371.376
+hnsw bk=100 ef_search=100 threads=1 Recall: 0.5442 QPS: 206.396
+hnsw bk=150 ef_search=150 threads=1 Recall: 0.62242 QPS: 144.574
+hnsw bk=250 ef_search=250 threads=1 Recall: 0.71122 QPS: 91.9943
+hnsw bk=400 ef_search=400 threads=1 Recall: 0.7813 QPS: 60.6019
+hnsw bk=500 ef_search=500 threads=1 Recall: 0.81012 QPS: 49.7341

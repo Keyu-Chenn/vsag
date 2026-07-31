@@ -1,0 +1,13 @@
+# exp_7 FHG
+# method=uhg dataset=dbpedia-entity alpha=0.5 k=100 num_queries=-1 threads=1
+# graph_build: bk=100 query_prune_ratio=0.9 refine=none fixed_alpha=0.5
+# build_alpha=0.5
+# graph_path=/tbase-project/vsag/scripts/UHG/data/fhg/dbpedia-entity_fhg_alpha_0_5.h5
+# hybrid_index_path=/tbase-project/vsag/scripts/UHG/data/index/703_dbpedia-entity_fhg_hybrid_index.index
+# hybrid_pruning=false max_hops=0 sindi_bk=100
+# result_dir=/tbase-project/vsag/scripts/UHG/results/main/dbpedia-entity/fhg
+fhg ef_search=100 hybrid_pruning=false threads=1 Recall: 0.825139 QPS: 195.929
+fhg ef_search=200 hybrid_pruning=false threads=1 Recall: 0.890236 QPS: 109.296
+fhg ef_search=300 hybrid_pruning=false threads=1 Recall: 0.916488 QPS: 77.5324
+fhg ef_search=500 hybrid_pruning=false threads=1 Recall: 0.943362 QPS: 49.6135
+fhg ef_search=1000 hybrid_pruning=false threads=1 Recall: 0.963619 QPS: 26.8654

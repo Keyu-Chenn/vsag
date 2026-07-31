@@ -1,0 +1,12 @@
+# exp_7 baseline
+# method=sindi dataset=msmarco alpha=0.3 k=100 num_queries=-1 threads=1
+# data_dir=/tbase-project/vsag/scripts/UHG/data
+# index_dir=/tbase-project/vsag/scripts/UHG/data/index
+# result_dir=/tbase-project/vsag/scripts/UHG/results/main/msmarco/sindi
+# sindi_query_prune_ratio=0.5 sindi_term_prune_ratio=0
+sindi bk=1000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.80998 QPS: 201.722
+sindi bk=1500 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.83928 QPS: 154.185
+sindi bk=2000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.85682 QPS: 124.984
+sindi bk=3000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.87834 QPS: 91.1262
+sindi bk=5000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.90285 QPS: 59.1726
+sindi bk=10000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.92991 QPS: 31.8922

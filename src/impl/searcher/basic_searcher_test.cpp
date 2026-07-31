@@ -17,6 +17,7 @@
 
 #include <cstring>
 #include <limits>
+#include <tuple>
 #include <vector>
 
 #include "algorithm/inner_index_interface.h"
@@ -66,7 +67,14 @@ public:
 
     ComputerInterfacePtr
     FactoryComputer(const void*) override {
-        return std::make_shared<CountingComputer>();
+        last_computer_ = std::make_shared<CountingComputer>();
+        return last_computer_;
+    }
+
+    [[nodiscard]] float
+    GetLastSearchLowerBound() const {
+        return last_computer_ == nullptr ? std::numeric_limits<float>::max()
+                                         : last_computer_->GetSearchLowerBound();
     }
 
     void
@@ -131,6 +139,7 @@ public:
     }
 
 private:
+    std::shared_ptr<CountingComputer> last_computer_{nullptr};
     std::vector<float> distances_;
     std::vector<uint32_t>* query_counts_{nullptr};
 };
@@ -152,10 +161,22 @@ public:
 
     void
     GetNeighbors(InnerIdType id, Vector<InnerIdType>& neighbor_ids) const override {
+        ++copy_calls_;
         neighbor_ids.clear();
         for (auto neighbor : neighbors_.at(id)) {
             neighbor_ids.push_back(neighbor);
         }
+    }
+
+    bool
+    TryGetNeighborsView(InnerIdType id,
+                        const InnerIdType*& neighbor_ids,
+                        uint32_t& neighbor_count) const override {
+        ++view_calls_;
+        const auto& stored_neighbors = neighbors_.at(id);
+        neighbor_ids = stored_neighbors.data();
+        neighbor_count = static_cast<uint32_t>(stored_neighbors.size());
+        return true;
     }
 
     uint32_t
@@ -171,8 +192,20 @@ public:
     Prefetch(InnerIdType, uint32_t) override {
     }
 
+    [[nodiscard]] uint32_t
+    CopyCalls() const {
+        return copy_calls_;
+    }
+
+    [[nodiscard]] uint32_t
+    ViewCalls() const {
+        return view_calls_;
+    }
+
 private:
     std::vector<std::vector<InnerIdType>> neighbors_;
+    mutable uint32_t copy_calls_{0};
+    mutable uint32_t view_calls_{0};
 };
 
 class RejectIdsFilter : public Filter {
@@ -435,6 +468,96 @@ TEST_CASE("Hybrid search leaves candidate set unbounded by default", "[ut][Basic
 
     REQUIRE(result->Size() == search_param.topk);
     REQUIRE(stats.hops.load(std::memory_order_relaxed) == 4);
+}
+
+TEST_CASE("BasicSearcher direct neighbor view matches copied neighbors",
+          "[ut][BasicSearcher]") {
+    auto allocator = SafeAllocator::FactoryDefaultAllocator();
+    IndexCommonParam common;
+    common.allocator_ = allocator;
+    common.dim_ = 1;
+    common.metric_ = MetricType::METRIC_TYPE_L2SQR;
+
+    auto run_search = [&](bool use_graph_neighbor_view) {
+        auto graph = std::make_shared<StaticGraph>(
+            std::vector<std::vector<InnerIdType>>{{1, 2}, {3}, {3}, {}});
+        std::vector<uint32_t> query_counts;
+        auto flatten = std::make_shared<FixedDistanceFlatten>(
+            std::vector<float>{0.0F, 0.1F, 0.2F, 0.3F}, &query_counts);
+
+        InnerSearchParam search_param;
+        search_param.ep = 0;
+        search_param.ef = 4;
+        search_param.topk = 4;
+        search_param.use_graph_neighbor_view = use_graph_neighbor_view;
+
+        auto vl = std::make_shared<VisitedList>(graph->MaxCapacity(), allocator.get());
+        BasicSearcher searcher(common);
+        Statistics stats;
+        float query = 0.0F;
+        auto result =
+            searcher.Search(graph,
+                            flatten,
+                            vl,
+                            &query,
+                            search_param,
+                            (LabelTablePtr)nullptr,
+                            stats);
+
+        std::vector<std::pair<float, InnerIdType>> records;
+        while (not result->Empty()) {
+            records.emplace_back(result->Top());
+            result->Pop();
+        }
+        return std::make_tuple(records, graph->CopyCalls(), graph->ViewCalls());
+    };
+
+    const auto [copied_records, copied_calls, unused_view_calls] = run_search(false);
+    const auto [view_records, fallback_copy_calls, view_calls] = run_search(true);
+    REQUIRE(copied_records == view_records);
+    REQUIRE(copied_calls > 0);
+    REQUIRE(unused_view_calls == 0);
+    REQUIRE(fallback_copy_calls == 0);
+    REQUIRE(view_calls > 0);
+}
+
+TEST_CASE("Hybrid sparse upper-bound pruning can be disabled", "[ut][BasicSearcher]") {
+    auto allocator = SafeAllocator::FactoryDefaultAllocator();
+    IndexCommonParam common;
+    common.allocator_ = allocator;
+    common.dim_ = 1;
+    common.metric_ = MetricType::METRIC_TYPE_L2SQR;
+
+    auto run_search = [&](bool enable_hybrid_pruning) {
+        auto graph = std::make_shared<StaticGraph>(std::vector<std::vector<InnerIdType>>{
+            {1, 2, 3},
+            {},
+            {},
+            {},
+        });
+        std::vector<uint32_t> query_counts;
+        auto flatten = std::make_shared<FixedDistanceFlatten>(
+            std::vector<float>{0.0F, 0.1F, 0.2F, 0.3F}, &query_counts);
+
+        InnerSearchParam search_param;
+        search_param.ep = 0;
+        search_param.ef = 2;
+        search_param.topk = 2;
+        search_param.is_hybrid = true;
+        search_param.enable_hybrid_pruning = enable_hybrid_pruning;
+
+        auto vl = std::make_shared<VisitedList>(graph->MaxCapacity(), allocator.get());
+        BasicSearcher searcher(common);
+        Statistics stats;
+        float query = 0.0F;
+        auto result =
+            searcher.Search(graph, flatten, vl, &query, search_param, (LabelTablePtr)nullptr, stats);
+        REQUIRE(result->Size() == search_param.topk);
+        return flatten->GetLastSearchLowerBound();
+    };
+
+    REQUIRE(run_search(true) < std::numeric_limits<float>::max());
+    REQUIRE(run_search(false) == std::numeric_limits<float>::max());
 }
 
 TEST_CASE("Hybrid search bounds candidate set by explicit search parameter", "[ut][BasicSearcher]") {

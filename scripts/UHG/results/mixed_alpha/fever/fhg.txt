@@ -1,0 +1,11 @@
+# experiment=mixed_alpha method=fhg dataset=fever
+# distribution=uniform alpha_min=0.3 alpha_max=0.7 seed=42
+# k=100 num_queries=-1 threads=1
+# mixed_alpha_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/fever/alphas.npy
+# mixed_gt_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/fever/ground_truth.npy
+# hybrid_pruning=false
+fhg ef_search=100 threads=1 Recall: 0.77491 QPS: 143.736
+fhg ef_search=200 threads=1 Recall: 0.87606 QPS: 80.8145
+fhg ef_search=300 threads=1 Recall: 0.90863 QPS: 57.8599
+fhg ef_search=500 threads=1 Recall: 0.93402 QPS: 37.5565
+fhg ef_search=1000 threads=1 Recall: 0.9569 QPS: 20.6222

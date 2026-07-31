@@ -203,8 +203,11 @@ PrintUsage(const char* program_name) {
     std::cout << "Usage: " << program_name << " <h5_file> [options]\n"
               << "\nOptions:\n"
               << "  -k <int>                   Top-k neighbors (default: 32)\n"
-              << "  --bk <int>                 Candidate pool size (default: 1000)\n"
+              << "  --bk <int>                 Candidate pool size (default: 100)\n"
+              << "  --dense_ef_search <int>    HNSW ef_search for dense candidates (default: 200)\n"
               << "  --alpha <float>            Dense weight alpha (default: 0.5)\n"
+              << "  --query_prune_ratio <float>\n"
+              << "                              SINDI query pruning ratio (default: 0.5)\n"
               << "  --output_dir <path>        Output directory (default: /tbase-project/vsag/scripts/UHG/data/fhg)\n"
               << "  --num_points <int>         Points to process (default: all)\n"
               << "  --index_dir <path>         Index cache directory (default: /tbase-project/vsag/scripts/UHG/data/index)\n"
@@ -223,8 +226,10 @@ struct Config {
     std::string output_dir = "/tbase-project/vsag/scripts/UHG/data/fhg";
     std::string index_dir = "/tbase-project/vsag/scripts/UHG/data/index";
     int k = 32;
-    int bk = 1000;
+    int bk = 100;
+    int dense_ef_search = 200;
     float alpha = 0.5f;
+    float query_prune_ratio = 0.5f;
     int num_points = -1;
     int threads = 8;
     bool rebuild = false;
@@ -252,8 +257,12 @@ ParseCommandLine(int argc, char** argv) {
             config.bk = 10 * config.k;
         } else if (arg == "--bk" && i + 1 < argc) {
             config.bk = std::atoi(argv[++i]);
+        } else if (arg == "--dense_ef_search" && i + 1 < argc) {
+            config.dense_ef_search = std::atoi(argv[++i]);
         } else if (arg == "--alpha" && i + 1 < argc) {
             config.alpha = std::atof(argv[++i]);
+        } else if (arg == "--query_prune_ratio" && i + 1 < argc) {
+            config.query_prune_ratio = std::atof(argv[++i]);
         } else if (arg == "--output_dir" && i + 1 < argc) {
             config.output_dir = argv[++i];
         } else if (arg == "--num_points" && i + 1 < argc) {
@@ -269,6 +278,19 @@ ParseCommandLine(int argc, char** argv) {
             PrintUsage(argv[0]);
             exit(1);
         }
+    }
+
+    if (config.k <= 0 || config.bk <= 0 || config.dense_ef_search <= 0) {
+        std::cerr << "Error: k, bk, and dense_ef_search must be positive" << std::endl;
+        exit(1);
+    }
+    if (config.dense_ef_search < config.bk) {
+        std::cerr << "Error: dense_ef_search must be greater than or equal to bk" << std::endl;
+        exit(1);
+    }
+    if (config.query_prune_ratio < 0.0f || config.query_prune_ratio > 0.9f) {
+        std::cerr << "Error: query_prune_ratio must be in [0, 0.9]" << std::endl;
+        exit(1);
     }
 
     return config;
@@ -291,7 +313,7 @@ main(int argc, char** argv) {
         std::string output_file = config.output_dir + "/" + dataset_name + "_fhg_alpha_" + alpha_str + ".h5";
 
         // Index paths (use 701 prefix to reuse existing indices)
-        std::string dense_index_path = config.index_dir + "/701_" + dataset_name + "_dense_hgraph.index";
+        std::string dense_index_path = config.index_dir + "/701_" + dataset_name + "_dense_hnsw.index";
         std::string sparse_index_path = config.index_dir + "/701_" + dataset_name + "_sparse_sindi.index";
 
         bool need_build_dense = config.rebuild || !FileExists(dense_index_path);
@@ -305,7 +327,9 @@ main(int argc, char** argv) {
         std::cout << "Index dir: " << config.index_dir << "\n";
         std::cout << "k: " << config.k << "\n";
         std::cout << "bk: " << config.bk << "\n";
+        std::cout << "dense_ef_search: " << config.dense_ef_search << "\n";
         std::cout << "alpha: " << config.alpha << "\n";
+        std::cout << "query_prune_ratio: " << config.query_prune_ratio << "\n";
         std::cout << "threads: " << config.threads << "\n";
         std::cout << "rebuild: " << (config.rebuild ? "true" : "false") << "\n";
 
@@ -349,13 +373,12 @@ main(int argc, char** argv) {
             ->SparseVectors(train_sparse.data())
             ->Owner(false);
 
-        std::string hgraph_build_params = R"(
+        std::string hnsw_build_params = R"(
         {
             "dtype": "float32",
             "metric_type": "ip",
             "dim": )" + std::to_string(dense_dim) + R"(,
-            "index_param": {
-                "base_quantization_type": "sq8",
+            "hnsw": {
                 "max_degree": 64,
                 "ef_construction": 200
             }
@@ -364,38 +387,38 @@ main(int argc, char** argv) {
         vsag::Resource resource(vsag::Engine::CreateDefaultAllocator(), nullptr);
         vsag::Engine engine(&resource);
 
-        auto dense_index = engine.CreateIndex("hgraph", hgraph_build_params).value();
+        auto dense_index = engine.CreateIndex("hnsw", hnsw_build_params).value();
 
         if (need_build_dense) {
-            std::cout << "\nBuilding HGRAPH..." << std::endl;
+            std::cout << "\nBuilding HNSW..." << std::endl;
             auto build_start = std::chrono::high_resolution_clock::now();
             if (!dense_index->Build(base).has_value()) {
-                std::cerr << "Failed to build HGRAPH" << std::endl;
+                std::cerr << "Failed to build HNSW" << std::endl;
                 return -1;
             }
-            std::cout << "HGRAPH built in " << std::chrono::duration<double>(
+            std::cout << "HNSW built in " << std::chrono::duration<double>(
                 std::chrono::high_resolution_clock::now() - build_start).count() << "s" << std::endl;
 
             std::ofstream out_stream(dense_index_path);
             auto serialize_result = dense_index->Serialize(out_stream);
             out_stream.close();
             if (!serialize_result.has_value()) {
-                std::cerr << "Failed to save HGRAPH: " << serialize_result.error().message << std::endl;
+                std::cerr << "Failed to save HNSW: " << serialize_result.error().message << std::endl;
                 return -1;
             }
-            std::cout << "HGRAPH saved to " << dense_index_path << std::endl;
+            std::cout << "HNSW saved to " << dense_index_path << std::endl;
         } else {
-            std::cout << "\nLoading HGRAPH from " << dense_index_path << std::endl;
+            std::cout << "\nLoading HNSW from " << dense_index_path << std::endl;
             dense_index = nullptr;
-            dense_index = engine.CreateIndex("hgraph", hgraph_build_params).value();
+            dense_index = engine.CreateIndex("hnsw", hnsw_build_params).value();
             std::ifstream in_stream(dense_index_path);
             auto deserialize_result = dense_index->Deserialize(in_stream);
             in_stream.close();
             if (!deserialize_result.has_value()) {
-                std::cerr << "Failed to load HGRAPH: " << deserialize_result.error().message << std::endl;
+                std::cerr << "Failed to load HNSW: " << deserialize_result.error().message << std::endl;
                 return -1;
             }
-            std::cout << "HGRAPH loaded (" << dense_index->GetNumElements() << " vectors)" << std::endl;
+            std::cout << "HNSW loaded (" << dense_index->GetNumElements() << " vectors)" << std::endl;
         }
 
         std::string sindi_build_params = R"(
@@ -443,9 +466,11 @@ main(int argc, char** argv) {
         std::cout << "\nGenerating KNNG with alpha=" << config.alpha << " using " << config.threads << " threads..." << std::endl;
 
         std::vector<std::vector<int64_t>> all_neighbors(num_process);
-        int ef_search = std::max(config.bk, 100);
-        std::string dense_search_params = R"({"hgraph": {"ef_search": )" + std::to_string(ef_search) + R"(}})";
-        std::string sparse_search_params = R"({"sindi": {"query_prune_ratio": 0.5}})";
+        std::string dense_search_params = R"({"hnsw": {"ef_search": )" +
+                                          std::to_string(config.dense_ef_search) + R"(}})";
+        std::string sparse_search_params = R"({"sindi": {"query_prune_ratio": )" +
+                                           std::to_string(config.query_prune_ratio) + "}}";
+        std::cout << "sparse_search_params: " << sparse_search_params << std::endl;
 
         // Set thread count
         omp_set_num_threads(config.threads);

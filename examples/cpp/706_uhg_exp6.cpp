@@ -440,7 +440,8 @@ PrintUsage(const char* program_name) {
     std::cout << "Usage: " << program_name << " <h5_file> [options]\n"
               << "\nOptions:\n"
               << "  -k <int>                   Top-k neighbors per alpha (default: 32)\n"
-              << "  --bk <int>                 Candidate pool size (default: 500)\n"
+              << "  --bk <int>                 Candidate pool size (default: 100)\n"
+              << "  --dense_ef_search <int>    HNSW ef_search for dense candidates (default: 200)\n"
               << "  --alpha_step <float>       Step for alpha sampling (default: 0.1)\n"
               << "  --output <path>            Output HDF5 file (default: hybrid_graph_refined.h5)\n"
               << "  --num_points <int>         Points to process (default: all)\n"
@@ -448,10 +449,12 @@ PrintUsage(const char* program_name) {
               << "  --threads <int>            Number of threads (default: 8)\n"
               << "  --query_prune_ratio <float>\n"
               << "                              SINDI query pruning ratio (default: 0.5)\n"
+              << "  --merge_max_degree <int>   Max degree after alpha-frequency merge pruning (default: 64)\n"
               << "  --refine_max_degree <int>  Max degree after refine (default: 64)\n"
               << "  --refine_alpha <float>     Alpha for refine distance (default: 0.5)\n"
               << "  --refine_rng <float>       RNG prune scale (default: 1.2)\n"
               << "  --skip_connectivity        Skip DFS connectivity fallback\n"
+              << "  --skip_refine              Skip the entire refine stage\n"
               << "  --rebuild                  Force rebuild indices\n"
               << "  --help, -h                 Show this help\n"
               << "\nExample:\n"
@@ -466,17 +469,20 @@ struct Config {
     std::string output_file = "hybrid_graph_refined.h5";
     std::string index_dir = "./indexes";
     int k = 32;
-    int bk = 500;
+    int bk = 100;
+    int dense_ef_search = 200;
     float alpha_step = 0.1f;
     int num_points = -1;
     int threads = 8;
     bool rebuild = false;
     float term_prune_ratio = 0.0f;
     float query_prune_ratio = 0.5f;
+    int merge_max_degree = 64;
     int refine_max_degree = 64;
     float refine_alpha = 0.5f;
     float refine_rng = 1.2f;
     bool skip_connectivity = false;
+    bool skip_refine = false;
 };
 
 Config
@@ -500,6 +506,8 @@ ParseCommandLine(int argc, char** argv) {
             config.k = std::atoi(argv[++i]);
         } else if (arg == "--bk" && i + 1 < argc) {
             config.bk = std::atoi(argv[++i]);
+        } else if (arg == "--dense_ef_search" && i + 1 < argc) {
+            config.dense_ef_search = std::atoi(argv[++i]);
         } else if (arg == "--alpha_step" && i + 1 < argc) {
             config.alpha_step = std::atof(argv[++i]);
         } else if (arg == "--output" && i + 1 < argc) {
@@ -516,6 +524,8 @@ ParseCommandLine(int argc, char** argv) {
             config.term_prune_ratio = std::atof(argv[++i]);
         } else if (arg == "--query_prune_ratio" && i + 1 < argc) {
             config.query_prune_ratio = std::atof(argv[++i]);
+        } else if (arg == "--merge_max_degree" && i + 1 < argc) {
+            config.merge_max_degree = std::atoi(argv[++i]);
         } else if (arg == "--refine_max_degree" && i + 1 < argc) {
             config.refine_max_degree = std::atoi(argv[++i]);
         } else if (arg == "--refine_alpha" && i + 1 < argc) {
@@ -524,6 +534,8 @@ ParseCommandLine(int argc, char** argv) {
             config.refine_rng = std::atof(argv[++i]);
         } else if (arg == "--skip_connectivity") {
             config.skip_connectivity = true;
+        } else if (arg == "--skip_refine") {
+            config.skip_refine = true;
         } else {
             std::cerr << "Unknown argument: " << arg << std::endl;
             PrintUsage(argv[0]);
@@ -531,10 +543,17 @@ ParseCommandLine(int argc, char** argv) {
         }
     }
 
-    if (config.k <= 0 || config.bk <= 0 || config.alpha_step <= 0.0f ||
+    if (config.k <= 0 || config.bk <= 0 || config.dense_ef_search <= 0 ||
+        config.alpha_step <= 0.0f ||
+        config.merge_max_degree <= 0 ||
         config.refine_max_degree <= 0) {
-        std::cerr << "Error: k, bk, alpha_step, and refine_max_degree must be positive"
+        std::cerr << "Error: k, bk, dense_ef_search, alpha_step, merge_max_degree, and "
+                     "refine_max_degree must be positive"
                   << std::endl;
+        exit(1);
+    }
+    if (config.dense_ef_search < config.bk) {
+        std::cerr << "Error: dense_ef_search must be greater than or equal to bk" << std::endl;
         exit(1);
     }
     if (config.refine_alpha < 0.0f || config.refine_alpha > 1.0f) {
@@ -555,7 +574,7 @@ main(int argc, char** argv) {
         std::string dataset_name = GetDatasetName(config.h5_file);
 
         // Reuse the same cached sub-indexes as 701/702.
-        std::string dense_index_path = config.index_dir + "/701_" + dataset_name + "_dense_hgraph.index";
+        std::string dense_index_path = config.index_dir + "/701_" + dataset_name + "_dense_hnsw.index";
         std::string sparse_index_path = config.index_dir + "/701_" + dataset_name + "_sparse_sindi.index";
 
         bool need_build_dense = config.rebuild || !FileExists(dense_index_path);
@@ -568,12 +587,15 @@ main(int argc, char** argv) {
         std::cout << "Index dir: " << config.index_dir << "\n";
         std::cout << "k: " << config.k << "\n";
         std::cout << "bk: " << config.bk << "\n";
+        std::cout << "dense_ef_search: " << config.dense_ef_search << "\n";
         std::cout << "alpha_step: " << config.alpha_step << "\n";
         std::cout << "threads: " << config.threads << "\n";
+        std::cout << "merge_max_degree: " << config.merge_max_degree << "\n";
         std::cout << "refine_max_degree: " << config.refine_max_degree << "\n";
         std::cout << "refine_alpha: " << config.refine_alpha << "\n";
         std::cout << "refine_rng: " << config.refine_rng << "\n";
         std::cout << "skip_connectivity: " << (config.skip_connectivity ? "true" : "false") << "\n";
+        std::cout << "skip_refine: " << (config.skip_refine ? "true" : "false") << "\n";
         std::cout << "rebuild: " << (config.rebuild ? "true" : "false") << "\n";
 
         /******************* 1. Load Dataset *****************/
@@ -618,13 +640,12 @@ main(int argc, char** argv) {
             ->SparseVectors(train_sparse.data())
             ->Owner(false);
 
-        std::string hgraph_build_params = R"(
+        std::string hnsw_build_params = R"(
         {
             "dtype": "float32",
             "metric_type": "ip",
             "dim": )" + std::to_string(dense_dim) + R"(,
-            "index_param": {
-                "base_quantization_type": "sq8",
+            "hnsw": {
                 "max_degree": 64,
                 "ef_construction": 200
             }
@@ -633,16 +654,16 @@ main(int argc, char** argv) {
         vsag::Resource resource(vsag::Engine::CreateDefaultAllocator(), nullptr);
         vsag::Engine engine(&resource);
 
-        auto dense_index = engine.CreateIndex("hgraph", hgraph_build_params).value();
+        auto dense_index = engine.CreateIndex("hnsw", hnsw_build_params).value();
 
         if (need_build_dense) {
-            std::cout << "\nBuilding HGRAPH..." << std::endl;
+            std::cout << "\nBuilding HNSW..." << std::endl;
             auto build_start = std::chrono::high_resolution_clock::now();
             if (!dense_index->Build(base).has_value()) {
-                std::cerr << "Failed to build HGRAPH" << std::endl;
+                std::cerr << "Failed to build HNSW" << std::endl;
                 return -1;
             }
-            std::cout << "HGRAPH built in "
+            std::cout << "HNSW built in "
                       << std::chrono::duration<double>(std::chrono::high_resolution_clock::now() -
                                                        build_start)
                              .count()
@@ -652,24 +673,24 @@ main(int argc, char** argv) {
             auto serialize_result = dense_index->Serialize(out_stream);
             out_stream.close();
             if (!serialize_result.has_value()) {
-                std::cerr << "Failed to save HGRAPH: " << serialize_result.error().message
+                std::cerr << "Failed to save HNSW: " << serialize_result.error().message
                           << std::endl;
                 return -1;
             }
-            std::cout << "HGRAPH saved to " << dense_index_path << std::endl;
+            std::cout << "HNSW saved to " << dense_index_path << std::endl;
         } else {
-            std::cout << "\nLoading HGRAPH from " << dense_index_path << std::endl;
+            std::cout << "\nLoading HNSW from " << dense_index_path << std::endl;
             dense_index = nullptr;
-            dense_index = engine.CreateIndex("hgraph", hgraph_build_params).value();
+            dense_index = engine.CreateIndex("hnsw", hnsw_build_params).value();
             std::ifstream in_stream(dense_index_path);
             auto deserialize_result = dense_index->Deserialize(in_stream);
             in_stream.close();
             if (!deserialize_result.has_value()) {
-                std::cerr << "Failed to load HGRAPH: " << deserialize_result.error().message
+                std::cerr << "Failed to load HNSW: " << deserialize_result.error().message
                           << std::endl;
                 return -1;
             }
-            std::cout << "HGRAPH loaded (" << dense_index->GetNumElements() << " vectors)"
+            std::cout << "HNSW loaded (" << dense_index->GetNumElements() << " vectors)"
                       << std::endl;
         }
 
@@ -724,9 +745,8 @@ main(int argc, char** argv) {
         std::cout << "\nMerging neighbors with " << config.threads << " threads..." << std::endl;
 
         std::vector<std::vector<int64_t>> all_neighbors(num_process);
-        int ef_search = std::max(config.bk, 100);
         std::string dense_search_params =
-            R"({"hgraph": {"ef_search": )" + std::to_string(ef_search) + R"(}})";
+            R"({"hnsw": {"ef_search": )" + std::to_string(config.dense_ef_search) + R"(}})";
         std::string sparse_search_params = R"({"sindi": {"term_prune_ratio": )" +
                                            std::to_string(config.term_prune_ratio) +
                                            R"(, "query_prune_ratio": )" +
@@ -748,6 +768,8 @@ main(int argc, char** argv) {
         std::atomic<int64_t> total_dense_us{0};
         std::atomic<int64_t> total_sparse_us{0};
         std::atomic<int64_t> total_merge_us{0};
+        std::atomic<int64_t> merge_pruned_nodes{0};
+        std::atomic<int64_t> merge_dropped_neighbors{0};
 
 #pragma omp parallel for schedule(dynamic)
         for (int i = 0; i < num_process; i++) {
@@ -810,7 +832,8 @@ main(int argc, char** argv) {
                 candidates.push_back(c);
             }
 
-            std::unordered_set<int64_t> merged_neighbors;
+            std::unordered_map<int64_t, int> neighbor_counts;
+            neighbor_counts.reserve(config.k * alpha_values.size());
 
             for (float alpha : alpha_values) {
                 for (auto& c : candidates) {
@@ -824,11 +847,42 @@ main(int argc, char** argv) {
                                   std::greater<HybridResult>());
 
                 for (int j = 0; j < actual_k; j++) {
-                    merged_neighbors.insert(candidates[j].id);
+                    neighbor_counts[candidates[j].id]++;
                 }
             }
 
-            all_neighbors[i] = std::vector<int64_t>(merged_neighbors.begin(), merged_neighbors.end());
+            struct CountedNeighbor {
+                int64_t id;
+                int count;
+            };
+            std::vector<CountedNeighbor> counted_neighbors;
+            counted_neighbors.reserve(neighbor_counts.size());
+            for (const auto& [id, count] : neighbor_counts) {
+                counted_neighbors.push_back({id, count});
+            }
+
+            if (static_cast<int>(counted_neighbors.size()) > config.merge_max_degree) {
+                merge_pruned_nodes.fetch_add(1, std::memory_order_relaxed);
+                merge_dropped_neighbors.fetch_add(
+                    static_cast<int64_t>(counted_neighbors.size() - config.merge_max_degree),
+                    std::memory_order_relaxed);
+                std::partial_sort(
+                    counted_neighbors.begin(),
+                    counted_neighbors.begin() + config.merge_max_degree,
+                    counted_neighbors.end(),
+                    [](const CountedNeighbor& a, const CountedNeighbor& b) {
+                        if (a.count != b.count) {
+                            return a.count > b.count;
+                        }
+                        return a.id < b.id;
+                    });
+                counted_neighbors.resize(config.merge_max_degree);
+            }
+
+            all_neighbors[i].reserve(counted_neighbors.size());
+            for (const auto& neighbor : counted_neighbors) {
+                all_neighbors[i].push_back(neighbor.id);
+            }
             std::sort(all_neighbors[i].begin(), all_neighbors[i].end());
 
             auto t3 = std::chrono::high_resolution_clock::now();
@@ -859,32 +913,41 @@ main(int argc, char** argv) {
                   << std::endl;
         std::cout << "  merge total (thread-sum): " << total_merge_us.load() / 1e6 << "s"
                   << std::endl;
+        std::cout << "  alpha-frequency pruned nodes: " << merge_pruned_nodes.load()
+                  << std::endl;
+        std::cout << "  alpha-frequency dropped neighbors: "
+                  << merge_dropped_neighbors.load() << std::endl;
 
         /******************* 4. Refine Graph *****************/
         PrintGraphStatistics("\nStatistics before refine", all_neighbors);
 
-        auto refine_start = std::chrono::high_resolution_clock::now();
-        AddReverseEdgesWithPrune(all_neighbors,
-                                 train_dense,
-                                 train_sparse,
-                                 dense_dim,
-                                 config.refine_max_degree,
-                                 config.refine_alpha,
-                                 config.refine_rng);
-        if (!config.skip_connectivity) {
-            EnsureConnectivity(all_neighbors,
-                               train_dense,
-                               train_sparse,
-                               dense_dim,
-                               config.refine_max_degree,
-                               config.refine_alpha);
-        }
-        auto refine_end = std::chrono::high_resolution_clock::now();
+        if (config.skip_refine) {
+            std::cout << "\nRefine stage skipped (--skip_refine)." << std::endl;
+            std::cout << "Refine time: 0s" << std::endl;
+        } else {
+            auto refine_start = std::chrono::high_resolution_clock::now();
+            AddReverseEdgesWithPrune(all_neighbors,
+                                     train_dense,
+                                     train_sparse,
+                                     dense_dim,
+                                     config.refine_max_degree,
+                                     config.refine_alpha,
+                                     config.refine_rng);
+            if (!config.skip_connectivity) {
+                EnsureConnectivity(all_neighbors,
+                                   train_dense,
+                                   train_sparse,
+                                   dense_dim,
+                                   config.refine_max_degree,
+                                   config.refine_alpha);
+            }
+            auto refine_end = std::chrono::high_resolution_clock::now();
 
-        std::cout << "\nRefine time: "
-                  << std::chrono::duration<double>(refine_end - refine_start).count() << "s"
-                  << std::endl;
-        PrintGraphStatistics("\nStatistics after refine", all_neighbors);
+            std::cout << "\nRefine time: "
+                      << std::chrono::duration<double>(refine_end - refine_start).count() << "s"
+                      << std::endl;
+            PrintGraphStatistics("\nStatistics after refine", all_neighbors);
+        }
 
         /******************* 5. Save *****************/
         std::cout << "\nSaving to " << config.output_file << std::endl;

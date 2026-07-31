@@ -1,0 +1,13 @@
+# experiment=mixed_alpha dataset=msmarco method=sindi recall_at=10
+# distribution=uniform alpha_min=0.3 alpha_max=0.7 seed=42
+# k=10 num_queries=-1 threads=1
+# points=100 150 200 300 500 1000
+# mixed_alpha_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/msmarco/alphas.npy
+# mixed_gt_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/msmarco/ground_truth.npy
+# sindi_query_prune_ratio=0.5 sindi_term_prune_ratio=0
+sindi bk=100 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.6897 QPS: 456.967
+sindi bk=150 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.7305 QPS: 425.344
+sindi bk=200 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.7525 QPS: 394.952
+sindi bk=300 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.779 QPS: 352.474
+sindi bk=500 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.8065 QPS: 289.758
+sindi bk=1000 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.8397 QPS: 201.213

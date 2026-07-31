@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Index Size</title>
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --page: #f5f5f5;
+  --paper: #ffffff;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-height: 100vh;
+  padding: 22px;
+  background: var(--page);
+  color: var(--ink);
+  font-family: "Times New Roman", Times, serif;
+}
+.toolbar {
+  width: min(900px, 100%);
+  margin: 0 auto 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+button {
+  appearance: none;
+  border: 1px solid #c7c7c7;
+  border-radius: 4px;
+  padding: 7px 12px;
+  background: #ffffff;
+  color: #111111;
+  font: 14px "Times New Roman", Times, serif;
+  cursor: pointer;
+}
+button:hover {
+  background: #f7f7f7;
+}
+.page {
+  width: min(900px, 100%);
+  margin: 0 auto;
+  padding: 10px;
+  background: var(--paper);
+  border: 1px solid #dddddd;
+}
+svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@page {
+  size: 9in 5.6in;
+  margin: 0;
+}
+@media print {
+  html,
+  body {
+    width: 9in;
+    height: 5.6in;
+    margin: 0;
+  }
+  body {
+    padding: 0;
+    min-height: 0;
+    background: #ffffff;
+    overflow: hidden;
+  }
+  .toolbar {
+    display: none;
+  }
+  .page {
+    width: 9in;
+    height: 5.6in;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  svg {
+    width: 100%;
+    height: 100%;
+  }
+}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button type="button" onclick="window.print()">Print PDF</button>
+  <button type="button" onclick="downloadSvg()">Save SVG</button>
+</div>
+<main class="page" aria-label="Index size figure">
+  <svg id="figure" viewBox="0 0 900 560" role="img"
+       aria-labelledby="figure-title figure-desc"></svg>
+</main>
+<script>
+const DATA = {
+  datasets: ["nq", "hotpotqa", "msmarco", "fever", "dbpedia-entity"],
+  datasetLabels: {
+    nq: "NQ",
+    hotpotqa: "HotpotQA",
+    msmarco: "MS MARCO",
+    fever: "FEVER",
+    "dbpedia-entity": "DBpedia-Entity",
+  },
+  methods: ["hnsw_sindi", "fhg", "uhg"],
+  methodLabels: {
+    hnsw_sindi: "HNSW+SINDI",
+    fhg: "FHG",
+    uhg: "UHG",
+  },
+  colors: {
+    hnsw_sindi: "#7FA9D8",
+    fhg: "#E6CF85",
+    uhg: "#E89A9A",
+  },
+  size: {
+    nq: {
+      hnsw_sindi: 14.29,
+      uhg: 14.07,
+      fhg: 12.25,
+    },
+    hotpotqa: {
+      hnsw_sindi: 26.2,
+      uhg: 25.95,
+      fhg: 23.05,
+    },
+    msmarco: {
+      hnsw_sindi: 44.68,
+      uhg: 43.72,
+      fhg: 39.18,
+    },
+    fever: {
+      hnsw_sindi: 28.89,
+      uhg: 28.67,
+      fhg: 24.75,
+    },
+    "dbpedia-entity": {
+      hnsw_sindi: 23.45,
+      uhg: 23.24,
+      fhg: 20.54,
+    },
+  },
+  sizeTicks: [0, 10, 20, 30, 40, 50],
+};
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function node(name, attrs = {}, text = null) {
+  const element = document.createElementNS(SVG_NS, name);
+  for (const [key, value] of Object.entries(attrs)) {
+    element.setAttribute(key, value);
+  }
+  if (text !== null) {
+    element.textContent = text;
+  }
+  return element;
+}
+
+function formatSize(value) {
+  return value.toFixed(2).replace(/\.00$/, "");
+}
+
+function drawLegend(svg, width) {
+  const y = 50;
+  const labelWidths = { hnsw_sindi: 150, fhg: 62, uhg: 64 };
+  const swatchWidth = 24;
+  const swatchTextGap = 8;
+  const itemGap = 36;
+  const itemWidths = DATA.methods.map((method) =>
+    swatchWidth + swatchTextGap + labelWidths[method]);
+  const totalWidth = itemWidths.reduce((sum, value) => sum + value, 0) +
+    itemGap * (DATA.methods.length - 1);
+  let x = width / 2 - totalWidth / 2;
+
+  DATA.methods.forEach((method, index) => {
+    svg.appendChild(node("rect", {
+      x,
+      y: y - 19,
+      width: swatchWidth,
+      height: 19,
+      fill: DATA.colors[method],
+      rx: 1.5,
+    }));
+    svg.appendChild(node("text", {
+      x: x + swatchWidth + swatchTextGap,
+      y,
+      class: "legend",
+    }, DATA.methodLabels[method]));
+    x += itemWidths[index] + itemGap;
+  });
+}
+
+function draw() {
+  const svg = document.getElementById("figure");
+  const width = 900;
+  const height = 560;
+  const plotLeft = 98;
+  const plotRight = 870;
+  const plotTop = 86;
+  const plotBottom = 476;
+  const plotHeight = plotBottom - plotTop;
+  const maxValue = DATA.sizeTicks[DATA.sizeTicks.length - 1];
+  const groupWidth = (plotRight - plotLeft) / DATA.datasets.length;
+  const barWidth = 34;
+  const barGap = 10;
+  const barsWidth = DATA.methods.length * barWidth +
+    (DATA.methods.length - 1) * barGap;
+
+  svg.replaceChildren();
+
+  const defs = node("defs");
+  const style = node("style");
+  style.textContent = `
+    text { font-family: "Times New Roman", Times, serif; fill: #111111; }
+    .axis-line { stroke: #111111; stroke-width: 1; shape-rendering: crispEdges; }
+    .grid-line { stroke: #c7c7c7; stroke-width: 0.75; stroke-dasharray: 2 2; }
+    .legend { font-size: 27px; }
+    .tick { font-size: 22px; }
+    .axis-title { font-size: 27px; }
+    .x-label { font-size: 23px; }
+    .value-label { font-size: 18px; font-weight: 700; }
+  `;
+  defs.appendChild(style);
+  svg.appendChild(defs);
+
+  svg.appendChild(node("title", { id: "figure-title" }, "Index Size"));
+  svg.appendChild(node("desc", { id: "figure-desc" },
+    "Grouped bar chart comparing index size for HNSW+SINDI, FHG, and UHG on NQ, HotpotQA, MS MARCO, FEVER, and DBpedia-Entity."));
+  svg.appendChild(node("rect", { x: 0, y: 0, width, height, fill: "#ffffff" }));
+  drawLegend(svg, width);
+
+  svg.appendChild(node("line", {
+    x1: plotLeft,
+    y1: plotBottom,
+    x2: plotRight,
+    y2: plotBottom,
+    class: "axis-line",
+  }));
+  svg.appendChild(node("line", {
+    x1: plotLeft,
+    y1: plotTop,
+    x2: plotLeft,
+    y2: plotBottom,
+    class: "axis-line",
+  }));
+
+  DATA.sizeTicks.forEach((tick) => {
+    const y = plotBottom - (tick / maxValue) * plotHeight;
+    if (tick !== 0) {
+      svg.appendChild(node("line", {
+        x1: plotLeft,
+        y1: y,
+        x2: plotRight,
+        y2: y,
+        class: "grid-line",
+      }));
+    }
+    svg.appendChild(node("line", {
+      x1: plotLeft,
+      y1: y,
+      x2: plotLeft - 4,
+      y2: y,
+      class: "axis-line",
+    }));
+    svg.appendChild(node("text", {
+      x: plotLeft - 9,
+      y: y + 5,
+      "text-anchor": "end",
+      class: "tick",
+    }, tick.toLocaleString("en-US")));
+  });
+
+  svg.appendChild(node("text", {
+    x: 30,
+    y: plotTop + plotHeight / 2,
+    transform: `rotate(-90 30 ${plotTop + plotHeight / 2})`,
+    "text-anchor": "middle",
+    class: "axis-title",
+  }, "Index Size (GiB)"));
+
+  DATA.datasets.forEach((dataset, datasetIndex) => {
+    const groupCenter = plotLeft + groupWidth * (datasetIndex + 0.5);
+    const groupStart = groupCenter - barsWidth / 2;
+
+    DATA.methods.forEach((method, methodIndex) => {
+      const value = DATA.size[dataset][method];
+      const x = groupStart + methodIndex * (barWidth + barGap);
+      const barHeight = (value / maxValue) * plotHeight;
+      const y = plotBottom - barHeight;
+      const bar = node("rect", {
+        x,
+        y,
+        width: barWidth,
+        height: barHeight,
+        fill: DATA.colors[method],
+        rx: 1.5,
+      });
+      bar.appendChild(node("title", {},
+        `${DATA.datasetLabels[dataset]} · ${DATA.methodLabels[method]} · index size: ${formatSize(value)} GiB`));
+      svg.appendChild(bar);
+      svg.appendChild(node("text", {
+        x: x + barWidth / 2,
+        y: y - 6,
+        "text-anchor": "middle",
+        class: "value-label",
+      }, formatSize(value)));
+    });
+
+    svg.appendChild(node("text", {
+      x: groupCenter,
+      y: plotBottom + 31,
+      "text-anchor": "middle",
+      class: "x-label",
+    }, DATA.datasetLabels[dataset]));
+  });
+}
+
+function downloadSvg() {
+  const svg = document.getElementById("figure");
+  const source = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "index_size.svg";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+draw();
+</script>
+</body>
+</html>

@@ -54,7 +54,7 @@ public:
     }
 
     virtual void
-    SetSparseDistanceTable(const float* table, int64_t count) {
+    SetHybridWeight(float dense_weight, float sparse_weight) {
     }
 
 };

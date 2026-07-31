@@ -193,5 +193,7 @@ data/
 # UHG generated artifacts
 /scripts/UHG/data/
 /scripts/UHG/logs/
-/scripts/UHG/results/
-/scripts/UHG/scripts/__pycache__/
+/scripts/UHG/**/__pycache__/
+/scripts/UHG/**/trash/
+/scripts/UHG/**/*.h5
+/scripts/UHG/**/*_tmp.sh

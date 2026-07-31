@@ -35,17 +35,27 @@ BasicSearcher::visit(const GraphInterfacePtr& graph,
                      const std::pair<float, uint64_t>& current_node_pair,
                      const FilterPtr& filter,
                      float skip_ratio,
+                     bool use_graph_neighbor_view,
                      Vector<InnerIdType>& to_be_visited_rid,
                      Vector<InnerIdType>& to_be_visited_id,
                      Vector<InnerIdType>& neighbors) const {
     LinearCongruentialGenerator generator;
     uint32_t count_no_visited = 0;
 
-    if (this->mutex_array_ != nullptr) {
-        SharedLock lock(this->mutex_array_, current_node_pair.second);
-        graph->GetNeighbors(current_node_pair.second, neighbors);
-    } else {
-        graph->GetNeighbors(current_node_pair.second, neighbors);
+    const InnerIdType* neighbor_ids = nullptr;
+    uint32_t neighbor_count = 0;
+    const bool using_neighbor_view =
+        use_graph_neighbor_view &&
+        graph->TryGetNeighborsView(current_node_pair.second, neighbor_ids, neighbor_count);
+    if (not using_neighbor_view) {
+        if (this->mutex_array_ != nullptr) {
+            SharedLock lock(this->mutex_array_, current_node_pair.second);
+            graph->GetNeighbors(current_node_pair.second, neighbors);
+        } else {
+            graph->GetNeighbors(current_node_pair.second, neighbors);
+        }
+        neighbor_ids = neighbors.data();
+        neighbor_count = static_cast<uint32_t>(neighbors.size());
     }
 
     float skip_threshold =
@@ -53,18 +63,18 @@ BasicSearcher::visit(const GraphInterfacePtr& graph,
              ? (filter->ValidRatio() == 1.0F ? 0 : (1 - ((1 - filter->ValidRatio()) * skip_ratio)))
              : 0.0F);
 
-    for (uint32_t i = 0; i < neighbors.size(); i++) {
-        if (i + prefetch_stride_visit_ < neighbors.size()) {
-            vl->Prefetch(neighbors[i + prefetch_stride_visit_]);
+    for (uint32_t i = 0; i < neighbor_count; i++) {
+        if (i + prefetch_stride_visit_ < neighbor_count) {
+            vl->Prefetch(neighbor_ids[i + prefetch_stride_visit_]);
         }
-        if (not vl->Get(neighbors[i])) {
+        if (not vl->Get(neighbor_ids[i])) {
             if (not filter || count_no_visited == 0 || generator.NextFloat() > skip_threshold ||
-                filter->CheckValid(neighbors[i])) {
+                filter->CheckValid(neighbor_ids[i])) {
                 to_be_visited_rid[count_no_visited] = i;
-                to_be_visited_id[count_no_visited] = neighbors[i];
+                to_be_visited_id[count_no_visited] = neighbor_ids[i];
                 count_no_visited++;
             }
-            vl->Set(neighbors[i]);
+            vl->Set(neighbor_ids[i]);
         }
     }
     return count_no_visited;
@@ -118,8 +128,8 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
 
     auto computer = flatten->FactoryComputer(query);
     computer->SetPruneScale(inner_search_param.hybrid_prune_scale);
-    computer->SetSparseDistanceTable(inner_search_param.sparse_distance_table,
-                                     inner_search_param.sparse_distance_table_size);
+    computer->SetHybridWeight(inner_search_param.hybrid_dense_weight,
+                              inner_search_param.hybrid_sparse_weight);
 
     auto is_id_allowed = inner_search_param.is_inner_id_allowed;
     auto ep = inner_search_param.ep;
@@ -188,6 +198,7 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
                                  current_node_pair,
                                  inner_search_param.is_inner_id_allowed,
                                  inner_search_param.skip_ratio,
+                                 inner_search_param.use_graph_neighbor_view,
                                  to_be_visited_rid,
                                  to_be_visited_id,
                                  neighbors);
@@ -259,8 +270,8 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
 
     auto computer = flatten->FactoryComputer(query);
     computer->SetPruneScale(inner_search_param.hybrid_prune_scale);
-    computer->SetSparseDistanceTable(inner_search_param.sparse_distance_table,
-                                     inner_search_param.sparse_distance_table_size);
+    computer->SetHybridWeight(inner_search_param.hybrid_dense_weight,
+                              inner_search_param.hybrid_sparse_weight);
 
     auto is_id_allowed = inner_search_param.is_inner_id_allowed;
     auto ep = inner_search_param.ep;
@@ -428,12 +439,13 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
                                  current_node_pair,
                                  inner_search_param.is_inner_id_allowed,
                                  inner_search_param.skip_ratio,
+                                 inner_search_param.use_graph_neighbor_view,
                                  to_be_visited_rid,
                                  to_be_visited_id,
                                  neighbors);
 
         if (inner_search_param.is_hybrid) {
-            if (top_candidates->Size() < ef) {
+            if (not inner_search_param.enable_hybrid_pruning or top_candidates->Size() < ef) {
                 computer->SetSearchLowerBound(std::numeric_limits<float>::max());
             } else {
                 computer->SetSearchLowerBound(lower_bound);

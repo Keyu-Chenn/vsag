@@ -1,0 +1,11 @@
+# recall@50 fixed-alpha baseline
+# method=hnsw dataset=fever alpha=0.3 k=50 num_queries=-1 threads=1
+# data_dir=/tbase-project/vsag/scripts/UHG/data
+# index_dir=/tbase-project/vsag/scripts/UHG/data/index
+# result_dir=/tbase-project/vsag/scripts/UHG/results_50/main/fever/hnsw
+hnsw bk=50 ef_search=50 threads=1 Recall: 0.39048 QPS: 378.128
+hnsw bk=100 ef_search=100 threads=1 Recall: 0.51554 QPS: 205.714
+hnsw bk=150 ef_search=150 threads=1 Recall: 0.58318 QPS: 142.788
+hnsw bk=250 ef_search=250 threads=1 Recall: 0.66034 QPS: 89.4052
+hnsw bk=400 ef_search=400 threads=1 Recall: 0.72176 QPS: 58.1776
+hnsw bk=500 ef_search=500 threads=1 Recall: 0.74932 QPS: 47.4082

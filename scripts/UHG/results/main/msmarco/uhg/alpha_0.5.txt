@@ -1,0 +1,17 @@
+# exp_7 UHG
+# method=auto dataset=msmarco alpha=0.5 k=100 num_queries=-1 threads=1
+# auto rule: alpha<=0.5 -> uhgs, alpha>0.5 -> uhgh
+# graph_build: bk=100 query_prune_ratio=0.9 refine=none merge_max_degree=64
+# build_alpha=0.5
+# hybrid_prune_scale=0.3 max_hops=0
+# sindi_query_prune_ratio=0.5 sindi_term_prune_ratio=0
+# graph_path=/tbase-project/vsag/scripts/UHG/data/uhg/msmarco_uhg.h5
+# sindi_index_path=(none; external 703 SINDI is not used)
+# dense_entry_hnsw_graph_path=/tbase-project/vsag/scripts/UHG/data/index/701_msmarco_dense_hnsw.index
+# hybrid_index_path=/tbase-project/vsag/scripts/UHG/data/index_hybrid_union/703_msmarco_hybrid_index.index
+# result_dir=/tbase-project/vsag/scripts/UHG/results/main/msmarco/uhg
+uhg method=auto ef_search=100 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.85743 QPS: 278.708
+uhg method=auto ef_search=200 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.93136 QPS: 192.81
+uhg method=auto ef_search=300 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.95146 QPS: 146.833
+uhg method=auto ef_search=500 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.96721 QPS: 99.4034
+uhg method=auto ef_search=1000 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.98095 QPS: 54.5018

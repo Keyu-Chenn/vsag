@@ -1,0 +1,16 @@
+# ablation: hybrid upper-bound pruning configurations
+# method=auto dataset=hotpotqa alpha=mixed k=20 num_queries=-1 threads=1
+# mixed_alpha_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/hotpotqa/alphas.npy
+# mixed_gt_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/hotpotqa/ground_truth.npy
+# fixed index: /tbase-project/vsag/scripts/UHG/data/index_hybrid_union/703_hotpotqa_hybrid_index.index (SINDI + dense-entry + UHG main graph embedded at build time)
+# only enable_hybrid_pruning/hybrid_prune_scale vary; index is identical (load, no rebuild)
+# build_alpha=0.5 enable_hybrid_pruning=true hybrid_prune_scale=0.3 max_hops=0
+# sindi_query_prune_ratio=0.5 sindi_term_prune_ratio=0
+# prune semantics: 0=dense-only bound, <1=aggressive scaled bound, 1=full Cauchy bound, no_prune=no upper-bound pruning
+# result_dir=/tbase-project/vsag/scripts/UHG/results_20/test_prune/hotpotqa/prune_0.3
+auto ef_search=20 pruning=true prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.8028 QPS: 290.254
+auto ef_search=40 pruning=true prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.88585 QPS: 211.635
+auto ef_search=60 pruning=true prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.92225 QPS: 166.516
+auto ef_search=100 pruning=true prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.95515 QPS: 116.745
+auto ef_search=160 pruning=true prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.9734 QPS: 81.0947
+auto ef_search=200 pruning=true prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.97855 QPS: 67.7632

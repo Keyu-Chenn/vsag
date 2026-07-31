@@ -1,0 +1,12 @@
+# experiment=mixed_alpha_zt dataset=hotpotqa method=hnsw_sindi recall_at=50
+# distribution=truncated_normal alpha_min=0.3 alpha_max=0.7 normal_mean=0.5 normal_stddev=0.1 seed=42
+# k=50 num_queries=-1 threads=1
+# points=50 75 100 150 250
+# mixed_alpha_file=/tbase-project/vsag/scripts/UHG/mixed_alpha_zt/data/gt_top200/hotpotqa/alphas.npy
+# mixed_gt_file=/tbase-project/vsag/scripts/UHG/mixed_alpha_zt/data/gt_top200/hotpotqa/ground_truth.npy
+# sindi_query_prune_ratio=0.5 sindi_term_prune_ratio=0
+hnsw_sindi point=50 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.7041 QPS: 181.011
+hnsw_sindi point=75 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.80654 QPS: 148.114
+hnsw_sindi point=100 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.86256 QPS: 126.877
+hnsw_sindi point=150 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.91964 QPS: 98.4851
+hnsw_sindi point=250 query_prune_ratio=0.5 term_prune_ratio=0 threads=1 Recall: 0.96014 QPS: 69.0588

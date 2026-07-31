@@ -1,0 +1,12 @@
+# experiment=mixed_alpha method=fhg dataset=hotpotqa
+# distribution=uniform alpha_min=0.3 alpha_max=0.7 seed=42
+# k=20 num_queries=-1 threads=1
+# mixed_alpha_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/hotpotqa/alphas.npy
+# mixed_gt_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/hotpotqa/ground_truth.npy
+# hybrid_pruning=false
+fhg ef_search=20 threads=1 Recall: 0.6235 QPS: 366.605
+fhg ef_search=40 threads=1 Recall: 0.73975 QPS: 251.023
+fhg ef_search=60 threads=1 Recall: 0.7983 QPS: 196.912
+fhg ef_search=100 threads=1 Recall: 0.855 QPS: 138.131
+fhg ef_search=160 threads=1 Recall: 0.89665 QPS: 94.9409
+fhg ef_search=200 threads=1 Recall: 0.91405 QPS: 79.8421

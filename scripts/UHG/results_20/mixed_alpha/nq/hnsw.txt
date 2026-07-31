@@ -1,0 +1,11 @@
+# experiment=mixed_alpha method=hnsw dataset=nq
+# distribution=uniform alpha_min=0.3 alpha_max=0.7 seed=42
+# k=20 num_queries=-1 threads=1
+# mixed_alpha_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/nq/alphas.npy
+# mixed_gt_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/nq/ground_truth.npy
+hnsw point=20 threads=1 Recall: 0.55325 QPS: 1014.92
+hnsw point=40 threads=1 Recall: 0.70805 QPS: 621.869
+hnsw point=60 threads=1 Recall: 0.7729 QPS: 452.665
+hnsw point=100 threads=1 Recall: 0.8336 QPS: 301.041
+hnsw point=160 threads=1 Recall: 0.8774 QPS: 203.142
+hnsw point=200 threads=1 Recall: 0.89505 QPS: 167.991

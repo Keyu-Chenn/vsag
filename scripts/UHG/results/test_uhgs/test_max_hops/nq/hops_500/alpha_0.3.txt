@@ -1,0 +1,14 @@
+# UHG max_hops ablation
+# method=auto dataset=nq alpha=0.3 max_hops=500 k=100 num_queries=-1 threads=1
+# auto rule: alpha<=0.5 -> uhgs, alpha>0.5 -> uhgh
+# fixed index=/tbase-project/vsag/scripts/UHG/data/index_hybrid_union/703_nq_hybrid_index.index (load only; no rebuild)
+# build_alpha=0.5 hybrid_prune_scale=0.3
+# max_hops=500 (fixed hop cap; 0=no limit)
+# sindi_query_prune_ratio=0.5 sindi_term_prune_ratio=0
+# search_points=100,200,300,500,1000 (ef_search=sindi_bk=dense_entry_bk=dense_entry_ef_search)
+# result_dir=/tbase-project/vsag/scripts/UHG/results/test_uhgs/test_max_hops/nq/hops_500
+auto ef_search=100 max_hops=500 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.8587 QPS: 170.404
+auto ef_search=200 max_hops=500 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.92525 QPS: 105.788
+auto ef_search=300 max_hops=500 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.94999 QPS: 77.2628
+auto ef_search=500 max_hops=500 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.97207 QPS: 50.7674
+auto ef_search=1000 max_hops=500 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.9801 QPS: 46.4019

@@ -1,0 +1,13 @@
+# recall@50 fixed-alpha FHG
+# method=uhg dataset=nq alpha=0.7 k=50 num_queries=-1 threads=1
+# graph_build: bk=100 query_prune_ratio=0.9 refine=none fixed_alpha=0.5
+# build_alpha=0.5
+# graph_path=/tbase-project/vsag/scripts/UHG/data/fhg/nq_fhg_alpha_0_5.h5
+# hybrid_index_path=/tbase-project/vsag/scripts/UHG/data/index/703_nq_fhg_hybrid_index.index
+# hybrid_pruning=false max_hops=0 sindi_bk=100
+# result_dir=/tbase-project/vsag/scripts/UHG/results_50/main/nq/fhg
+fhg ef_search=50 hybrid_pruning=false threads=1 Recall: 0.82832 QPS: 413.629
+fhg ef_search=100 hybrid_pruning=false threads=1 Recall: 0.89244 QPS: 260.876
+fhg ef_search=150 hybrid_pruning=false threads=1 Recall: 0.9239 QPS: 192.477
+fhg ef_search=250 hybrid_pruning=false threads=1 Recall: 0.94714 QPS: 128.435
+fhg ef_search=500 hybrid_pruning=false threads=1 Recall: 0.9689 QPS: 71.4341

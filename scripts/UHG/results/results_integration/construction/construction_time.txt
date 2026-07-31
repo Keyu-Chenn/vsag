@@ -1,0 +1,48 @@
+================================================================================
+UHG Index Construction Time
+================================================================================
+Generated:    2026-07-17 16:14:42 CST
+Source root:  /tbase-project/vsag/scripts/UHG/results/construction_time
+Output file:  /tbase-project/vsag/scripts/UHG/results/results_integration/construction/construction_time.txt
+
+Extraction rules:
+  HNSW: use "HNSW built in ..." from *_hnsw.log.
+  FHG/UHG: use "Generation time: ..." from *_fhg_build.log and *_uhg_build.log.
+  Serialization and pre-existing index loading time are not included.
+
+Section 1: Full Results Table
+================================================================================
+
+dataset     method     time_seconds   time_minutes   time_hours   source_metric    source_file
+-----------------------------------------------------------------------------------------------
+NQ          HNSW            9829.32         163.82        2.730    HNSW built in    nq/nq_hnsw.log
+NQ          FHG            14342.70         239.05        3.984    Generation time  nq/nq_fhg_build.log
+NQ          UHG            14855.00         247.58        4.126    Generation time  nq/nq_uhg_build.log
+MS MARCO    HNSW           31685.90         528.10        8.802    HNSW built in    msmarco/msmarco_hnsw.log
+MS MARCO    FHG            48278.20         804.64       13.411    Generation time  msmarco/msmarco_fhg_build.log
+MS MARCO    UHG            49395.20         823.25       13.721    Generation time  msmarco/msmarco_uhg_build.log
+HotpotQA    HNSW           26641.90         444.03        7.401    HNSW built in    hotpotqa/hnsw_hotpotqa.log
+HotpotQA    FHG            39278.90         654.65       10.911    Generation time  hotpotqa/hotpotqa_fhg_build.log
+HotpotQA    UHG            41439.20         690.65       11.511    Generation time  hotpotqa/hotpotqa_uhg_build.log
+
+Section 2: Matrix (time_hours)
+================================================================================
+
+dataset        HNSW      FHG      UHG
+-------------------------------------
+NQ            2.730    3.984    4.126
+MS MARCO      8.802   13.411   13.721
+HotpotQA      7.401   10.911   11.511
+
+Section 3: TSV
+================================================================================
+dataset	method	time_seconds	time_minutes	time_hours	source_metric	source_file
+nq	hnsw	9829.32	163.82	2.730	HNSW built in	nq/nq_hnsw.log
+nq	fhg	14342.70	239.05	3.984	Generation time	nq/nq_fhg_build.log
+nq	uhg	14855.00	247.58	4.126	Generation time	nq/nq_uhg_build.log
+msmarco	hnsw	31685.90	528.10	8.802	HNSW built in	msmarco/msmarco_hnsw.log
+msmarco	fhg	48278.20	804.64	13.411	Generation time	msmarco/msmarco_fhg_build.log
+msmarco	uhg	49395.20	823.25	13.721	Generation time	msmarco/msmarco_uhg_build.log
+hotpotqa	hnsw	26641.90	444.03	7.401	HNSW built in	hotpotqa/hnsw_hotpotqa.log
+hotpotqa	fhg	39278.90	654.65	10.911	Generation time	hotpotqa/hotpotqa_fhg_build.log
+hotpotqa	uhg	41439.20	690.65	11.511	Generation time	hotpotqa/hotpotqa_uhg_build.log

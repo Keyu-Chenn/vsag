@@ -1,0 +1,24 @@
+Dataset: hotpotqa
+Ground truth dir: /tbase-project/vsag/scripts/UHG/data/ground_truth/hotpotqa
+Queries: 1000
+
+Dense topk vs Sparse topk overlap
+k	overlap
+10	0.302200
+20	0.248800
+50	0.207620
+100	0.187770
+
+Alpha topk overlap with Dense topk and Sparse topk
+alpha	topk	alpha_dense_overlap	alpha_sparse_overlap
+0.0	100	0.187770	1.000000
+0.1	100	0.233670	0.862630
+0.2	100	0.286280	0.742630
+0.3	100	0.347700	0.638240
+0.4	100	0.418310	0.546780
+0.5	100	0.500560	0.465120
+0.6	100	0.592220	0.392870
+0.7	100	0.692280	0.329310
+0.8	100	0.795970	0.274090
+0.9	100	0.900100	0.226800
+1.0	100	1.000000	0.187770

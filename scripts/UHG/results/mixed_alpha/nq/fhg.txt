@@ -1,0 +1,11 @@
+# experiment=mixed_alpha method=fhg dataset=nq
+# distribution=uniform alpha_min=0.3 alpha_max=0.7 seed=42
+# k=100 num_queries=-1 threads=1
+# mixed_alpha_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/nq/alphas.npy
+# mixed_gt_file=/tbase-project/vsag/scripts/UHG/data/mixed_alpha/nq/ground_truth.npy
+# hybrid_pruning=false
+fhg ef_search=100 threads=1 Recall: 0.81535 QPS: 242.337
+fhg ef_search=200 threads=1 Recall: 0.88285 QPS: 143.975
+fhg ef_search=300 threads=1 Recall: 0.91146 QPS: 103.226
+fhg ef_search=500 threads=1 Recall: 0.93815 QPS: 66.8825
+fhg ef_search=1000 threads=1 Recall: 0.96322 QPS: 36.7228

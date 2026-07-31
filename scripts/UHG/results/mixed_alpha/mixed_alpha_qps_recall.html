@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mixed-alpha QPS-Recall</title>
+<style>
+:root { color-scheme: light; --paper: #fff; --page: #f5f5f5; --ink: #111; }
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 20px; background: var(--page); color: var(--ink);
+  font-family: "Times New Roman", Times, serif;
+}
+.toolbar {
+  width: min(1480px, 100%); margin: 0 auto 12px; display: flex;
+  justify-content: flex-end; gap: 8px;
+}
+button {
+  appearance: none; border: 1px solid #c7c7c7; border-radius: 4px; padding: 7px 12px;
+  background: #fff; color: #111; font: 14px "Times New Roman", Times, serif; cursor: pointer;
+}
+button:hover { background: #f7f7f7; }
+.page {
+  width: min(1480px, 100%); margin: 0 auto; padding: 10px; background: var(--paper);
+  border: 1px solid #ddd;
+}
+svg { display: block; width: 100%; height: auto; }
+@page { size: 11in 3.3in; margin: 0.08in; }
+@media print {
+  body { padding: 0; background: #fff; }
+  .toolbar { display: none; }
+  .page { width: 100%; padding: 0; border: 0; }
+}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button type="button" onclick="window.print()">Print PDF</button>
+  <button type="button" onclick="downloadSvg()">Save SVG</button>
+</div>
+<main class="page" aria-label="Mixed-alpha QPS-Recall figure">
+  <svg id="figure" viewBox="0 0 1480 376" role="img"
+       aria-labelledby="figure-title figure-desc"></svg>
+</main>
+<script id="plot-data" type="application/json">{"datasets":["nq","hotpotqa","msmarco","fever","dbpedia-entity"],"datasetLabels":{"nq":"NQ","hotpotqa":"HotpotQA","msmarco":"MS MARCO","fever":"FEVER","dbpedia-entity":"DBpedia-Entity"},"methods":["hnsw","sindi","hnsw_sindi","fhg","uhg"],"methodLabels":{"hnsw":"HNSW","sindi":"SINDI","hnsw_sindi":"HNSW+SINDI","fhg":"FHG","uhg":"UHG"},"methodColors":{"hnsw":"#9CA3AF","sindi":"#4C78A8","hnsw_sindi":"#59A14F","fhg":"#B07AA1","uhg":"#E45756"},"methodMarkers":{"hnsw":"circle","sindi":"square","hnsw_sindi":"cross","fhg":"triangle","uhg":"pentagon"},"metadata":{"nq":{"experiment":"mixed_alpha","distribution":"uniform","k":"100","mixed_alpha_file":"/tbase-project/vsag/scripts/UHG/data/mixed_alpha/nq/alphas.npy","mixed_gt_file":"/tbase-project/vsag/scripts/UHG/data/mixed_alpha/nq/ground_truth.npy","sindi_query_prune_ratio":"0.5","hybrid_pruning":"false"},"hotpotqa":{"experiment":"mixed_alpha","distribution":"uniform","k":"100","mixed_alpha_file":"/tbase-project/vsag/scripts/UHG/data/mixed_alpha/hotpotqa/alphas.npy","mixed_gt_file":"/tbase-project/vsag/scripts/UHG/data/mixed_alpha/hotpotqa/ground_truth.npy","sindi_query_prune_ratio":"0.5","hybrid_pruning":"false"},"msmarco":{"experiment":"mixed_alpha","distribution":"uniform","k":"100","mixed_alpha_file":"/tbase-project/vsag/scripts/UHG/data/mixed_alpha/msmarco/alphas.npy","mixed_gt_file":"/tbase-project/vsag/scripts/UHG/data/mixed_alpha/msmarco/ground_truth.npy","sindi_query_prune_ratio":"0.5","hybrid_pruning":"false"},"fever":{"experiment":"mixed_alpha","distribution":"uniform","k":"100","mixed_alpha_file":"/tbase-project/vsag/scripts/UHG/data/mixed_alpha/fever/alphas.npy","mixed_gt_file":"/tbase-project/vsag/scripts/UHG/data/mixed_alpha/fever/ground_truth.npy","sindi_query_prune_ratio":"0.5","hybrid_pruning":"false"},"dbpedia-entity":{"experiment":"mixed_alpha","distribution":"uniform","k":"100","mixed_alpha_file":"/tbase-project/vsag/scripts/UHG/data/mixed_alpha/dbpedia-entity/alphas.npy","mixed_gt_file":"/tbase-project/vsag/scripts/UHG/data/mixed_alpha/dbpedia-entity/ground_truth.npy","sindi_query_prune_ratio":"0.5","hybrid_pruning":"false"}},"points":{"nq":{"hnsw":[{"paramName":"point","paramValue":"100","recall":0.53882,"qps":298.753},{"paramName":"point","paramValue":"200","recall":0.69836,"qps":166.625},{"paramName":"point","paramValue":"300","recall":0.76834,"qps":117.469},{"paramName":"point","paramValue":"500","recall":0.83628,"qps":75.1309},{"paramName":"point","paramValue":"800","recall":0.88376,"qps":49.6088},{"paramName":"point","paramValue":"1000","recall":0.90231,"qps":40.8505}],"sindi":[{"paramName":"point","paramValue":"1000","recall":0.63646,"qps":203.307},{"paramName":"point","paramValue":"1500","recall":0.67885,"qps":155.329},{"paramName":"point","paramValue":"2000","recall":0.70673,"qps":124.292},{"paramName":"point","paramValue":"3000","recall":0.74418,"qps":88.8863},{"paramName":"point","paramValue":"5000","recall":0.78898,"qps":56.8493},{"paramName":"point","paramValue":"10000","recall":0.84156,"qps":30.047}],"hnsw_sindi":[{"paramName":"point","paramValue":"100","recall":0.72043,"qps":185.186},{"paramName":"point","paramValue":"150","recall":0.81982,"qps":144.441},{"paramName":"point","paramValue":"200","recall":0.87154,"qps":119.206},{"paramName":"point","paramValue":"300","recall":0.9221,"qps":89.1104},{"paramName":"point","paramValue":"500","recall":0.9596,"qps":60.1561}],"fhg":[{"paramName":"ef_search","paramValue":"100","recall":0.81535,"qps":242.337},{"paramName":"ef_search","paramValue":"200","recall":0.88285,"qps":143.975},{"paramName":"ef_search","paramValue":"300","recall":0.91146,"qps":103.226},{"paramName":"ef_search","paramValue":"500","recall":0.93815,"qps":66.8825},{"paramName":"ef_search","paramValue":"1000","recall":0.96322,"qps":36.7228}],"uhg":[{"paramName":"ef_search","paramValue":"100","recall":0.87929,"qps":184.293},{"paramName":"ef_search","paramValue":"200","recall":0.9391,"qps":106.334},{"paramName":"ef_search","paramValue":"300","recall":0.96042,"qps":75.6444},{"paramName":"ef_search","paramValue":"500","recall":0.97718,"qps":48.6162},{"paramName":"ef_search","paramValue":"1000","recall":0.99012,"qps":26.4886}]},"hotpotqa":{"hnsw":[{"paramName":"point","paramValue":"100","recall":0.48253,"qps":207.149},{"paramName":"point","paramValue":"200","recall":0.64306,"qps":112.577},{"paramName":"point","paramValue":"300","recall":0.72263,"qps":77.7134},{"paramName":"point","paramValue":"500","recall":0.80285,"qps":49.8902},{"paramName":"point","paramValue":"800","recall":0.85965,"qps":32.948},{"paramName":"point","paramValue":"1000","recall":0.88176,"qps":27.0789}],"sindi":[{"paramName":"point","paramValue":"1000","recall":0.7334,"qps":171.772},{"paramName":"point","paramValue":"1500","recall":0.77599,"qps":133.741},{"paramName":"point","paramValue":"2000","recall":0.8031,"qps":109.277},{"paramName":"point","paramValue":"3000","recall":0.83735,"qps":80.5815},{"paramName":"point","paramValue":"5000","recall":0.87445,"qps":52.7349},{"paramName":"point","paramValue":"10000","recall":0.91194,"qps":28.4803}],"hnsw_sindi":[{"paramName":"point","paramValue":"100","recall":0.71449,"qps":128.427},{"paramName":"point","paramValue":"150","recall":0.818,"qps":99.9372},{"paramName":"point","paramValue":"200","recall":0.87294,"qps":82.0455},{"paramName":"point","paramValue":"300","recall":0.92701,"qps":61.0486},{"paramName":"point","paramValue":"500","recall":0.96474,"qps":40.9706}],"fhg":[{"paramName":"ef_search","paramValue":"100","recall":0.7765,"qps":162.127},{"paramName":"ef_search","paramValue":"200","recall":0.85916,"qps":92.2896},{"paramName":"ef_search","paramValue":"300","recall":0.89465,"qps":66.3599},{"paramName":"ef_search","paramValue":"500","recall":0.92767,"qps":42.9828},{"paramName":"ef_search","paramValue":"1000","recall":0.95778,"qps":23.747}],"uhg":[{"paramName":"ef_search","paramValue":"100","recall":0.85852,"qps":127.385},{"paramName":"ef_search","paramValue":"200","recall":0.93025,"qps":72.5668},{"paramName":"ef_search","paramValue":"300","recall":0.95545,"qps":51.4742},{"paramName":"ef_search","paramValue":"500","recall":0.97509,"qps":32.9591},{"paramName":"ef_search","paramValue":"1000","recall":0.98865,"qps":17.9064}]},"msmarco":{"hnsw":[{"paramName":"point","paramValue":"100","recall":0.61474,"qps":461.767},{"paramName":"point","paramValue":"200","recall":0.78564,"qps":259.931},{"paramName":"point","paramValue":"300","recall":0.84403,"qps":182.454},{"paramName":"point","paramValue":"500","recall":0.89329,"qps":114.651},{"paramName":"point","paramValue":"800","recall":0.92403,"qps":74.4222},{"paramName":"point","paramValue":"1000","recall":0.93501,"qps":60.551}],"sindi":[{"paramName":"point","paramValue":"1000","recall":0.69863,"qps":202.602},{"paramName":"point","paramValue":"1500","recall":0.73331,"qps":154.844},{"paramName":"point","paramValue":"2000","recall":0.75548,"qps":125.798},{"paramName":"point","paramValue":"3000","recall":0.78256,"qps":91.7847},{"paramName":"point","paramValue":"5000","recall":0.81473,"qps":59.5238},{"paramName":"point","paramValue":"10000","recall":0.85425,"qps":32.0885}],"hnsw_sindi":[{"paramName":"point","paramValue":"100","recall":0.77605,"qps":223.93},{"paramName":"point","paramValue":"150","recall":0.86638,"qps":185.044},{"paramName":"point","paramValue":"200","recall":0.90536,"qps":156.685},{"paramName":"point","paramValue":"300","recall":0.93962,"qps":120.249},{"paramName":"point","paramValue":"500","recall":0.9663,"qps":82.5538}],"fhg":[{"paramName":"ef_search","paramValue":"100","recall":0.72346,"qps":305.951},{"paramName":"ef_search","paramValue":"200","recall":0.82103,"qps":189.767},{"paramName":"ef_search","paramValue":"300","recall":0.86656,"qps":139.646},{"paramName":"ef_search","paramValue":"500","recall":0.90528,"qps":93.3097},{"paramName":"ef_search","paramValue":"1000","recall":0.94332,"qps":51.513}],"uhg":[{"paramName":"ef_search","paramValue":"100","recall":0.86541,"qps":268.882},{"paramName":"ef_search","paramValue":"200","recall":0.94397,"qps":164.118},{"paramName":"ef_search","paramValue":"300","recall":0.96255,"qps":118.337},{"paramName":"ef_search","paramValue":"500","recall":0.97565,"qps":75.0734},{"paramName":"ef_search","paramValue":"1000","recall":0.98637,"qps":39.5173}]},"fever":{"hnsw":[{"paramName":"point","paramValue":"100","recall":0.49394,"qps":206.837},{"paramName":"point","paramValue":"200","recall":0.64409,"qps":110.482},{"paramName":"point","paramValue":"300","recall":0.71621,"qps":76.0998},{"paramName":"point","paramValue":"500","recall":0.78786,"qps":47.5978},{"paramName":"point","paramValue":"800","recall":0.84116,"qps":31.037},{"paramName":"point","paramValue":"1000","recall":0.86191,"qps":25.3671}],"sindi":[{"paramName":"point","paramValue":"1000","recall":0.81031,"qps":158.643},{"paramName":"point","paramValue":"1500","recall":0.84507,"qps":124.714},{"paramName":"point","paramValue":"2000","recall":0.86694,"qps":102.547},{"paramName":"point","paramValue":"3000","recall":0.89344,"qps":76.3025},{"paramName":"point","paramValue":"5000","recall":0.92076,"qps":50.4108},{"paramName":"point","paramValue":"10000","recall":0.94794,"qps":27.5027}],"hnsw_sindi":[{"paramName":"point","paramValue":"100","recall":0.74687,"qps":123.046},{"paramName":"point","paramValue":"150","recall":0.83814,"qps":95.6923},{"paramName":"point","paramValue":"200","recall":0.88538,"qps":78.7141},{"paramName":"point","paramValue":"300","recall":0.93057,"qps":58.414},{"paramName":"point","paramValue":"500","recall":0.96401,"qps":38.8712}],"fhg":[{"paramName":"ef_search","paramValue":"100","recall":0.77491,"qps":143.736},{"paramName":"ef_search","paramValue":"200","recall":0.87606,"qps":80.8145},{"paramName":"ef_search","paramValue":"300","recall":0.90863,"qps":57.8599},{"paramName":"ef_search","paramValue":"500","recall":0.93402,"qps":37.5565},{"paramName":"ef_search","paramValue":"1000","recall":0.9569,"qps":20.6222}],"uhg":[{"paramName":"ef_search","paramValue":"100","recall":0.87909,"qps":118.287},{"paramName":"ef_search","paramValue":"200","recall":0.94115,"qps":65.587},{"paramName":"ef_search","paramValue":"300","recall":0.9613,"qps":46.5348},{"paramName":"ef_search","paramValue":"500","recall":0.97815,"qps":29.2625},{"paramName":"ef_search","paramValue":"1000","recall":0.98954,"qps":15.6073}]},"dbpedia-entity":{"hnsw":[{"paramName":"point","paramValue":"100","recall":0.566467,"qps":242.058},{"paramName":"point","paramValue":"200","recall":0.729165,"qps":130.406},{"paramName":"point","paramValue":"300","recall":0.794561,"qps":90.4613},{"paramName":"point","paramValue":"500","recall":0.853105,"qps":56.7988},{"paramName":"point","paramValue":"800","recall":0.89576,"qps":37.0808},{"paramName":"point","paramValue":"1000","recall":0.911649,"qps":30.1776}],"sindi":[{"paramName":"point","paramValue":"1000","recall":0.605675,"qps":246.906},{"paramName":"point","paramValue":"1500","recall":0.646788,"qps":182.305},{"paramName":"point","paramValue":"2000","recall":0.674754,"qps":143.738},{"paramName":"point","paramValue":"3000","recall":0.714026,"qps":101.857},{"paramName":"point","paramValue":"5000","recall":0.758758,"qps":64.9085},{"paramName":"point","paramValue":"10000","recall":0.806488,"qps":34.9422}],"hnsw_sindi":[{"paramName":"point","paramValue":"100","recall":0.723812,"qps":179.747},{"paramName":"point","paramValue":"150","recall":0.822741,"qps":132.945},{"paramName":"point","paramValue":"200","recall":0.871285,"qps":105.94},{"paramName":"point","paramValue":"300","recall":0.917859,"qps":75.5705},{"paramName":"point","paramValue":"500","recall":0.951071,"qps":49.2759}],"fhg":[{"paramName":"ef_search","paramValue":"100","recall":0.814261,"qps":195.416},{"paramName":"ef_search","paramValue":"200","recall":0.878458,"qps":111.121},{"paramName":"ef_search","paramValue":"300","recall":0.905161,"qps":78.7148},{"paramName":"ef_search","paramValue":"500","recall":0.93651,"qps":50.0052},{"paramName":"ef_search","paramValue":"1000","recall":0.959615,"qps":26.9959}],"uhg":[{"paramName":"ef_search","paramValue":"100","recall":0.875717,"qps":173.436},{"paramName":"ef_search","paramValue":"200","recall":0.937066,"qps":94.2439},{"paramName":"ef_search","paramValue":"300","recall":0.955974,"qps":65.4797},{"paramName":"ef_search","paramValue":"500","recall":0.971734,"qps":40.7898},{"paramName":"ef_search","paramValue":"1000","recall":0.98546,"qps":21.4354}]}},"defaultQpsScale":"log"}</script>
+<script>
+const DATA = JSON.parse(document.getElementById("plot-data").textContent);
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function node(name, attrs = {}, text = null) {
+  const element = document.createElementNS(SVG_NS, name);
+  for (const [key, value] of Object.entries(attrs)) element.setAttribute(key, value);
+  if (text !== null) element.textContent = text;
+  return element;
+}
+
+function xScale(recall, plotLeft, plotWidth) {
+  return plotLeft + ((recall - 0.7) / 0.3) * plotWidth;
+}
+
+function yScale(qps, yMin, yMax, plotTop, plotHeight) {
+  const logMin = Math.log10(yMin);
+  const logMax = Math.log10(yMax);
+  return plotTop + (logMax - Math.log10(qps)) / (logMax - logMin) * plotHeight;
+}
+
+function logTicks(yMin, yMax) {
+  const ticks = [];
+  const start = Math.floor(Math.log10(yMin));
+  const end = Math.ceil(Math.log10(yMax));
+  for (let exp = start; exp <= end; exp++) {
+    const value = Math.pow(10, exp);
+    if (value >= yMin * 0.999 && value <= yMax * 1.001) ticks.push(value);
+  }
+  return ticks;
+}
+
+function formatYTick(value) {
+  if (value >= 1000) return "10³";
+  if (value >= 100) return "10²";
+  if (value >= 10) return "10¹";
+  return "10⁰";
+}
+
+function drawMarker(svg, type, x, y, color, size = 5.2, tooltip = null) {
+  const group = node("g", tooltip ? { class: "data-marker" } : {});
+  if (tooltip) group.appendChild(node("title", {}, tooltip));
+
+  if (type === "square") {
+    group.appendChild(node("rect", {
+      x: x - size / 2, y: y - size / 2, width: size, height: size,
+      fill: color, stroke: "#111111", "stroke-width": 0.5,
+    }));
+  } else if (type === "circle") {
+    group.appendChild(node("circle", {
+      cx: x, cy: y, r: size / 2, fill: color, stroke: "#111111", "stroke-width": 0.5,
+    }));
+  } else if (type === "triangle") {
+    group.appendChild(node("polygon", {
+      points: `${x},${y - size / 2} ${x - size / 2},${y + size / 2} ${x + size / 2},${y + size / 2}`,
+      fill: color, stroke: "#111111", "stroke-width": 0.5,
+    }));
+  } else if (type === "pentagon") {
+    const points = [];
+    for (let i = 0; i < 5; i++) {
+      const angle = -Math.PI / 2 + (2 * Math.PI * i) / 5;
+      points.push(`${x + Math.cos(angle) * size / 2},${y + Math.sin(angle) * size / 2}`);
+    }
+    group.appendChild(node("polygon", {
+      points: points.join(" "), fill: color, stroke: "#111111", "stroke-width": 0.5,
+    }));
+  } else {
+    group.appendChild(node("line", {
+      x1: x - size / 2, y1: y - size / 2, x2: x + size / 2, y2: y + size / 2,
+      stroke: color, "stroke-width": 2,
+    }));
+    group.appendChild(node("line", {
+      x1: x - size / 2, y1: y + size / 2, x2: x + size / 2, y2: y - size / 2,
+      stroke: color, "stroke-width": 2,
+    }));
+  }
+  svg.appendChild(group);
+}
+
+function drawLegend(svg, width) {
+  const y = 51;
+  const labelWidths = { hnsw: 56, sindi: 52, hnsw_sindi: 92, fhg: 40, uhg: 42 };
+  const gap = 33;
+  const itemWidths = DATA.methods.map((method) => 22 + labelWidths[method]);
+  const totalWidth = itemWidths.reduce((sum, value) => sum + value, 0) + gap * (DATA.methods.length - 1);
+  let x = width / 2 - totalWidth / 2;
+
+  DATA.methods.forEach((method, index) => {
+    drawMarker(svg, DATA.methodMarkers[method], x + 8, y - 3, DATA.methodColors[method], 9);
+    svg.appendChild(node("text", { x: x + 21, y, class: "legend" }, DATA.methodLabels[method]));
+    x += itemWidths[index] + gap;
+  });
+}
+
+function panelYBounds(dataset) {
+  const qpsValues = [];
+  DATA.methods.forEach((method) => {
+    DATA.points[dataset][method].forEach((point) => qpsValues.push(point.qps));
+  });
+  const maxQps = Math.max(...qpsValues, 10);
+  return { min: 10, max: Math.pow(10, Math.ceil(Math.log10(maxQps * 1.12))) };
+}
+
+function drawPanel(svg, dataset, panelIndex, panelX, panelY, panelWidth, panelHeight) {
+  const plotLeft = panelX + 44;
+  const plotTop = panelY + 13;
+  const plotWidth = panelWidth - 54;
+  const plotHeight = panelHeight - 80;
+  const plotBottom = plotTop + plotHeight;
+  const bounds = panelYBounds(dataset);
+  const clipId = `clip-mixed-${dataset}`;
+
+  const defs = svg.querySelector("defs");
+  const clip = node("clipPath", { id: clipId });
+  clip.appendChild(node("rect", { x: plotLeft, y: plotTop, width: plotWidth, height: plotHeight }));
+  defs.appendChild(clip);
+
+  svg.appendChild(node("rect", {
+    x: plotLeft, y: plotTop, width: plotWidth, height: plotHeight,
+    fill: "#ffffff", stroke: "#111111", "stroke-width": 1,
+  }));
+
+  [0.7, 0.8, 0.9, 1.0].forEach((tick) => {
+    const x = xScale(tick, plotLeft, plotWidth);
+    svg.appendChild(node("line", {
+      x1: x, y1: plotTop, x2: x, y2: plotBottom,
+      class: tick === 0.7 || tick === 1.0 ? "axis-grid-edge" : "grid-line",
+    }));
+    svg.appendChild(node("text", {
+      x, y: plotBottom + 13, "text-anchor": "middle", class: "tick",
+    }, tick.toFixed(1)));
+  });
+
+  logTicks(bounds.min, bounds.max).forEach((tick) => {
+    const y = yScale(tick, bounds.min, bounds.max, plotTop, plotHeight);
+    svg.appendChild(node("line", {
+      x1: plotLeft, y1: y, x2: plotLeft + plotWidth, y2: y, class: "grid-line",
+    }));
+    svg.appendChild(node("text", {
+      x: plotLeft - 7, y: y + 3, "text-anchor": "end", class: "tick",
+    }, formatYTick(tick)));
+  });
+
+  const seriesGroup = node("g", { "clip-path": `url(#${clipId})` });
+  svg.appendChild(seriesGroup);
+
+  DATA.methods.forEach((method) => {
+    const points = DATA.points[dataset][method];
+    if (!points.length) return;
+    const color = DATA.methodColors[method];
+    const coords = points.map((point) => [
+      xScale(point.recall, plotLeft, plotWidth),
+      yScale(point.qps, bounds.min, bounds.max, plotTop, plotHeight),
+    ]);
+    seriesGroup.appendChild(node("polyline", {
+      points: coords.map(([x, y]) => `${x},${y}`).join(" "),
+      fill: "none", stroke: color, "stroke-width": method === "uhg" ? 2.4 : 1.2,
+    }));
+    points.forEach((point, index) => {
+      const parameter = point.paramName ? `${point.paramName}=${point.paramValue}` : "parameter unavailable";
+      const tooltip = `${DATA.methodLabels[method]}
+${parameter}
+Recall@100=${point.recall}
+QPS=${point.qps}`;
+      drawMarker(
+        seriesGroup,
+        DATA.methodMarkers[method],
+        coords[index][0],
+        coords[index][1],
+        color,
+        method === "uhg" ? 7.4 : 5.4,
+        tooltip
+      );
+    });
+  });
+
+  svg.appendChild(node("text", {
+    x: plotLeft + plotWidth / 2, y: plotBottom + 29, "text-anchor": "middle", class: "axis-label",
+  }, "Recall"));
+  svg.appendChild(node("text", {
+    x: panelX + 11, y: plotTop + plotHeight / 2,
+    transform: `rotate(-90 ${panelX + 11} ${plotTop + plotHeight / 2})`,
+    "text-anchor": "middle", class: "axis-label",
+  }, "QPS"));
+  svg.appendChild(node("text", {
+    x: plotLeft + plotWidth / 2, y: panelY + panelHeight - 5,
+    "text-anchor": "middle", class: "panel-label",
+  }, `(${String.fromCharCode(97 + panelIndex)}) ${DATA.datasetLabels[dataset]}`));
+}
+
+function draw() {
+  const svg = document.getElementById("figure");
+  const width = 1480;
+  const height = 376;
+  const panelWidth = 274;
+  const panelHeight = 274;
+  const colGap = 18;
+  const startX = (width - DATA.datasets.length * panelWidth - (DATA.datasets.length - 1) * colGap) / 2;
+  const startY = 80;
+  svg.replaceChildren();
+
+  const defs = node("defs");
+  const style = node("style");
+  style.textContent = `
+    .figure-heading { font: bold 18px "Times New Roman", Times, serif; fill: #111111; }
+    .legend { font: 17px "Times New Roman", Times, serif; fill: #111111; }
+    .tick { font: 11px "Times New Roman", Times, serif; fill: #111111; }
+    .axis-label { font: 13px "Times New Roman", Times, serif; fill: #111111; }
+    .panel-label { font: 15px "Times New Roman", Times, serif; fill: #111111; }
+    .grid-line { stroke: #8f8f8f; stroke-width: 0.75; stroke-dasharray: 2 2; }
+    .axis-grid-edge { stroke: #111111; stroke-width: 0.9; }
+    .data-marker { cursor: crosshair; }
+  `;
+  defs.appendChild(style);
+  svg.appendChild(defs);
+  svg.appendChild(node("title", { id: "figure-title" }, "Mixed-alpha QPS-Recall curves"));
+  svg.appendChild(node("desc", { id: "figure-desc" }, "Five retrieval methods evaluated with one independently assigned alpha per query."));
+  svg.appendChild(node("rect", { x: 0, y: 0, width, height, fill: "#ffffff" }));
+  svg.appendChild(node("text", {
+    x: width / 2, y: 21, "text-anchor": "middle", class: "figure-heading",
+  }, "QPS–Recall Performance under Mixed Alpha"));
+  drawLegend(svg, width);
+  DATA.datasets.forEach((dataset, index) => {
+    drawPanel(svg, dataset, index, startX + index * (panelWidth + colGap), startY, panelWidth, panelHeight);
+  });
+}
+
+function downloadSvg() {
+  const svg = document.getElementById("figure");
+  const source = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "mixed_alpha_qps_recall.svg";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+draw();
+</script>
+</body>
+</html>

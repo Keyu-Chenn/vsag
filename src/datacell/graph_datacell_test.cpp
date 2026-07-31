@@ -67,6 +67,47 @@ TEST_CASE("GraphDataCell Basic Test", "[ut][GraphDataCell]") {
     TestGraphDataCell(graph_param, common_param, is_support_delete);
 }
 
+TEST_CASE("GraphDataCell direct neighbor view", "[ut][GraphDataCell]") {
+    auto allocator = SafeAllocator::FactoryDefaultAllocator();
+    IndexCommonParam common_param;
+    common_param.dim_ = 32;
+    common_param.allocator_ = allocator;
+
+    auto make_graph = [&](bool support_remove) {
+        auto param_json = JsonType::Parse(fmt::format(
+            R"({{
+                "io_params": {{"type": "memory_io"}},
+                "max_degree": 8,
+                "init_capacity": 8,
+                "support_remove": {}
+            }})",
+            support_remove));
+        auto graph_param = GraphInterfaceParameter::GetGraphParameterByJson(
+            GraphStorageTypes::GRAPH_STORAGE_TYPE_VALUE_FLAT, param_json);
+        auto graph = GraphInterface::MakeInstance(graph_param, common_param);
+        graph->Resize(8);
+        return graph;
+    };
+
+    auto graph = make_graph(false);
+    Vector<InnerIdType> inserted(allocator.get());
+    inserted = {1, 3, 5};
+    graph->InsertNeighborsById(2, inserted);
+
+    const InnerIdType* neighbor_view = nullptr;
+    uint32_t neighbor_count = 0;
+    REQUIRE(graph->TryGetNeighborsView(2, neighbor_view, neighbor_count));
+    REQUIRE(neighbor_count == inserted.size());
+    for (uint32_t i = 0; i < neighbor_count; ++i) {
+        REQUIRE(neighbor_view[i] == inserted[i]);
+    }
+
+    auto removable_graph = make_graph(true);
+    removable_graph->InsertNeighborsById(2, inserted);
+    REQUIRE_FALSE(
+        removable_graph->TryGetNeighborsView(2, neighbor_view, neighbor_count));
+}
+
 TEST_CASE("GraphDataCell Remove Test", "[ut][GraphDataCell]") {
     auto allocator = SafeAllocator::FactoryDefaultAllocator();
     auto dim = GENERATE(32, 64);

@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QPS Improvement from Hybrid Pruning</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f5f5f5;
+  --paper: #ffffff;
+  --ink: #111111;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-height: 100vh;
+  padding: 20px;
+  background: var(--page);
+  color: var(--ink);
+  font-family: "Times New Roman", Times, serif;
+}
+.toolbar {
+  width: min(1480px, 100%);
+  margin: 0 auto 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+button {
+  appearance: none;
+  border: 1px solid #c7c7c7;
+  border-radius: 4px;
+  padding: 7px 12px;
+  background: #ffffff;
+  color: #111111;
+  font: 14px "Times New Roman", Times, serif;
+  cursor: pointer;
+}
+button:hover {
+  background: #f7f7f7;
+}
+.page {
+  width: min(1480px, 100%);
+  margin: 0 auto;
+  padding: 10px;
+  background: var(--paper);
+  border: 1px solid #dddddd;
+}
+svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@page {
+  size: 8in 4.65in;
+  margin: 0.08in;
+}
+@media print {
+  body {
+    padding: 0;
+    background: #ffffff;
+  }
+  .toolbar {
+    display: none;
+  }
+  .page {
+    width: 100%;
+    height: 4.49in;
+    padding: 0;
+    border: 0;
+  }
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button type="button" onclick="window.print()">Print PDF</button>
+  <button type="button" onclick="downloadSvg()">Save SVG</button>
+</div>
+<main class="page" aria-label="Hybrid pruning ablation figure">
+  <svg id="figure" viewBox="0 0 900 520" role="img"
+       aria-labelledby="figure-title figure-desc"></svg>
+</main>
+<script id="plot-data" type="application/json">{"datasets":["nq","hotpotqa","msmarco","fever","dbpedia-entity"],"datasetLabels":{"nq":"NQ","hotpotqa":"HotpotQA","msmarco":"MS MARCO","fever":"FEVER","dbpedia-entity":"DBpedia-Entity"},"alphas":["mixed"],"scales":["no_prune","0.3"],"scaleLabels":{"no_prune":"No pruning","0.3":"Pruning (scale=0.3)"},"scaleColors":{"no_prune":"#9CA3AF","0.3":"#E45756"},"scaleMarkers":{"no_prune":"diamond","0.3":"pentagon"},"targetEf":"300","points":{"nq":{"mixed":{"no_prune":[{"recall":0.96043,"qps":73.3165,"ef":"300","speedup":1.0,"gain_pct":0.0}],"0.3":[{"recall":0.96042,"qps":75.173,"ef":"300","speedup":1.025322,"gain_pct":2.532}]}},"hotpotqa":{"mixed":{"no_prune":[{"recall":0.95555,"qps":46.2649,"ef":"300","speedup":1.0,"gain_pct":0.0}],"0.3":[{"recall":0.95545,"qps":51.3059,"ef":"300","speedup":1.108959,"gain_pct":10.896}]}},"msmarco":{"mixed":{"no_prune":[{"recall":0.96316,"qps":102.503,"ef":"300","speedup":1.0,"gain_pct":0.0}],"0.3":[{"recall":0.96255,"qps":118.533,"ef":"300","speedup":1.156386,"gain_pct":15.639}]}},"fever":{"mixed":{"no_prune":[{"recall":0.96154,"qps":42.4007,"ef":"300","speedup":1.0,"gain_pct":0.0}],"0.3":[{"recall":0.9613,"qps":44.8726,"ef":"300","speedup":1.058299,"gain_pct":5.83}]}},"dbpedia-entity":{"mixed":{"no_prune":[{"recall":0.956124,"qps":55.9946,"ef":"300","speedup":1.0,"gain_pct":0.0}],"0.3":[{"recall":0.955974,"qps":65.4863,"ef":"300","speedup":1.169511,"gain_pct":16.951}]}}}}</script>
+<script>
+const DATA = JSON.parse(document.getElementById("plot-data").textContent);
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function node(name, attrs = {}, text = null) {
+  const element = document.createElementNS(SVG_NS, name);
+  for (const [key, value] of Object.entries(attrs)) {
+    element.setAttribute(key, value);
+  }
+  if (text !== null) element.textContent = text;
+  return element;
+}
+
+function extent(values, paddingRatio = 0.08) {
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const pad = Math.max((maxValue - minValue) * paddingRatio, 1e-6);
+  return [minValue - pad, maxValue + pad];
+}
+
+function niceTicks(minValue, maxValue, count = 5) {
+  const span = maxValue - minValue;
+  if (span <= 0) return [minValue];
+  const rawStep = span / Math.max(count - 1, 1);
+  const pow10 = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const scaled = rawStep / pow10;
+  const niceScaled = scaled <= 1 ? 1 : scaled <= 2 ? 2 : scaled <= 5 ? 5 : 10;
+  const step = niceScaled * pow10;
+  const start = Math.ceil(minValue / step) * step;
+  const ticks = [];
+  for (let tick = start; tick <= maxValue + step * 0.5; tick += step) {
+    ticks.push(Number(tick.toFixed(8)));
+  }
+  return ticks;
+}
+
+function xScale(value, minValue, maxValue, left, width) {
+  return left + ((value - minValue) / (maxValue - minValue)) * width;
+}
+
+function yScale(value, minValue, maxValue, top, height) {
+  return top + (maxValue - value) / (maxValue - minValue) * height;
+}
+
+function drawMarker(svg, type, x, y, color, size = 6.5) {
+  if (type === "circle") {
+    svg.appendChild(node("circle", {
+      cx: x,
+      cy: y,
+      r: size / 2,
+      fill: color,
+      stroke: "#111111",
+      "stroke-width": 0.5,
+    }));
+  } else if (type === "diamond") {
+    const points = [
+      `${x},${y - size / 2}`,
+      `${x + size / 2},${y}`,
+      `${x},${y + size / 2}`,
+      `${x - size / 2},${y}`,
+    ].join(" ");
+    svg.appendChild(node("polygon", {
+      points,
+      fill: color,
+      stroke: "#111111",
+      "stroke-width": 0.5,
+    }));
+  } else if (type === "square") {
+    svg.appendChild(node("rect", {
+      x: x - size / 2,
+      y: y - size / 2,
+      width: size,
+      height: size,
+      fill: color,
+      stroke: "#111111",
+      "stroke-width": 0.5,
+    }));
+  } else if (type === "pentagon") {
+    const points = [];
+    for (let i = 0; i < 5; i++) {
+      const angle = -Math.PI / 2 + (2 * Math.PI * i) / 5;
+      points.push(`${x + Math.cos(angle) * size / 2},${y + Math.sin(angle) * size / 2}`);
+    }
+    svg.appendChild(node("polygon", {
+      points: points.join(" "),
+      fill: color,
+      stroke: "#111111",
+      "stroke-width": 0.5,
+    }));
+  } else {
+    const points = [
+      `${x},${y - size / 2}`,
+      `${x - size / 2},${y + size / 2}`,
+      `${x + size / 2},${y + size / 2}`,
+    ].join(" ");
+    svg.appendChild(node("polygon", {
+      points,
+      fill: color,
+      stroke: "#111111",
+      "stroke-width": 0.5,
+    }));
+  }
+}
+
+function drawLegend(svg, width) {
+  const scales = ["no_prune", "0.3"].filter((scale) => DATA.scales.includes(scale));
+  const y = 51;
+  const labelWidths = { "no_prune": 103, "0.3": 205 };
+  const itemWidths = scales.map((scale) => 29 + labelWidths[scale]);
+  const gap = 38;
+  const totalWidth = itemWidths.reduce((sum, value) => sum + value, 0) + gap * (scales.length - 1);
+  let x = width / 2 - totalWidth / 2;
+  scales.forEach((scale, index) => {
+    const color = DATA.scaleColors[scale];
+    svg.appendChild(node("rect", {
+      x, y: y - 16, width: 21, height: 16,
+      fill: color, stroke: "#111111", "stroke-width": 0.5,
+    }));
+    svg.appendChild(node("text", {
+      x: x + 29,
+      y,
+      class: "legend",
+    }, DATA.scaleLabels[scale]));
+    x += itemWidths[index] + gap;
+  });
+}
+
+function flattenPoints(dataset, alpha) {
+  const points = [];
+  DATA.scales.forEach((scale) => {
+    DATA.points[dataset][alpha][scale].forEach((point) => points.push({ ...point, scale }));
+  });
+  return points;
+}
+
+function drawAxes(svg, opts) {
+  svg.appendChild(node("rect", {
+    x: opts.left,
+    y: opts.top,
+    width: opts.width,
+    height: opts.height,
+    fill: "#ffffff",
+    stroke: "#111111",
+    "stroke-width": 1,
+  }));
+  opts.xTicks.forEach((tick) => {
+    const x = xScale(tick, opts.xMin, opts.xMax, opts.left, opts.width);
+    svg.appendChild(node("line", {
+      x1: x,
+      y1: opts.top,
+      x2: x,
+      y2: opts.top + opts.height,
+      class: tick === opts.xTicks[0] || tick === opts.xTicks[opts.xTicks.length - 1] ? "axis-grid-edge" : "grid-line",
+    }));
+    svg.appendChild(node("text", {
+      x,
+      y: opts.top + opts.height + 13,
+      "text-anchor": "middle",
+      class: "tick",
+    }, opts.xFormat(tick)));
+  });
+  opts.yTicks.forEach((tick) => {
+    const y = yScale(tick, opts.yMin, opts.yMax, opts.top, opts.height);
+    svg.appendChild(node("line", {
+      x1: opts.left,
+      y1: y,
+      x2: opts.left + opts.width,
+      y2: y,
+      class: "grid-line",
+    }));
+    svg.appendChild(node("text", {
+      x: opts.left - 8,
+      y: y + 3,
+      "text-anchor": "end",
+      class: "tick",
+    }, opts.yFormat(tick)));
+  });
+  svg.appendChild(node("text", {
+    x: opts.left + opts.width / 2,
+    y: opts.top + opts.height + 29,
+    "text-anchor": "middle",
+    class: "axis-label",
+  }, opts.xLabel));
+  svg.appendChild(node("text", {
+    x: opts.left - 33,
+    y: opts.top + opts.height / 2,
+    transform: `rotate(-90 ${opts.left - 33} ${opts.top + opts.height / 2})`,
+    "text-anchor": "middle",
+    class: "axis-label",
+  }, opts.yLabel));
+}
+
+function drawGainPlot(svg, dataset, alpha, panelIndex, panelX, panelY, panelWidth, panelHeight) {
+  const points = flattenPoints(dataset, alpha).filter((point) => point.scale !== "no_prune" && point.gain_pct !== null);
+  const efValues = [...new Set(points.map((point) => Number(point.ef)))].sort((a, b) => a - b);
+  const gains = points.map((point) => point.gain_pct);
+  let [yMin, yMax] = extent(gains, 0.18);
+  yMin = Math.min(0, yMin);
+  const opts = {
+    left: panelX + 44,
+    top: panelY + 13,
+    width: panelWidth - 54,
+    height: panelHeight - 59,
+    xMin: Math.min(...efValues),
+    xMax: Math.max(...efValues),
+    yMin,
+    yMax,
+    xTicks: efValues,
+    yTicks: niceTicks(yMin, yMax, 6),
+    xFormat: (value) => value.toString(),
+    yFormat: (value) => `${value.toFixed(1)}`,
+    xLabel: "ef_search",
+    yLabel: "QPS Gain (%)",
+  };
+  drawAxes(svg, opts);
+
+  DATA.scales.filter((scale) => scale !== "no_prune").forEach((scale) => {
+    const scalePoints = DATA.points[dataset][alpha][scale].filter((point) => point.gain_pct !== null);
+    if (!scalePoints.length) return;
+    const coords = scalePoints.map((point) => [
+      xScale(Number(point.ef), opts.xMin, opts.xMax, opts.left, opts.width),
+      yScale(point.gain_pct, opts.yMin, opts.yMax, opts.top, opts.height),
+    ]);
+    const color = DATA.scaleColors[scale];
+    svg.appendChild(node("polyline", {
+      points: coords.map(([x, y]) => `${x},${y}`).join(" "),
+      fill: "none",
+      stroke: color,
+      "stroke-width": scale === "0.3" ? 2.5 : 1.65,
+    }));
+    coords.forEach(([x, y]) => drawMarker(svg, DATA.scaleMarkers[scale], x, y, color, scale === "0.3" ? 8 : 6.4));
+  });
+
+  svg.appendChild(node("text", {
+    x: panelX + panelWidth / 2,
+    y: panelY + panelHeight - 5,
+    "text-anchor": "middle",
+    class: "panel-label",
+  }, `(${String.fromCharCode(97 + panelIndex)}) ${DATA.datasetLabels[dataset]} α=${alpha}`));
+}
+
+function qpsBounds(values) {
+  const lowerValue = Math.min(...values);
+  const upperValue = Math.max(...values);
+  const rawStep = upperValue / 6;
+  const power = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const scaled = rawStep / power;
+  const step = (scaled <= 1.5 ? 1 : scaled <= 3.5 ? 2 : scaled <= 7 ? 5 : 10) * power;
+  const min = Math.floor(lowerValue / step) * step;
+  const max = Math.ceil(upperValue / step) * step;
+  const ticks = [];
+  for (let tick = min; tick <= max + step * 0.5; tick += step) {
+    ticks.push(Number(tick.toFixed(8)));
+  }
+  return { min, max, ticks };
+}
+
+function drawQpsChart(svg, panelX, panelY, panelWidth) {
+  const alpha = DATA.alphas[0];
+  const groups = DATA.datasets.map((dataset) => ({
+    dataset,
+    noPrune: DATA.points[dataset][alpha].no_prune[0],
+    pruned: DATA.points[dataset][alpha]["0.3"][0],
+  })).filter((group) => group.noPrune && group.pruned);
+  const bounds = { min: 20, max: 140 };
+  bounds.ticks = niceTicks(bounds.min, bounds.max, 8);
+  const plotLeft = panelX + 64;
+  const plotTop = panelY + 13;
+  const plotWidth = panelWidth - 82;
+  const plotHeight = 320;
+  const plotBottom = plotTop + plotHeight;
+
+  svg.appendChild(node("rect", {
+    x: plotLeft, y: plotTop, width: plotWidth, height: plotHeight,
+    fill: "#ffffff", stroke: "#111111", "stroke-width": 1,
+  }));
+  bounds.ticks.forEach((tick) => {
+    const y = yScale(tick, bounds.min, bounds.max, plotTop, plotHeight);
+    svg.appendChild(node("line", {
+      x1: plotLeft, y1: y, x2: plotLeft + plotWidth, y2: y,
+      class: tick === bounds.min ? "baseline" : "grid-line",
+    }));
+    svg.appendChild(node("text", {
+      x: plotLeft - 10, y: y + 4, "text-anchor": "end", class: "tick",
+    }, Number.isInteger(tick) ? String(tick) : tick.toFixed(1)));
+  });
+
+  const groupWidth = plotWidth / groups.length;
+  const barWidth = Math.min(72, groupWidth * 0.26);
+  groups.forEach((group, groupIndex) => {
+    const groupCenter = plotLeft + groupWidth * (groupIndex + 0.5);
+    const bars = [
+      { point: group.noPrune, scale: "no_prune", center: groupCenter - barWidth * 0.62 },
+      { point: group.pruned, scale: "0.3", center: groupCenter + barWidth * 0.62 },
+    ];
+    bars.forEach((bar) => {
+      const y = yScale(bar.point.qps, bounds.min, bounds.max, plotTop, plotHeight);
+      const barLeft = bar.center - barWidth / 2;
+      svg.appendChild(node("rect", {
+        x: barLeft, y, width: barWidth, height: plotBottom - y,
+        fill: DATA.scaleColors[bar.scale], stroke: "#111111", "stroke-width": 0.7,
+      }));
+      svg.appendChild(node("text", {
+        x: bar.center, y: y - 7, "text-anchor": "middle", class: "bar-value",
+      }, bar.point.qps.toFixed(1)));
+    });
+    svg.appendChild(node("text", {
+      x: groupCenter, y: plotBottom + 12,
+      "text-anchor": "middle", "dominant-baseline": "hanging", class: "bar-label",
+    }, DATA.datasetLabels[group.dataset]));
+  });
+
+  svg.appendChild(node("text", {
+    x: panelX + 19, y: plotTop + plotHeight / 2,
+    transform: `rotate(-90 ${panelX + 19} ${plotTop + plotHeight / 2})`,
+    "text-anchor": "middle", class: "axis-label",
+  }, "QPS"));
+}
+
+function draw() {
+  const svg = document.getElementById("figure");
+  const width = 900;
+  const height = 520;
+  const panelWidth = 800;
+  const startX = (width - panelWidth) / 2;
+  const startY = 80;
+
+  svg.replaceChildren();
+  const defs = node("defs");
+  const style = node("style");
+  style.textContent = `
+    .legend { font: 25px "Times New Roman", Times, serif; fill: #111111; }
+    .tick { font: 21px "Times New Roman", Times, serif; fill: #111111; }
+    .axis-label { font: 23px "Times New Roman", Times, serif; fill: #111111; }
+    .panel-label { font: 25px "Times New Roman", Times, serif; fill: #111111; }
+    .bar-label { font: 22px "Times New Roman", Times, serif; fill: #111111; }
+    .bar-value { font: bold 23px "Times New Roman", Times, serif; fill: #111111; }
+    .grid-line { stroke: #8f8f8f; stroke-width: 0.75; stroke-dasharray: 2 2; }
+    .axis-grid-edge { stroke: #111111; stroke-width: 0.9; }
+    .baseline { stroke: #111111; stroke-width: 1.1; }
+  `;
+  defs.appendChild(style);
+  svg.appendChild(defs);
+
+  svg.appendChild(node("title", { id: "figure-title" }, "QPS with vs. without Hybrid Pruning"));
+  svg.appendChild(node("desc", { id: "figure-desc" }, "Grouped QPS comparison with direct percentage and absolute gains from pruning."));
+  svg.appendChild(node("rect", { x: 0, y: 0, width, height, fill: "#ffffff" }));
+
+  drawLegend(svg, width);
+  drawQpsChart(svg, startX, startY, panelWidth);
+}
+
+function downloadSvg() {
+  const svg = document.getElementById("figure");
+  const source = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "test_prune_fig8.svg";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+draw();
+</script>
+</body>
+</html>

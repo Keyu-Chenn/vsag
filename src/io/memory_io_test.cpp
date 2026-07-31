@@ -16,12 +16,43 @@
 #include "memory_io.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <cstdlib>
 #include <memory>
 
 #include "basic_io_test.h"
 #include "impl/allocator/safe_allocator.h"
 
 using namespace vsag;
+
+namespace {
+
+class CountingAllocator : public Allocator {
+public:
+    std::string
+    Name() override {
+        return "CountingAllocator";
+    }
+
+    void*
+    Allocate(size_t size) override {
+        return std::malloc(size);
+    }
+
+    void
+    Deallocate(void* p) override {
+        std::free(p);
+    }
+
+    void*
+    Reallocate(void* p, size_t size) override {
+        ++reallocate_count;
+        return std::realloc(p, size);
+    }
+
+    size_t reallocate_count{0};
+};
+
+}  // namespace
 
 TEST_CASE("MemoryIO Read and Write", "[ut][MemoryIO]") {
     auto allocator = SafeAllocator::FactoryDefaultAllocator();
@@ -34,4 +65,22 @@ TEST_CASE("MemoryIO Serialize and Deserialize", "[ut][MemoryIO]") {
     auto wio = std::make_unique<MemoryIO>(allocator.get());
     auto rio = std::make_unique<MemoryIO>(allocator.get());
     TestSerializeAndDeserialize(*wio, *rio);
+}
+
+TEST_CASE("MemoryIO grows geometrically", "[ut][MemoryIO]") {
+    CountingAllocator allocator;
+    MemoryIO io(&allocator);
+    constexpr uint64_t count = 1U << 20U;
+    constexpr uint8_t value = 0x5A;
+
+    for (uint64_t i = 0; i < count; ++i) {
+        io.Write(&value, sizeof(value), i);
+    }
+
+    REQUIRE(io.size_ == count);
+    REQUIRE(allocator.reallocate_count <= 20);
+
+    uint8_t actual = 0;
+    REQUIRE(io.Read(sizeof(actual), count - 1, &actual));
+    REQUIRE(actual == value);
 }

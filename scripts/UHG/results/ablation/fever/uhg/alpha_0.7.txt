@@ -1,0 +1,13 @@
+# ablation: entry strategy
+# method=uhg dataset=fever alpha=0.7 k=100 num_queries=-1 threads=1
+# fixed index: /tbase-project/vsag/scripts/UHG/data/index_hybrid_union/703_fever_hybrid_index.index (SINDI + dense-entry + UHG main graph embedded at build time)
+# direct UHG baseline; compare with main auto result at the same alpha and ef_search
+# build-time paths (graph/sindi/dense_entry) are NOT passed: index already has them
+# build_alpha=0.5 hybrid_prune_scale=0.3 max_hops=0
+# sindi_query_prune_ratio=0.5 sindi_term_prune_ratio=0
+# result_dir=/tbase-project/vsag/scripts/UHG/results/ablation/fever/uhg
+uhg ef_search=100 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.78775 QPS: 222.358
+uhg ef_search=200 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.86459 QPS: 128.934
+uhg ef_search=300 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.89759 QPS: 79.0767
+uhg ef_search=500 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.92821 QPS: 56.9399
+uhg ef_search=1000 prune_scale=0.3 sindi_qp=0.5 threads=1 Recall: 0.95512 QPS: 24.801

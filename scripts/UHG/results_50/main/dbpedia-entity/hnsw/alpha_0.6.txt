@@ -1,0 +1,11 @@
+# recall@50 fixed-alpha baseline
+# method=hnsw dataset=dbpedia-entity alpha=0.6 k=50 num_queries=-1 threads=1
+# data_dir=/tbase-project/vsag/scripts/UHG/data
+# index_dir=/tbase-project/vsag/scripts/UHG/data/index
+# result_dir=/tbase-project/vsag/scripts/UHG/results_50/main/dbpedia-entity/hnsw
+hnsw bk=50 ef_search=50 threads=1 Recall: 0.648094 QPS: 433.423
+hnsw bk=100 ef_search=100 threads=1 Recall: 0.812548 QPS: 239.798
+hnsw bk=150 ef_search=150 threads=1 Recall: 0.874946 QPS: 167.183
+hnsw bk=250 ef_search=250 threads=1 Recall: 0.923426 QPS: 105.401
+hnsw bk=400 ef_search=400 threads=1 Recall: 0.948137 QPS: 68.9966
+hnsw bk=500 ef_search=500 threads=1 Recall: 0.956488 QPS: 56.1215

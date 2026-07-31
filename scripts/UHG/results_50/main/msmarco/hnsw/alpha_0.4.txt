@@ -1,0 +1,11 @@
+# recall@50 fixed-alpha baseline
+# method=hnsw dataset=msmarco alpha=0.4 k=50 num_queries=-1 threads=1
+# data_dir=/tbase-project/vsag/scripts/UHG/data
+# index_dir=/tbase-project/vsag/scripts/UHG/data/index
+# result_dir=/tbase-project/vsag/scripts/UHG/results_50/main/msmarco/hnsw
+hnsw bk=50 ef_search=50 threads=1 Recall: 0.53932 QPS: 777.95
+hnsw bk=100 ef_search=100 threads=1 Recall: 0.7115 QPS: 457.757
+hnsw bk=150 ef_search=150 threads=1 Recall: 0.78116 QPS: 331.82
+hnsw bk=250 ef_search=250 threads=1 Recall: 0.84966 QPS: 214.067
+hnsw bk=400 ef_search=400 threads=1 Recall: 0.89028 QPS: 140.738
+hnsw bk=500 ef_search=500 threads=1 Recall: 0.90594 QPS: 114.238

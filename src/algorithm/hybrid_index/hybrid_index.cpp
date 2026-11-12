@@ -14,7 +14,6 @@
 #include <mutex>
 #include <optional>
 #include <queue>
-#include <sstream>
 #include <unordered_set>
 
 #include "attr/argparse.h"
@@ -304,7 +303,8 @@ public:
            const FlattenInterfacePtr& dense_cell,
            uint64_t topk,
            uint64_t ef,
-           Allocator* allocator) const {
+           Allocator* allocator,
+           HybridDenseDistanceCache* dense_cache) const {
         if (not loaded_ or num_nodes_ == 0 or
             enterpoint_node_ == std::numeric_limits<InnerIdType>::max()) {
             return {};
@@ -317,16 +317,36 @@ public:
             return {};
         }
 
-        float curdist = Distance(curr_obj, dense_cell, computer, allocator);
+        float curdist = Distance(curr_obj, dense_cell, computer, allocator, dense_cache);
+        thread_local DistanceBatchScratch distance_scratch;
         for (int level = max_level_; level > 0; --level) {
             bool changed = true;
             while (changed) {
                 changed = false;
+                distance_scratch.Clear();
                 for (auto candidate : Neighbors(curr_obj, level)) {
                     if (candidate >= num_nodes_ or not HasVector(candidate)) {
                         continue;
                     }
-                    const float distance = Distance(candidate, dense_cell, computer, allocator);
+                    distance_scratch.internal_ids.emplace_back(candidate);
+                    distance_scratch.hybrid_ids.emplace_back(internal_to_inner_[candidate]);
+                }
+                distance_scratch.distances.resize(distance_scratch.hybrid_ids.size());
+                if (not distance_scratch.hybrid_ids.empty()) {
+                    dense_cell->Query(distance_scratch.distances.data(),
+                                      computer,
+                                      distance_scratch.hybrid_ids.data(),
+                                      static_cast<InnerIdType>(distance_scratch.hybrid_ids.size()),
+                                      allocator);
+                    if (dense_cache != nullptr) {
+                        dense_cache->Record(distance_scratch.hybrid_ids.data(),
+                                            distance_scratch.distances.data(),
+                                            distance_scratch.hybrid_ids.size());
+                    }
+                }
+                for (size_t i = 0; i < distance_scratch.internal_ids.size(); ++i) {
+                    const auto candidate = distance_scratch.internal_ids[i];
+                    const float distance = distance_scratch.distances[i];
                     if (distance < curdist) {
                         curdist = distance;
                         curr_obj = candidate;
@@ -337,7 +357,8 @@ public:
         }
 
         ef = std::max<uint64_t>(ef, topk);
-        auto top_candidates = SearchBaseLayer(curr_obj, dense_cell, computer, ef, allocator);
+        auto top_candidates = SearchBaseLayer(
+            curr_obj, dense_cell, computer, ef, allocator, distance_scratch, dense_cache);
         while (top_candidates.size() > topk) {
             top_candidates.pop();
         }
@@ -468,6 +489,19 @@ private:
         }
     };
 
+    struct DistanceBatchScratch {
+        void
+        Clear() {
+            internal_ids.clear();
+            hybrid_ids.clear();
+            distances.clear();
+        }
+
+        std::vector<InnerIdType> internal_ids;
+        std::vector<InnerIdType> hybrid_ids;
+        std::vector<float> distances;
+    };
+
     [[nodiscard]] bool
     HasVector(InnerIdType internal_id) const {
         return internal_id < internal_to_inner_.size() and internal_to_inner_[internal_id] != kInvalidInnerId;
@@ -503,13 +537,16 @@ private:
     Distance(InnerIdType internal_id,
              const FlattenInterfacePtr& dense_cell,
              const ComputerInterfacePtr& computer,
-             Allocator* allocator) const {
+             Allocator* allocator,
+             HybridDenseDistanceCache* dense_cache) const {
         if (not HasVector(internal_id)) {
             return std::numeric_limits<float>::max();
         }
         float distance = std::numeric_limits<float>::max();
         const auto hybrid_inner_id = internal_to_inner_[internal_id];
         dense_cell->Query(&distance, computer, &hybrid_inner_id, 1, allocator);
+        if (dense_cache != nullptr)
+            dense_cache->Record(&hybrid_inner_id, &distance, 1);
         return distance;
     }
 
@@ -518,7 +555,9 @@ private:
                     const FlattenInterfacePtr& dense_cell,
                     const ComputerInterfacePtr& computer,
                     uint64_t ef,
-                    Allocator* allocator) const {
+                    Allocator* allocator,
+                    DistanceBatchScratch& distance_scratch,
+                    HybridDenseDistanceCache* dense_cache) const {
         CandidateQueue top_candidates;
         CandidateQueue candidate_set;
 
@@ -535,7 +574,7 @@ private:
 
         float lower_bound = std::numeric_limits<float>::max();
         if (HasVector(ep_id) and not IsDeleted(ep_id)) {
-            const float distance = Distance(ep_id, dense_cell, computer, allocator);
+            const float distance = Distance(ep_id, dense_cell, computer, allocator, dense_cache);
             lower_bound = distance;
             top_candidates.emplace(distance, ep_id);
             candidate_set.emplace(-distance, ep_id);
@@ -554,7 +593,20 @@ private:
             candidate_set.pop();
 
             const auto current_node_id = current_node_pair.second;
-            for (auto candidate_id : Neighbors(current_node_id, 0)) {
+            distance_scratch.Clear();
+            const auto neighbors = Neighbors(current_node_id, 0);
+            constexpr size_t kMetadataPrefetchDistance = 4;
+            for (size_t neighbor_i = 0; neighbor_i < neighbors.size; ++neighbor_i) {
+                if (neighbor_i + kMetadataPrefetchDistance < neighbors.size) {
+                    const auto future_id = neighbors.data[neighbor_i + kMetadataPrefetchDistance];
+                    if (future_id < num_nodes_) {
+                        __builtin_prefetch(visited.data() + future_id, 0, 3);
+                        if (future_id < internal_to_inner_.size()) {
+                            __builtin_prefetch(internal_to_inner_.data() + future_id, 0, 3);
+                        }
+                    }
+                }
+                const auto candidate_id = neighbors.data[neighbor_i];
                 if (candidate_id >= num_nodes_ or visited[candidate_id] == visited_tag) {
                     continue;
                 }
@@ -563,7 +615,27 @@ private:
                     continue;
                 }
 
-                const float distance = Distance(candidate_id, dense_cell, computer, allocator);
+                distance_scratch.internal_ids.emplace_back(candidate_id);
+                distance_scratch.hybrid_ids.emplace_back(internal_to_inner_[candidate_id]);
+            }
+
+            distance_scratch.distances.resize(distance_scratch.hybrid_ids.size());
+            if (not distance_scratch.hybrid_ids.empty()) {
+                dense_cell->Query(distance_scratch.distances.data(),
+                                  computer,
+                                  distance_scratch.hybrid_ids.data(),
+                                  static_cast<InnerIdType>(distance_scratch.hybrid_ids.size()),
+                                  allocator);
+                if (dense_cache != nullptr) {
+                    dense_cache->Record(distance_scratch.hybrid_ids.data(),
+                                        distance_scratch.distances.data(),
+                                        distance_scratch.hybrid_ids.size());
+                }
+            }
+
+            for (size_t i = 0; i < distance_scratch.internal_ids.size(); ++i) {
+                const auto candidate_id = distance_scratch.internal_ids[i];
+                const float distance = distance_scratch.distances[i];
                 if (top_candidates.size() < ef or lower_bound > distance) {
                     candidate_set.emplace(-distance, candidate_id);
 
@@ -751,6 +823,18 @@ HybridIndex::Build(const DatasetPtr& data) {
         load_sindi_index();
     }
     auto failed_ids = this->Add(data);
+    if (precomputed_neighbors_loaded_) {
+        const auto released_bytes =
+            (precomputed_neighbors_.capacity() + precomputed_neighbor_counts_.capacity()) *
+            sizeof(int64_t);
+        std::vector<int64_t>().swap(precomputed_neighbors_);
+        std::vector<int64_t>().swap(precomputed_neighbor_counts_);
+        precomputed_num_points_ = 0;
+        precomputed_max_neighbors_ = 0;
+        precomputed_neighbors_loaded_ = false;
+        logger::info("HybridIndex released {} bytes of materialized precomputed graph input",
+                     released_bytes);
+    }
     if (not dense_entry_hnsw_graph_path_.empty()) {
         load_dense_entry_hnsw_graph();
     }
@@ -828,7 +912,9 @@ HybridIndex::load_dense_entry_hnsw_graph() {
 }
 
 void
-HybridIndex::add_hybrid_graph_point(InnerIdType inner_id, const float* vector) {
+HybridIndex::add_hybrid_graph_point(InnerIdType inner_id,
+                                    const float* vector,
+                                    const VisitedListPtr& reusable_visited_list) {
     if (precomputed_neighbors_loaded_) {
         CHECK_ARGUMENT(inner_id < precomputed_num_points_,
                        fmt::format("precomputed graph has {} points, but building id {}",
@@ -868,7 +954,12 @@ HybridIndex::add_hybrid_graph_point(InnerIdType inner_id, const float* vector) {
     search_param.hybrid_dense_weight = alpha_;
     search_param.hybrid_sparse_weight = 1 - alpha_;
 
-    auto vl = std::make_shared<VisitedList>(graph_->max_capacity_, allocator_);
+    auto vl = reusable_visited_list;
+    if (vl != nullptr) {
+        vl->Reset();
+    } else {
+        vl = std::make_shared<VisitedList>(graph_->max_capacity_, allocator_);
+    }
     Statistics discard_stats;
     auto results = searcher_->Search(
         graph_, hybrid_codes_, vl, vector, search_param, (LabelTablePtr)nullptr, discard_stats);
@@ -877,7 +968,9 @@ HybridIndex::add_hybrid_graph_point(InnerIdType inner_id, const float* vector) {
 }
 
 void
-HybridIndex::add_dense_entry_point(InnerIdType inner_id, const float* dense_vector) {
+HybridIndex::add_dense_entry_point(InnerIdType inner_id,
+                                   const float* dense_vector,
+                                   const VisitedListPtr& reusable_visited_list) {
     if (dense_entry_graph_ == nullptr) {
         return;
     }
@@ -893,7 +986,12 @@ HybridIndex::add_dense_entry_point(InnerIdType inner_id, const float* dense_vect
     search_param.search_mode = KNN_SEARCH;
     search_param.ep = dense_entry_point_id_;
 
-    auto vl = std::make_shared<VisitedList>(dense_entry_graph_->max_capacity_, allocator_);
+    auto vl = reusable_visited_list;
+    if (vl != nullptr) {
+        vl->Reset();
+    } else {
+        vl = std::make_shared<VisitedList>(dense_entry_graph_->max_capacity_, allocator_);
+    }
     Statistics discard_stats;
     auto results = dense_entry_searcher_->Search(dense_entry_graph_,
                                                  hybrid_codes_->GetDenseCell(),
@@ -923,6 +1021,19 @@ HybridIndex::reset_graph_visited_pool() {
     }
     graph_visited_pool_ =
         std::make_shared<VisitedListPool>(1, allocator_, graph_->max_capacity_, allocator_);
+}
+
+void
+HybridIndex::reset_dense_entry_visited_pool() {
+    if (dense_entry_graph_ == nullptr or dense_entry_graph_->max_capacity_ == 0) {
+        dense_entry_visited_pool_.reset();
+        return;
+    }
+    dense_entry_visited_pool_ =
+        std::make_shared<VisitedListPool>(1,
+                                          allocator_,
+                                          dense_entry_graph_->max_capacity_,
+                                          allocator_);
 }
 
 std::vector<int64_t>
@@ -956,10 +1067,14 @@ HybridIndex::Add(const DatasetPtr& data) {
 
     auto dense_vecs = data->GetFloat32Vectors();
     auto sparse_vecs = data->GetSparseVectors();
-
     const auto dense_bytes = dim * sizeof(float);
     const auto sparse_ref_bytes = sizeof(sparse_vecs[0]);
     auto hybrid_vec = static_cast<uint8_t*>(allocator_->Allocate(dense_bytes + sparse_ref_bytes));
+    VisitedListPtr construction_visited_list = nullptr;
+    if (not precomputed_neighbors_loaded_ or dense_entry_graph_ != nullptr) {
+        construction_visited_list =
+            std::make_shared<VisitedList>(graph_->max_capacity_, allocator_);
+    }
 
     // insert labels and points
     for (auto offset = 0; offset < vec_num; offset++) {
@@ -968,14 +1083,19 @@ HybridIndex::Add(const DatasetPtr& data) {
         std::memcpy(hybrid_vec, dense_vecs + offset * dim, dense_bytes);
         std::memcpy(hybrid_vec + dense_bytes, sparse_vecs + offset, sparse_ref_bytes);
         hybrid_codes_->InsertVector(hybrid_vec, inner_id);
-        add_one_point(inner_id, reinterpret_cast<const float*>(hybrid_vec));
-        add_dense_entry_point(inner_id, dense_vecs + offset * dim);
+        add_hybrid_graph_point(inner_id,
+                               reinterpret_cast<const float*>(hybrid_vec),
+                               construction_visited_list);
+        add_dense_entry_point(inner_id,
+                              dense_vecs + offset * dim,
+                              construction_visited_list);
     }
 
     allocator_->Deallocate(hybrid_vec);
 
     this->total_count_ += vec_num;
     reset_graph_visited_pool();
+    reset_dense_entry_visited_pool();
     return failed_ids;
 }
 
@@ -1063,7 +1183,8 @@ std::vector<InnerIdType>
 HybridIndex::get_dense_entry_points(const DatasetPtr& query,
                                     const JsonType& parsed_search_param,
                                     int64_t k,
-                                    Statistics& stats) const {
+                                    Statistics& stats,
+                                    HybridDenseDistanceCache* dense_cache) const {
     auto uhgh_json = parsed_search_param.Contains("uhgh") ? parsed_search_param["uhgh"] : JsonType();
     uint64_t default_bk = default_dense_entry_bk_;
     if (default_bk == 0) {
@@ -1088,7 +1209,8 @@ HybridIndex::get_dense_entry_points(const DatasetPtr& query,
                                                hybrid_codes_->GetDenseCell(),
                                                entry_bk,
                                                entry_ef,
-                                               allocator_);
+                                               allocator_,
+                                               dense_cache);
     }
 
     CHECK_ARGUMENT(dense_entry_graph_ != nullptr and dense_entry_searcher_ != nullptr,
@@ -1103,7 +1225,10 @@ HybridIndex::get_dense_entry_points(const DatasetPtr& query,
     search_param.search_mode = KNN_SEARCH;
     search_param.ep = dense_entry_point_id_;
 
-    auto vl = std::make_shared<VisitedList>(dense_entry_graph_->max_capacity_, allocator_);
+    auto visited_pool = dense_entry_visited_pool_;
+    auto vl = visited_pool != nullptr
+                  ? visited_pool->TakeOne()
+                  : std::make_shared<VisitedList>(dense_entry_graph_->max_capacity_, allocator_);
     auto dense_results = dense_entry_searcher_->Search(dense_entry_graph_,
                                                        hybrid_codes_->GetDenseCell(),
                                                        vl,
@@ -1111,6 +1236,9 @@ HybridIndex::get_dense_entry_points(const DatasetPtr& query,
                                                        search_param,
                                                        (LabelTablePtr)nullptr,
                                                        stats);
+    if (visited_pool != nullptr) {
+        visited_pool->ReturnOne(vl);
+    }
 
     std::vector<InnerIdType> entry_points;
     entry_points.reserve(dense_results->Size());
@@ -1126,7 +1254,8 @@ HybridIndex::graph_knn_search(const DatasetPtr& query,
                               int64_t k,
                               const JsonType& parsed_search_param,
                               float alpha,
-                              const std::vector<InnerIdType>& entry_points) const {
+                              const std::vector<InnerIdType>& entry_points,
+                              const HybridDenseDistanceCache* dense_cache) const {
     InnerSearchParam search_param;
     search_param.ef = get_uint_param(parsed_search_param, "ef_search", std::max<int64_t>(k, 10));
     search_param.hybrid_candidate_set_size = parsed_search_param.Contains("hybrid_candidate_set_size")
@@ -1193,13 +1322,27 @@ HybridIndex::graph_knn_search(const DatasetPtr& query,
                   ? visited_pool->TakeOne()
                   : std::make_shared<VisitedList>(graph_->max_capacity_, allocator_);
     Statistics discard_stats;
-    auto search_results = searcher_->Search(graph_,
-                                            hybrid_codes_,
-                                            vl,
-                                            hybrid_vector,
-                                            search_param,
-                                            (LabelTablePtr)nullptr,
-                                            discard_stats);
+    DistHeapPtr search_results;
+    if (dense_cache != nullptr) {
+        auto computer =
+            std::static_pointer_cast<HybridComputer>(hybrid_codes_->FactoryComputer(hybrid_vector));
+        computer->SetDenseDistanceCache(dense_cache);
+        search_results = searcher_->SearchWithComputer(graph_,
+                                                       hybrid_codes_,
+                                                       vl,
+                                                       computer,
+                                                       search_param,
+                                                       (LabelTablePtr) nullptr,
+                                                       discard_stats);
+    } else {
+        search_results = searcher_->Search(graph_,
+                                           hybrid_codes_,
+                                           vl,
+                                           hybrid_vector,
+                                           search_param,
+                                           (LabelTablePtr) nullptr,
+                                           discard_stats);
+    }
     if (visited_pool != nullptr) {
         visited_pool->ReturnOne(vl);
     }
@@ -1241,6 +1384,15 @@ HybridIndex::KnnSearch(const DatasetPtr& query,
                    fmt::format("alpha must in [0, 1], got {}", search_alpha));
 
     auto method = resolve_search_method(parsed_search_param, search_alpha);
+    HybridDenseDistanceCache* dense_cache = nullptr;
+    // Reuse only the in-memory FP32 path whose Batch4/scalar kernels are tracked.
+    if (method == SearchMethod::UHGH and dense_entry_hnsw_graph_ != nullptr and
+        dense_entry_hnsw_graph_->Loaded() and hybrid_codes_->GetDenseCell()->InMemory() and
+        hybrid_codes_->GetDenseCell()->GetQuantizerName() == QUANTIZATION_TYPE_VALUE_FP32) {
+        thread_local HybridDenseDistanceCache reusable_dense_cache;
+        reusable_dense_cache.Reset();
+        dense_cache = &reusable_dense_cache;
+    }
     std::vector<InnerIdType> entry_points;
 
     switch (method) {
@@ -1249,18 +1401,15 @@ HybridIndex::KnnSearch(const DatasetPtr& query,
             break;
         case SearchMethod::UHGH: {
             Statistics dense_entry_stats;
-            entry_points = get_dense_entry_points(query, parsed_search_param, k, dense_entry_stats);
+            entry_points = get_dense_entry_points(
+                query, parsed_search_param, k, dense_entry_stats, dense_cache);
             break;
         }
         case SearchMethod::UHG:
             break;
     }
 
-    return graph_knn_search(query,
-                            k,
-                            parsed_search_param,
-                            search_alpha,
-                            entry_points);
+    return graph_knn_search(query, k, parsed_search_param, search_alpha, entry_points, dense_cache);
 }
 
 DatasetPtr
@@ -1383,10 +1532,15 @@ void HybridIndex::Serialize(StreamWriter& writer) const {
     StreamWriter::WriteObj(writer, has_sindi_index);
     if (has_sindi_index) {
         StreamWriter::WriteString(writer, sindi_parameter_->ToJson().Dump());
-        std::stringstream sindi_stream;
-        IOStreamWriter sindi_writer(sindi_stream);
-        sindi_index_->Serialize(sindi_writer);
-        StreamWriter::WriteString(writer, sindi_stream.str());
+        const auto sindi_serialize_size = sindi_index_->CalSerializeSize();
+        CHECK_ARGUMENT(sindi_serialize_size <= std::numeric_limits<size_t>::max(),
+                       "embedded SINDI is too large to serialize");
+        const auto sindi_blob_size = static_cast<size_t>(sindi_serialize_size);
+        StreamWriter::WriteObj(writer, sindi_blob_size);
+        const auto sindi_start = writer.GetCursor();
+        sindi_index_->Serialize(writer);
+        CHECK_ARGUMENT(writer.GetCursor() - sindi_start == sindi_serialize_size,
+                       "embedded SINDI serialized size changed between sizing and writing");
     }
 
     StreamWriter::WriteString(writer, sindi_index_path_);
@@ -1455,6 +1609,7 @@ HybridIndex::Deserialize(StreamReader& reader) {
         dense_entry_graph_mutex_.reset();
         dense_entry_point_id_ = std::numeric_limits<InnerIdType>::max();
     }
+    reset_dense_entry_visited_pool();
 
     bool has_sindi_index = false;
     StreamReader::ReadObj(reader, has_sindi_index);
@@ -1469,10 +1624,15 @@ HybridIndex::Deserialize(StreamReader& reader) {
         }
         sindi_index_ = std::make_shared<SINDI>(sindi_parameter_, common_param_);
         sindi_index_->InitFeatures();
-        const auto sindi_blob = StreamReader::ReadString(reader);
-        std::stringstream sindi_stream(sindi_blob);
-        IOStreamReader sindi_reader(sindi_stream);
+        size_t sindi_blob_size = 0;
+        StreamReader::ReadObj(reader, sindi_blob_size);
+        const auto sindi_start = reader.GetCursor();
+        CHECK_ARGUMENT(sindi_start <= reader.Length() and
+                           sindi_blob_size <= reader.Length() - sindi_start,
+                       "embedded SINDI section exceeds the hybrid index stream");
+        auto sindi_reader = reader.Slice(sindi_blob_size);
         sindi_index_->Deserialize(sindi_reader);
+        reader.Seek(sindi_start + sindi_blob_size);
         sindi_loaded_from_path_ = true;
     } else {
         sindi_parameter_.reset();
@@ -1492,6 +1652,7 @@ HybridIndex::Deserialize(StreamReader& reader) {
             dense_entry_searcher_.reset();
             dense_entry_graph_mutex_.reset();
             dense_entry_point_id_ = std::numeric_limits<InnerIdType>::max();
+            reset_dense_entry_visited_pool();
         } else {
             dense_entry_hnsw_graph_.reset();
         }

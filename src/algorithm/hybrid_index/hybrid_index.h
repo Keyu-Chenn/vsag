@@ -109,13 +109,20 @@ private:
     load_dense_entry_hnsw_graph();
 
     void
-    add_hybrid_graph_point(InnerIdType inner_id, const float* vector);
+    add_hybrid_graph_point(InnerIdType inner_id,
+                           const float* vector,
+                           const VisitedListPtr& reusable_visited_list = nullptr);
 
     void
-    add_dense_entry_point(InnerIdType inner_id, const float* dense_vector);
+    add_dense_entry_point(InnerIdType inner_id,
+                          const float* dense_vector,
+                          const VisitedListPtr& reusable_visited_list = nullptr);
 
     void
     reset_graph_visited_pool();
+
+    void
+    reset_dense_entry_visited_pool();
 
     [[nodiscard]] SearchMethod
     resolve_search_method(const JsonType& parsed_search_param, float alpha) const;
@@ -130,14 +137,16 @@ private:
     get_dense_entry_points(const DatasetPtr& query,
                            const JsonType& parsed_search_param,
                            int64_t k,
-                           Statistics& stats) const;
+                           Statistics& stats,
+                           HybridDenseDistanceCache* dense_cache) const;
 
     [[nodiscard]] DatasetPtr
     graph_knn_search(const DatasetPtr& query,
                      int64_t k,
                      const JsonType& parsed_search_param,
                      float alpha,
-                     const std::vector<InnerIdType>& entry_points) const;
+                     const std::vector<InnerIdType>& entry_points,
+                     const HybridDenseDistanceCache* dense_cache) const;
 
     // Vector<float> dense_vector_;
     // Vector<SparseVector> sparse_vector_;
@@ -151,6 +160,7 @@ private:
     BasicSearcherPtr searcher_{nullptr};
     BasicSearcherPtr dense_entry_searcher_{nullptr};
     std::shared_ptr<VisitedListPool> graph_visited_pool_{nullptr};
+    std::shared_ptr<VisitedListPool> dense_entry_visited_pool_{nullptr};
     InnerIdType entry_point_id_{std::numeric_limits<InnerIdType>::max()};
     InnerIdType dense_entry_point_id_{std::numeric_limits<InnerIdType>::max()};
     uint64_t ef_construction_{20};

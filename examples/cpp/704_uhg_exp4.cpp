@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -579,8 +580,7 @@ main(int argc, char** argv) {
         std::cout << "  min neighbors: " << min_count << "\n";
 
         // Create output directory if not exists
-        std::string mkdir_cmd = "mkdir -p " + config.output_dir;
-        system(mkdir_cmd.c_str());
+        std::filesystem::create_directories(config.output_dir);
 
         std::cout << "\nSaving to " << output_file << std::endl;
         SaveNeighborsToHDF5(output_file, all_neighbors, config.alpha);

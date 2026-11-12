@@ -22,6 +22,7 @@
 
 #include "common.h"
 #include "flatten_interface.h"
+#include "hybrid_dense_distance_cache.h"
 #include "flatten_datacell.h"
 #include "sparse_vector_datacell.h"
 #include "io/basic_io.h"
@@ -42,7 +43,10 @@ struct HybridSearchScratch {
           sparse_dists_(allocator),
           sparse_ids_(allocator),
           sparse_positions_(allocator),
-          selected_sparse_dists_(allocator) {
+          selected_sparse_dists_(allocator),
+          dense_ids_(allocator),
+          dense_positions_(allocator),
+          dense_dists_(allocator) {
     }
 
     Allocator* allocator_{nullptr};
@@ -50,6 +54,9 @@ struct HybridSearchScratch {
     Vector<InnerIdType> sparse_ids_;
     Vector<InnerIdType> sparse_positions_;
     Vector<float> selected_sparse_dists_;
+    Vector<InnerIdType> dense_ids_;
+    Vector<InnerIdType> dense_positions_;
+    Vector<float> dense_dists_;
 };
 
 // Hybrid Computer that combines dense and sparse computers
@@ -61,6 +68,14 @@ public:
                    float dense_weight = 0.5f,
                    float sparse_weight = 0.5f);
 
+    void
+    SetDenseDistanceCache(const HybridDenseDistanceCache* cache) {
+        dense_cache_ = cache;
+    }
+    const HybridDenseDistanceCache*
+    GetDenseDistanceCache() const {
+        return dense_cache_;
+    }
 
     // Accessors for internal computers
     ComputerInterfacePtr
@@ -132,7 +147,7 @@ public:
     }
 
 private:
-
+    const HybridDenseDistanceCache* dense_cache_{nullptr};
     ComputerInterfacePtr dense_computer_;
     ComputerInterfacePtr sparse_computer_;
     float dense_weight_;
@@ -301,6 +316,13 @@ private:
           const InnerIdType* idx,
           InnerIdType id_count,
           Allocator* allocator);
+
+    void
+    query_dense(float* result_dists,
+                const std::shared_ptr<HybridComputer>& computer,
+                const InnerIdType* ids,
+                InnerIdType count,
+                Allocator* allocator);
 
     ComputerInterfacePtr
     factory_computer(const float* query);

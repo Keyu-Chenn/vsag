@@ -56,7 +56,7 @@ if (DIST_CONTAINS_AVX512)
             avx512.cpp
             PROPERTIES
             COMPILE_FLAGS
-            "-mavx512f -mavx512pf -mavx512er -mavx512cd -mavx512vl -mavx512bw -mavx512dq -mavx512ifma -mavx512vbmi"
+            "-mavx512f -mavx512cd -mavx512vl -mavx512bw -mavx512dq -mavx512ifma -mavx512vbmi"
     )
 endif ()
 if (DIST_CONTAINS_AVX512VPOPCNTDQ)
@@ -64,7 +64,7 @@ if (DIST_CONTAINS_AVX512VPOPCNTDQ)
             avx512vpopcntdq.cpp
             PROPERTIES
             COMPILE_FLAGS
-            "-mavx512f -mavx512pf -mavx512er -mavx512cd -mavx512vl -mavx512bw -mavx512dq -mavx512ifma -mavx512vbmi -mavx512vpopcntdq"
+            "-mavx512f -mavx512cd -mavx512vl -mavx512bw -mavx512dq -mavx512ifma -mavx512vbmi -mavx512vpopcntdq"
     )
 endif ()
 if (DIST_CONTAINS_NEON)

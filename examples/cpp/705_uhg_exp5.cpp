@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -311,8 +312,7 @@ main(int argc, char** argv) {
 
         // Create index directory if needed
         if (need_build) {
-            std::string cmd = "mkdir -p " + params.index_dir;
-            system(cmd.c_str());
+            std::filesystem::create_directories(params.index_dir);
         }
 
         // Data containers (only loaded when needed)

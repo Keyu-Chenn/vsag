@@ -183,6 +183,9 @@ data/
 .ccls-cache/
 
 /build-release/
+/build-paper-baselines/
+/build-independent-hnsw-replay/
+/graph_storage
 *.so.[0-9]*
 /python/pyvsag/_version.py
 /coverage-report/
@@ -190,10 +193,22 @@ data/
 *.gcov
 /dist/
 
-# UHG generated artifacts
-/scripts/UHG/data/
-/scripts/UHG/logs/
-/scripts/UHG/**/__pycache__/
-/scripts/UHG/**/trash/
-/scripts/UHG/**/*.h5
-/scripts/UHG/**/*_tmp.sh
+# Legacy UHG experiment workspace; the canonical runner is experiments/UniGraph.
+/scripts/UHG/
+
+# Standalone UHG experiment outputs (keep runners and documentation tracked)
+/experiments/UniGraph/index/
+/experiments/UniGraph/result_pic/
+/experiments/**/artifacts/
+/experiments/**/bin/
+/experiments/**/logs/
+/experiments/**/markers/
+/experiments/**/runs/
+
+# Keep the compact published UniGraph audit archive; its local .gitignore still
+# excludes new machine-specific run outputs.
+!/experiments/UniGraph/runs/
+
+# Keep UniGraph's compact ground-truth arrays in Git. The directory-local
+# ignore file continues to exclude the large HDF5 payloads.
+!/experiments/UniGraph/data/

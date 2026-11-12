@@ -175,3 +175,9 @@ target_link_libraries (711_uhg_exp11 vsag libhdf5_cpp.a libhdf5.a z)
 
 add_executable (712_uhg_exp12 712_uhg_exp12.cpp)
 target_link_libraries (712_uhg_exp12 vsag libhdf5_cpp.a libhdf5.a z)
+
+# Independently buildable research baselines; existing methods stay untouched.
+option(ENABLE_UHG_PAPER_BASELINES "Build independent Hybrid HNSW / unified IVF paper baselines" OFF)
+if(ENABLE_UHG_PAPER_BASELINES)
+    add_subdirectory(uhg_paper_baselines)
+endif()

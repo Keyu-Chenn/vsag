@@ -18,11 +18,17 @@
 #include <omp.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <cstdint>
+#include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
+#include <new>
 #include <sstream>
 #include <unordered_set>
 #include <vector>
@@ -180,6 +186,162 @@ ParseSearchPoints(const std::string& text) {
     return values;
 }
 
+struct CountSummary {
+    int min;
+    int max;
+    double mean;
+};
+
+CountSummary
+SummarizeCounts(const std::vector<int>& counts) {
+    if (counts.empty()) {
+        return {0, 0, 0.0};
+    }
+    int min_value = counts.front();
+    int max_value = counts.front();
+    double total = 0.0;
+    for (int value : counts) {
+        min_value = std::min(min_value, value);
+        max_value = std::max(max_value, value);
+        total += value;
+    }
+    return {min_value, max_value, total / static_cast<double>(counts.size())};
+}
+
+struct AllocationSnapshot {
+    uint64_t allocate_calls{0};
+    uint64_t allocated_bytes{0};
+    uint64_t deallocate_calls{0};
+    uint64_t reallocate_calls{0};
+    uint64_t reallocated_bytes{0};
+};
+
+class CountingAllocator final : public vsag::Allocator {
+public:
+    std::string
+    Name() override {
+        return "UHGDiagnosticCountingAllocator";
+    }
+
+    void*
+    Allocate(size_t size) override {
+        void* result = std::malloc(size);
+        if (result == nullptr && size != 0) {
+            throw std::bad_alloc();
+        }
+        if (enabled_.load(std::memory_order_relaxed)) {
+            allocate_calls_.fetch_add(1, std::memory_order_relaxed);
+            allocated_bytes_.fetch_add(size, std::memory_order_relaxed);
+        }
+        return result;
+    }
+
+    void
+    Deallocate(void* pointer) override {
+        if (enabled_.load(std::memory_order_relaxed) && pointer != nullptr) {
+            deallocate_calls_.fetch_add(1, std::memory_order_relaxed);
+        }
+        std::free(pointer);
+    }
+
+    void*
+    Reallocate(void* pointer, size_t size) override {
+        void* result = std::realloc(pointer, size);
+        if (result == nullptr && size != 0) {
+            throw std::bad_alloc();
+        }
+        if (enabled_.load(std::memory_order_relaxed)) {
+            reallocate_calls_.fetch_add(1, std::memory_order_relaxed);
+            reallocated_bytes_.fetch_add(size, std::memory_order_relaxed);
+        }
+        return result;
+    }
+
+    void
+    Enable() {
+        Reset();
+        enabled_.store(true, std::memory_order_relaxed);
+    }
+
+    void
+    Disable() {
+        enabled_.store(false, std::memory_order_relaxed);
+    }
+
+    void
+    Reset() {
+        allocate_calls_.store(0, std::memory_order_relaxed);
+        allocated_bytes_.store(0, std::memory_order_relaxed);
+        deallocate_calls_.store(0, std::memory_order_relaxed);
+        reallocate_calls_.store(0, std::memory_order_relaxed);
+        reallocated_bytes_.store(0, std::memory_order_relaxed);
+    }
+
+    [[nodiscard]] AllocationSnapshot
+    Snapshot() const {
+        return {
+            allocate_calls_.load(std::memory_order_relaxed),
+            allocated_bytes_.load(std::memory_order_relaxed),
+            deallocate_calls_.load(std::memory_order_relaxed),
+            reallocate_calls_.load(std::memory_order_relaxed),
+            reallocated_bytes_.load(std::memory_order_relaxed),
+        };
+    }
+
+private:
+    std::atomic<bool> enabled_{false};
+    std::atomic<uint64_t> allocate_calls_{0};
+    std::atomic<uint64_t> allocated_bytes_{0};
+    std::atomic<uint64_t> deallocate_calls_{0};
+    std::atomic<uint64_t> reallocate_calls_{0};
+    std::atomic<uint64_t> reallocated_bytes_{0};
+};
+
+AllocationSnapshot
+AllocationDelta(const AllocationSnapshot& before, const AllocationSnapshot& after) {
+    return {
+        after.allocate_calls - before.allocate_calls,
+        after.allocated_bytes - before.allocated_bytes,
+        after.deallocate_calls - before.deallocate_calls,
+        after.reallocate_calls - before.reallocate_calls,
+        after.reallocated_bytes - before.reallocated_bytes,
+    };
+}
+
+std::string
+ResolveDiagnosticRoute(const std::string& method, float alpha) {
+    if (method != "auto") {
+        return method;
+    }
+    constexpr float threshold = 0.5F;
+    constexpr float epsilon = 1e-6F;
+    if (alpha <= threshold + epsilon) {
+        return "uhgs";
+    }
+    if (alpha > threshold + epsilon) {
+        return "uhgh";
+    }
+    return "uhg";
+}
+
+uint64_t
+HashResultIds(const std::vector<int64_t>& ids) {
+    constexpr uint64_t offset_basis = 14695981039346656037ULL;
+    constexpr uint64_t prime = 1099511628211ULL;
+    uint64_t hash = offset_basis;
+    auto mix_uint64 = [&](uint64_t value) {
+        for (uint32_t byte = 0; byte < sizeof(value); ++byte) {
+            hash ^= (value >> (byte * 8U)) & 0xffU;
+            hash *= prime;
+        }
+    };
+    mix_uint64(ids.size());
+    for (const auto id : ids) {
+        mix_uint64(static_cast<uint64_t>(id));
+    }
+    return hash;
+}
+
 // ============================================================
 // 参数解析
 // ============================================================
@@ -215,11 +377,14 @@ PrintUsage(const char* program_name) {
               << "  --num_queries <int>        Number of queries to process, -1 for all (default: -1)\n"
               << "  --threads <int>            Query-level parallel search threads (default: 1)\n"
               << "  --rebuild                  Force rebuild indexes\n"
+              << "  --build_only               Build and serialize the deployable index, then exit\n"
               << "  --index_dir <path>         Directory for index cache (default: /tbase-project/vsag/scripts/UHG/data/index)\n"
               << "  --hybrid_index_path <path> Explicit hybrid_index path, overrides index_dir\n"
               << "  --gt_dir <path>            Directory with ground truth npy files (required)\n"
               << "  --mixed_alpha_file <path> Per-query alpha float32 npy; use with --mixed_gt_file\n"
               << "  --mixed_gt_file <path>    Ground truth int64 npy for mixed per-query alphas\n"
+              << "  --diagnostics_output <path>\n"
+              << "                              Write per-query route, ordered IDs, hash, and VSAG allocation counts\n"
               << "  --help, -h                 Show this help message\n"
               << "\nMethods:\n"
               << "  uhg:   Main hybrid graph search\n"
@@ -254,11 +419,13 @@ struct SearchParams {
     int num_queries = -1;
     int threads = 1;
     bool rebuild = false;
+    bool build_only = false;
     std::string index_dir = "/tbase-project/vsag/scripts/UHG/data/index";
     std::string hybrid_index_path;
     std::string gt_dir = "";
     std::string mixed_alpha_file;
     std::string mixed_gt_file;
+    std::string diagnostics_output;
 };
 
 SearchParams
@@ -337,6 +504,8 @@ ParseCommandLine(int argc, char** argv) {
             params.threads = std::atoi(argv[++i]);
         } else if (arg == "--rebuild") {
             params.rebuild = true;
+        } else if (arg == "--build_only") {
+            params.build_only = true;
         } else if (arg == "--index_dir" && i + 1 < argc) {
             params.index_dir = argv[++i];
         } else if (arg == "--hybrid_index_path" && i + 1 < argc) {
@@ -347,6 +516,8 @@ ParseCommandLine(int argc, char** argv) {
             params.mixed_alpha_file = argv[++i];
         } else if (arg == "--mixed_gt_file" && i + 1 < argc) {
             params.mixed_gt_file = argv[++i];
+        } else if (arg == "--diagnostics_output" && i + 1 < argc) {
+            params.diagnostics_output = argv[++i];
         } else {
             std::cerr << "Unknown argument: " << arg << std::endl;
             PrintUsage(argv[0]);
@@ -381,6 +552,10 @@ ParseCommandLine(int argc, char** argv) {
     }
     if (params.threads <= 0) {
         std::cerr << "Error: threads must be positive\n";
+        exit(1);
+    }
+    if (!params.diagnostics_output.empty() && params.threads != 1) {
+        std::cerr << "Error: diagnostics_output currently requires --threads 1\n";
         exit(1);
     }
     for (int point : params.search_points) {
@@ -442,11 +617,13 @@ main(int argc, char** argv) {
 
         bool need_build_hybrid = params.rebuild || !FileExists(hybrid_index_path);
         bool need_build = need_build_hybrid;
+        if (params.build_only && !need_build_hybrid) {
+            throw std::runtime_error("build_only refuses to reuse an existing hybrid index");
+        }
 
         // Create index directory if needed
         if (need_build) {
-            std::string cmd = "mkdir -p " + params.index_dir;
-            system(cmd.c_str());
+            std::filesystem::create_directories(params.index_dir);
         }
 
         // Data containers (only loaded when needed)
@@ -463,8 +640,8 @@ main(int argc, char** argv) {
         std::cout << "Opening " << params.h5_file << std::endl;
         H5::H5File file(params.h5_file, H5F_ACC_RDONLY);
 
-        // Always load test data (for queries)
-        {
+        // Query data is unnecessary when only materializing the deployable index.
+        if (!params.build_only) {
             H5::DataSet test_dataset = file.openDataSet("test");
             H5::DataSpace test_dataspace = test_dataset.getSpace();
             hsize_t test_dims[2];
@@ -493,6 +670,11 @@ main(int argc, char** argv) {
             hsize_t train_dims[2];
             train_dataspace.getSimpleExtentDims(train_dims);
             num_train = train_dims[0];
+            if (dense_dim == 0) {
+                dense_dim = train_dims[1];
+            } else if (dense_dim != static_cast<int64_t>(train_dims[1])) {
+                throw std::runtime_error("Train/test dense dimension mismatch");
+            }
 
             train_dense.resize(num_train * dense_dim);
             train_dataset.read(train_dense.data(), H5::PredType::NATIVE_FLOAT);
@@ -540,7 +722,11 @@ main(int argc, char** argv) {
         }
         std::string hybrid_build_params = hybrid_build_param_json.dump();
 
-        auto hybrid_index = vsag::Factory::CreateIndex("hybrid_index", hybrid_build_params).value();
+        CountingAllocator diagnostic_allocator;
+        vsag::Allocator* index_allocator =
+            params.diagnostics_output.empty() ? nullptr : &diagnostic_allocator;
+        auto hybrid_index =
+            vsag::Factory::CreateIndex("hybrid_index", hybrid_build_params, index_allocator).value();
 
         if (need_build_hybrid) {
             std::cout << "Building hybrid_index..." << std::endl;
@@ -561,6 +747,17 @@ main(int argc, char** argv) {
             double build_time = std::chrono::duration<double>(build_end - build_start).count();
             std::cout << "Hybrid_index built in " << build_time << "s" << std::endl;
 
+            // Build() is synchronous and the dataset does not own these buffers.  Release the
+            // original training inputs before serializing the already materialized index so that
+            // packaging does not keep a second copy of the source vectors alive.
+            base_dataset.reset();
+            FreeSparseVectors(train_sparse);
+            std::vector<vsag::SparseVector>().swap(train_sparse);
+            std::vector<float>().swap(train_dense);
+            std::vector<int64_t>().swap(train_labels);
+            std::cout << "Released training inputs before serialization" << std::endl;
+
+            auto serialize_start = std::chrono::high_resolution_clock::now();
             std::ofstream out_stream(hybrid_index_path);
             auto serialize_result = hybrid_index->Serialize(out_stream);
             out_stream.close();
@@ -568,11 +765,17 @@ main(int argc, char** argv) {
                 std::cerr << "Failed to save hybrid_index: " << serialize_result.error().message << std::endl;
                 return -1;
             }
+            auto serialize_end = std::chrono::high_resolution_clock::now();
+            double serialize_time =
+                std::chrono::duration<double>(serialize_end - serialize_start).count();
+            std::cout << "Hybrid_index serialized in " << serialize_time << "s" << std::endl;
             std::cout << "Hybrid_index saved to " << hybrid_index_path << std::endl;
         } else {
             std::cout << "Loading hybrid_index from " << hybrid_index_path << std::endl;
             hybrid_index = nullptr;
-            hybrid_index = vsag::Factory::CreateIndex("hybrid_index", hybrid_build_params).value();
+            hybrid_index =
+                vsag::Factory::CreateIndex("hybrid_index", hybrid_build_params, index_allocator)
+                    .value();
             std::ifstream in_stream(hybrid_index_path);
             auto deserialize_result = hybrid_index->Deserialize(in_stream);
             in_stream.close();
@@ -581,6 +784,11 @@ main(int argc, char** argv) {
                 return -1;
             }
             std::cout << "Hybrid_index loaded (" << hybrid_index->GetNumElements() << " vectors)" << std::endl;
+        }
+
+        if (params.build_only) {
+            FreeSparseVectors(train_sparse);
+            return 0;
         }
 
         /******************* 4. 加载 ground truth *****************/
@@ -626,6 +834,24 @@ main(int argc, char** argv) {
             search_points.push_back(params.ef_search);
         }
 
+        std::ofstream diagnostics_stream;
+        if (!params.diagnostics_output.empty()) {
+            const std::filesystem::path diagnostics_path(params.diagnostics_output);
+            if (diagnostics_path.has_parent_path()) {
+                std::filesystem::create_directories(diagnostics_path.parent_path());
+            }
+            diagnostics_stream.open(diagnostics_path, std::ios::out | std::ios::trunc);
+            if (!diagnostics_stream.is_open()) {
+                throw std::runtime_error(
+                    "Cannot open diagnostics output: " + params.diagnostics_output);
+            }
+            diagnostics_stream
+                << "point\tquery_index\talpha\troute\tresult_count\tids_fnv1a64"
+                << "\tallocate_calls\tallocated_bytes\tdeallocate_calls"
+                << "\treallocate_calls\treallocated_bytes\tresult_ids\n";
+            diagnostic_allocator.Enable();
+        }
+
         for (int point : search_points) {
             const int effective_ef_search = params.search_points.empty() ? params.ef_search : point;
             const int effective_sindi_bk = params.search_points.empty() ? params.sindi_bk : point;
@@ -633,7 +859,11 @@ main(int argc, char** argv) {
                 params.search_points.empty() ? params.dense_entry_bk : point;
             const int effective_dense_entry_ef_search =
                 params.search_points.empty() ? params.dense_entry_ef_search : point;
-            std::vector<float> query_recalls(actual_num_queries, 0.0f);
+            std::vector<std::vector<int64_t>> query_results(actual_num_queries);
+            std::vector<AllocationSnapshot> query_allocations;
+            if (!params.diagnostics_output.empty()) {
+                query_allocations.resize(actual_num_queries);
+            }
 
             auto search_start = std::chrono::high_resolution_clock::now();
 
@@ -641,46 +871,47 @@ main(int argc, char** argv) {
             for (int query_idx = 0; query_idx < actual_num_queries; query_idx++) {
                 const float query_alpha =
                     mixed_alpha_mode ? mixed_alphas[query_idx] : params.alpha;
-                if (params.threads == 1 && (query_idx + 1) % 100 == 0) {
-                    std::cout << "Processing query " << query_idx + 1 << "/"
-                              << actual_num_queries << " (point=" << point << ")" << std::endl;
+                AllocationSnapshot allocation_before;
+                if (!params.diagnostics_output.empty()) {
+                    allocation_before = diagnostic_allocator.Snapshot();
                 }
+                {
+                    nlohmann::json unified_search_param_json = {
+                        {"method", params.method},
+                        {"alpha", query_alpha},
+                        {"ef_search", effective_ef_search},
+                        {"enable_hybrid_pruning", params.enable_hybrid_pruning},
+                        {"hybrid_prune_scale", params.hybrid_prune_scale},
+                        {"sindi_bk", effective_sindi_bk},
+                        {"sindi_query_prune_ratio", params.sindi_query_prune_ratio},
+                        {"sindi_term_prune_ratio", params.sindi_term_prune_ratio},
+                        {"dense_entry_bk", effective_dense_entry_bk},
+                        {"dense_entry_ef_search", effective_dense_entry_ef_search}
+                    };
+                    if (params.max_hops > 0) {
+                        unified_search_param_json["max_hops"] = params.max_hops;
+                    }
 
-                nlohmann::json unified_search_param_json = {
-                    {"method", params.method},
-                    {"alpha", query_alpha},
-                    {"ef_search", effective_ef_search},
-                    {"enable_hybrid_pruning", params.enable_hybrid_pruning},
-                    {"hybrid_prune_scale", params.hybrid_prune_scale},
-                    {"sindi_bk", effective_sindi_bk},
-                    {"sindi_query_prune_ratio", params.sindi_query_prune_ratio},
-                    {"sindi_term_prune_ratio", params.sindi_term_prune_ratio},
-                    {"dense_entry_bk", effective_dense_entry_bk},
-                    {"dense_entry_ef_search", effective_dense_entry_ef_search}
-                };
-                if (params.max_hops > 0) {
-                    unified_search_param_json["max_hops"] = params.max_hops;
+                    auto query_ds = vsag::Dataset::Make();
+                    query_ds->NumElements(1)
+                        ->Dim(dense_dim)
+                        ->Float32Vectors(test_dense.data() + query_idx * dense_dim)
+                        ->SparseVectors(test_sparse.data() + query_idx)
+                        ->Owner(false);
+
+                    auto hybrid_result = hybrid_index->KnnSearch(
+                        query_ds, params.k, unified_search_param_json.dump()).value();
+
+                    int result_num = hybrid_result->GetDim();
+                    std::vector<int64_t> search_results(
+                        hybrid_result->GetIds(), hybrid_result->GetIds() + result_num);
+
+                    query_results[query_idx] = std::move(search_results);
                 }
-
-                auto query_ds = vsag::Dataset::Make();
-                query_ds->NumElements(1)
-                    ->Dim(dense_dim)
-                    ->Float32Vectors(test_dense.data() + query_idx * dense_dim)
-                    ->SparseVectors(test_sparse.data() + query_idx)
-                    ->Owner(false);
-
-                auto hybrid_result = hybrid_index->KnnSearch(
-                    query_ds, params.k, unified_search_param_json.dump()).value();
-
-                int result_num = hybrid_result->GetDim();
-                std::vector<int64_t> search_results(
-                    hybrid_result->GetIds(), hybrid_result->GetIds() + result_num);
-
-                int gt_k = std::min(params.k, (int)k_gt);
-                std::vector<int64_t> gt(
-                    ground_truth.begin() + query_idx * k_gt,
-                    ground_truth.begin() + query_idx * k_gt + gt_k);
-                query_recalls[query_idx] = CalculateRecall(search_results, gt);
+                if (!params.diagnostics_output.empty()) {
+                    query_allocations[query_idx] = AllocationDelta(
+                        allocation_before, diagnostic_allocator.Snapshot());
+                }
             }
 
             auto search_end = std::chrono::high_resolution_clock::now();
@@ -688,13 +919,77 @@ main(int argc, char** argv) {
                 std::chrono::duration<double>(search_end - search_start).count();
             double qps = static_cast<double>(actual_num_queries) / elapsed_seconds;
 
+            if (!params.diagnostics_output.empty()) {
+                for (int query_idx = 0; query_idx < actual_num_queries; ++query_idx) {
+                    const float query_alpha =
+                        mixed_alpha_mode ? mixed_alphas[query_idx] : params.alpha;
+                    const auto& result_ids = query_results[query_idx];
+                    const auto& allocation = query_allocations[query_idx];
+                    diagnostics_stream << point << '\t' << query_idx << '\t'
+                                       << std::setprecision(9) << query_alpha << '\t'
+                                       << ResolveDiagnosticRoute(params.method, query_alpha) << '\t'
+                                       << result_ids.size() << '\t' << std::hex
+                                       << std::setw(16) << std::setfill('0')
+                                       << HashResultIds(result_ids) << std::dec
+                                       << std::setfill(' ') << '\t'
+                                       << allocation.allocate_calls << '\t'
+                                       << allocation.allocated_bytes << '\t'
+                                       << allocation.deallocate_calls << '\t'
+                                       << allocation.reallocate_calls << '\t'
+                                       << allocation.reallocated_bytes << '\t';
+                    for (size_t id_index = 0; id_index < result_ids.size(); ++id_index) {
+                        if (id_index != 0) {
+                            diagnostics_stream << ',';
+                        }
+                        diagnostics_stream << result_ids[id_index];
+                    }
+                    diagnostics_stream << '\n';
+                }
+                diagnostics_stream.flush();
+            }
+
             double total_recall = 0.0;
-            for (float recall : query_recalls) total_recall += recall;
+            int short_query_count = 0;
+            int total_missing = 0;
+            int duplicate_query_count = 0;
+            std::vector<int> returned_counts(actual_num_queries);
+            for (int query_idx = 0; query_idx < actual_num_queries; ++query_idx) {
+                returned_counts[query_idx] = static_cast<int>(query_results[query_idx].size());
+                if (returned_counts[query_idx] < params.k) {
+                    ++short_query_count;
+                    total_missing += params.k - returned_counts[query_idx];
+                }
+                if (std::unordered_set<int64_t>(query_results[query_idx].begin(),
+                                                query_results[query_idx].end()).size() !=
+                    query_results[query_idx].size()) {
+                    ++duplicate_query_count;
+                }
+                int gt_k = std::min(params.k, (int)k_gt);
+                std::vector<int64_t> gt(
+                    ground_truth.begin() + query_idx * k_gt,
+                    ground_truth.begin() + query_idx * k_gt + gt_k);
+                total_recall += CalculateRecall(query_results[query_idx], gt);
+            }
+            auto returned_summary = SummarizeCounts(returned_counts);
+            uhg_mixed_alpha::WriteReturnedCounts(std::cout, query_results);
+            std::cout << std::setprecision(12)
+                      << "CardinalityDiagnostics: {\"method\":\"uhg\",\"requested_k\":"
+                      << params.k << ",\"queries\":" << actual_num_queries
+                      << ",\"short_query_count\":" << short_query_count
+                      << ",\"total_missing\":" << total_missing
+                      << ",\"duplicate_query_count\":" << duplicate_query_count
+                      << ",\"returned_count\":{\"min\":" << returned_summary.min
+                      << ",\"mean\":" << returned_summary.mean << ",\"max\":"
+                      << returned_summary.max << "}}\n";
+            if (short_query_count != 0 || duplicate_query_count != 0) {
+                throw std::runtime_error("search returned fewer than k or duplicate results");
+            }
             float avg_recall = static_cast<float>(total_recall / actual_num_queries);
 
             /******************* 6. 输出结果 *****************/
             std::cout << "\n========== Results ==========\n";
             std::cout << "Method: " << params.method << "\n";
+            std::cout << "EntryPolicy: native\n";
             std::cout << "k: " << params.k << "\n";
             std::cout << "sindi_bk: " << effective_sindi_bk << "\n";
             std::cout << "dense_entry_bk: " << effective_dense_entry_bk << "\n";
@@ -727,10 +1022,15 @@ main(int argc, char** argv) {
             std::cout << "rebuild: " << (params.rebuild ? "true" : "false") << "\n";
             std::cout << "index_dir: " << params.index_dir << "\n";
             std::cout << "----------------------------\n";
+            std::cout << std::setprecision(12);
             std::cout << "Recall: " << avg_recall << "\n";
             std::cout << "QPS: " << qps << "\n";
+            std::cout << "SearchSeconds: " << elapsed_seconds << "\n";
+            std::cout << "QPSScope: query_to_topk\n";
+            std::cout << "MetricSchema: 2\n";
             std::cout << "============================\n";
         }
+        diagnostic_allocator.Disable();
 
         /******************* 7. 清理资源 *****************/
         if (need_build) {

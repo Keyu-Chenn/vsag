@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 
 #include <assert.h>
+#include <cstdint>
 #include <boost/dynamic_bitset.hpp>
 
 #include "natural_number_map.h"

@@ -1,161 +1,129 @@
-<div align="center">
-  <h1><img alt="vsag-pages" src="docs/banner.svg" width=500/></h1>
+# UniGraph
 
-![CircleCI](https://img.shields.io/circleci/build/github/antgroup/vsag?logo=circleci&label=CircleCI)
-[![codecov](https://codecov.io/gh/antgroup/vsag/graph/badge.svg?token=KDT3SpPMYS)](https://codecov.io/gh/antgroup/vsag)
-![GitHub License](https://img.shields.io/github/license/antgroup/vsag)
-![GitHub Release](https://img.shields.io/github/v/release/antgroup/vsag?label=last%20release)
-![GitHub Contributors](https://img.shields.io/github/contributors/antgroup/vsag)
-[![arXiv](https://badgen.net/static/arXiv/2404.16322/red)](http://arxiv.org/abs/2404.16322)
-[![arXiv](https://badgen.net/static/arXiv/2503.17911/red)](http://arxiv.org/abs/2503.17911)
-[![arXiv](https://badgen.net/static/arXiv/2509.08395/red)](https://arxiv.org/abs/2509.08395)
+This repository contains the implementation and experiment code for
+**UniGraph: A Unified Graph-based Index for Dynamic Hybrid Dense-Sparse Vector
+Retrieval**.
 
-![PyPI - Version](https://img.shields.io/pypi/v/pyvsag)
-![PyPI - Python Version](https://img.shields.io/pypi/pyversions/pyvsag)
-[![PyPI Downloads](https://static.pepy.tech/badge/pyvsag)](https://pepy.tech/projects/pyvsag)
-[![PyPI Downloads](https://static.pepy.tech/badge/pyvsag/month)](https://pepy.tech/projects/pyvsag)
-[![PyPI Downloads](https://static.pepy.tech/badge/pyvsag/week)](https://pepy.tech/projects/pyvsag)
-</div>
+UniGraph supports hybrid retrieval with query-dependent dense-sparse weights by
+combining graph neighborhoods built at multiple weights into one bounded-degree
+index. This repository is forked from [VSAG](https://github.com/antgroup/vsag);
+the UniGraph implementation is integrated into the VSAG source tree, and the
+reproducible experiment entry point is
+[`experiments/UniGraph`](experiments/UniGraph/).
 
+## Experiments
 
-## What is VSAG
+The experiment runner covers:
 
-VSAG is a vector indexing library used for similarity search. The indexing algorithm allows users to search through various sizes of vector sets, especially those that cannot fit in memory. The library also provides methods for generating parameters based on vector dimensions and data scale, allowing developers to use it without understanding the algorithm’s principles. VSAG is written in C++ and provides a Python wrapper package called [pyvsag](https://pypi.org/project/pyvsag/).
+- mixed-weight and fixed-weight Recall-QPS comparisons (Figures 5 and 6);
+- entry-point and hybrid-pruning ablations (Figures 8 and 9);
+- fixed-weight graph versus multi-weight UniGraph (Table V).
 
-## Performance
-The VSAG algorithm SINDI for sparse vector search achieves a breakthrough in performance, substantially outperforming previous **state-of-the-art (SOTA)** solutions. In our internal tests on a 40-core Intel(R) Xeon(R) Silver 4210R CPU, VSAG's QPS exceeds that of the previous SOTA algorithm, Zilliz, by 166% on the sparse-full(8M) at 98% recall. While the official ann-benchmarks on sparse track runs on an Azure Standard D8lds v5 VM, we plan to submit our results under the official benchmark environment soon to formally validate this performance leap.
+The experiments use five BGE-M3 dense-sparse datasets: Natural Questions,
+HotpotQA, MS MARCO, FEVER, and DBpedia-Entity.
 
-### sparse-full-inner-product
-![](./docs/sparse-full_10_ip.png)
+## Requirements
 
-The VSAG algorithm achieves a significant boost of efficiency and outperforms the previous **state-of-the-art (SOTA)** by a clear margin. Specifically, VSAG's QPS exceeds that of the previous SOTA algorithm, Glass, by over 100%, and the baseline algorithm, HNSWLIB, by over 300% according to the ann-benchmark result on the GIST dataset at 90% recall.
-The test in [ann-benchmarks](https://ann-benchmarks.com/) is running on an r6i.16xlarge machine on AWS with `--parallelism 31`, single-CPU, and hyperthreading disabled.
-The result is as follows:
+- Linux
+- CMake 3.18 or newer
+- a C++17 compiler, Make, and OpenMP
+- Python 3
 
-### gist-960-euclidean
-![](./docs/gist-960-euclidean_10_euclidean.png)
+Create the Python environment from the repository root:
 
-## Getting Started
-### Integrate with CMake
-```cmake
-# CMakeLists.txt
-cmake_minimum_required(VERSION 3.11)
-
-project (myproject)
-
-set (CMAKE_CXX_STANDARD 11)
-
-# download and compile vsag
-include (FetchContent)
-FetchContent_Declare (
-  vsag
-  GIT_REPOSITORY https://github.com/antgroup/vsag
-  GIT_TAG main
-)
-FetchContent_MakeAvailable (vsag)
-include_directories (vsag-cmake-example PRIVATE ${vsag_SOURCE_DIR}/include)
-
-# compile executable and link to vsag
-add_executable (vsag-cmake-example src/main.cpp)
-target_link_libraries (vsag-cmake-example PRIVATE vsag)
-
-# add dependency
-add_dependencies (vsag-cmake-example vsag)
+```bash
+python3 -m venv experiments/UniGraph/.venv
+experiments/UniGraph/.venv/bin/pip install -r experiments/UniGraph/requirements.txt
 ```
-### Examples
 
-Currently Python and C++ examples are provided, please explore [examples](./examples/) directory for details.
+## Prepare the data
 
-We suggest you start with [101_index_hnsw.cpp](./examples/cpp/101_index_hnsw.cpp) and [example_hnsw.py](./examples/python/example_hnsw.py).
+Place the five HDF5 datasets at:
 
-## Building from Source
-Please read the [DEVELOPMENT](./DEVELOPMENT.md) guide for instructions on how to build.
+```text
+experiments/UniGraph/data/hdf5/
+├── nq.hdf5
+├── hotpotqa.hdf5
+├── msmarco.hdf5
+├── fever.hdf5
+└── dbpedia-entity.hdf5
+```
 
-## Who's Using VSAG
-- [OceanBase](https://github.com/oceanbase/oceanbase)
-- [TuGraph](https://github.com/TuGraph-family/tugraph-db)
-- [GreptimeDB](https://github.com/GreptimeTeam/greptimedb)
-- [Hologres](https://www.aliyun.com/product/bigdata/hologram)
-- [PolarDB](https://www.aliyun.com/product/polardb/mysql)
+The required HDF5 layout is described in
+[`experiments/UniGraph/DATA.md`](experiments/UniGraph/DATA.md). The experiment
+workloads and ground-truth arrays are included in the repository.
 
-![vsag_users](./docs/vsag_users_20251106.svg)
+## Build
 
-If your system uses VSAG, then feel free to make a pull request to add it to the list.
+Build the UniGraph and baseline executables:
 
-## How to Contribute
-Although VSAG is initially developed by the Vector Database Team at Ant Group, it's the work of
-the [community](https://github.com/antgroup/vsag/graphs/contributors), and contributions are always welcome!
-See [CONTRIBUTING](./CONTRIBUTING.md) for ways to get started.
+```bash
+bash experiments/UniGraph/build.sh
+```
 
-## Community
-![Discord](https://img.shields.io/discord/1298249687836393523?logo=discord&label=Discord)
+To select the number of parallel build jobs:
 
-Thrive together in VSAG community with users and developers from all around the world.
+```bash
+JOBS=16 bash experiments/UniGraph/build.sh
+```
 
-- Discuss at [discord](https://discord.com/invite/JyDmUzuhrp).
-- Follow us on [Weixin Official Accounts](./docs/weixin-qr.jpg)（微信公众平台）to get the latest news.
+## Build the indexes
 
-## Roadmap
-- v0.15 (ETA: Apr. 2025)
-  - support sparse vector searching
-  - introduce pluggable product quantization(known as PQ) in datacell
-- v0.16 (ETA: May 2025)
-  - support neon instruction acceleration on ARM platform
-  - support using GPU to accelerate index building
-  - provide an optimizer that supports optimizing search parameters by recall or latency
-- v0.17 (ETA: Jun. 2025)
-  - support amx instruction acceleration on Intel CPU
-  - support attributes stored in vector index
-  - support graph structure compression
+Check the inputs and build all indexes:
 
-## Our Publications
+```bash
+python3 experiments/UniGraph/run.py indexes check --datasets all
+python3 experiments/UniGraph/run.py indexes build --datasets all
+```
 
-1. VSAG: An Optimized Search Framework for Graph-based Approximate Nearest Neighbor Search [_VLDB (industry)_, 2025]  
-   **Xiaoyao Zhong, Haotian Li, Jiabao Jin, Mingyu Yang, Deming Chu, Xiangyu Wang, Zhitao Shen, Wei Jia**, George Gu, Yi Xie, Xuemin Lin, Heng Tao Shen, Jingkuan Song, Peng Cheng  
-   [PDF](https://www.vldb.org/pvldb/vol18/p5017-cheng.pdf) | [DOI](https://doi.org/10.14778/3750601.3750624)
+The index build is resumable. To build only one dataset, replace `all` with its
+name, for example `nq`.
 
-2. Effective and General Distance Computation for Approximate Nearest Neighbor Search [_ICDE_, 2025]  
-   **Mingyu Yang**, Wentao Li, **Jiabao Jin, Xiaoyao Zhong, Xiangyu Wang, Zhitao Shen**, **Wei Jia,** Wei Wang \
-   [PDF](https://arxiv.org/pdf/2404.16322) | [DOI](https://doi.org/10.1109/ICDE65448.2025.00087)  
+## Run the experiments
 
-3. SINDI: an Efficient Index for Approximate Maximum Inner Product Search on Sparse Vectors [_arxiv_, 2025]  
-   **Ruoxuan Li, Xiaoyao Zhong, Jiabao Jin**, Peng Cheng, Wangze Ni, Lei Chen, **Zhitao Shen, Wei Jia, Xiangyu Wang**, Xuemin Lin, Heng Tao Shen, Jingkuan Song  
-   [PDF](https://arxiv.org/pdf/2509.08395)
+Validate the complete experiment setup:
 
-4. EnhanceGraph: A Continuously Enhanced Graph-based Index for High-dimensional Approximate Nearest Neighbor Search [_arxiv_, 2025]  
-   **Xiaoyao Zhong, Jiabao Jin**, Peng Cheng, **Mingyu Yang**, Lei Chen, Haoyang Li, **Zhitao Shen**, Xuemin Lin, Heng Tao Shen, Jingkuan Song  
-   [PDF](https://arxiv.org/pdf/2506.13144)
+```bash
+python3 experiments/UniGraph/run.py check
+```
 
-5. Fast High-dimensional Approximate Nearest Neighbor Search with Efficient Index Time and Space [_arxiv_, 2025]  
-   **Mingyu Yang**, Wentao Li, Wei Wang  
-   [PDF](https://arxiv.org/pdf/2411.06158)
+Run all main experiments for Figures 5, 6, 8, and 9:
 
-## Reference
-VSAG referenced the following works during its implementation:
-1. RaBitQ: Quantizing High-Dimensional Vectors with a Theoretical Error Bound for Approximate Nearest Neighbor Search [_SIGMOD_, 2024]  
-  Jianyang Gao, Cheng Long  
-   [PDF](https://dl.acm.org/doi/pdf/10.1145/3654970) | [DOI](https://doi.org/10.1145/3654970) | [CODE](https://github.com/VectorDB-NTU/RaBitQ-Library)
+```bash
+python3 experiments/UniGraph/run.py main run
+```
 
+Individual experiment suites can also be run separately:
 
-2. Quasi-succinct Indices [_WSDM_, 2013]  
-  Sebastiano Vigna  
-   [PDF](https://dl.acm.org/doi/pdf/10.1145/2433396.2433409) | [DOI](https://doi.org/10.1145/2433396.2433409)
+```bash
+python3 experiments/UniGraph/run.py main run --suite mixed_alpha
+python3 experiments/UniGraph/run.py main run --suite fixed_alpha
+python3 experiments/UniGraph/run.py main run --suite ablation1
+python3 experiments/UniGraph/run.py main run --suite ablation2
+```
 
-## Contributors
+Run the multi-weight graph experiment for Table V:
 
-<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
-<!-- prettier-ignore-start -->
-<!-- markdownlint-disable -->
+```bash
+python3 experiments/UniGraph/run.py multi-weight run
+```
 
-<!-- markdownlint-restore -->
-<!-- prettier-ignore-end -->
+For a quick single-dataset run:
 
-<!-- ALL-CONTRIBUTORS-LIST:END -->
+```bash
+python3 experiments/UniGraph/run.py main run \
+  --suite mixed_alpha --datasets nq --methods uhg
+```
 
-## Star History
+Generate the figures after completing the main experiments:
 
-[![Star History Chart](https://api.star-history.com/svg?repos=antgroup/vsag&type=Date)](https://star-history.com/#antgroup/vsag&Date)
+```bash
+python3 experiments/UniGraph/run.py plot --suite all --x-min 0.7 --x-max 1.0
+```
+
+Generated logs, summaries, and figures are written under
+`experiments/UniGraph/runs/`.
 
 ## License
-[Apache License 2.0](./LICENSE)
 
+This project follows the original VSAG [Apache License 2.0](LICENSE).

@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -316,10 +317,8 @@ main(int argc, char** argv) {
         bool need_build = need_build_hnsw || need_build_hybrid;
 
         if (need_build) {
-            std::string mkdir_index_cmd = "mkdir -p " + params.index_dir;
-            std::string mkdir_dense_cmd = "mkdir -p " + params.dense_index_dir;
-            system(mkdir_index_cmd.c_str());
-            system(mkdir_dense_cmd.c_str());
+            std::filesystem::create_directories(params.index_dir);
+            std::filesystem::create_directories(params.dense_index_dir);
         }
 
         std::vector<float> train_dense;

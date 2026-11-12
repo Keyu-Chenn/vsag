@@ -15,6 +15,7 @@
 
 #include "hnswalg.h"
 
+#include <algorithm>
 #include <memory>
 
 #include "datacell/graph_interface.h"
@@ -47,6 +48,13 @@ HierarchicalNSW::HierarchicalNSW(SpaceInterface* s,
     fstdistfunc_ = s->get_dist_func();
     dist_func_param_ = s->get_dist_func_param();
     dim_ = *((size_t*)dist_func_param_);
+    if (data_size_ == dim_ * sizeof(float)) {
+        if (fstdistfunc_ == vsag::InnerProductDistance) {
+            fp32_batch_metric_ = FP32BatchMetric::INNER_PRODUCT;
+        } else if (fstdistfunc_ == vsag::L2Sqr) {
+            fp32_batch_metric_ = FP32BatchMetric::L2;
+        }
+    }
     prefetch_jump_code_size_ = std::max(1, static_cast<int32_t>(data_size_ / (64 * 2)) - 1);
     M_ = M;
     maxM_ = M_;
@@ -76,6 +84,61 @@ HierarchicalNSW::HierarchicalNSW(SpaceInterface* s,
     size_links_per_element_ = maxM_ * sizeof(InnerIdType) + sizeof(linklistsizeint);
     mult_ = 1 / log(1.0 * static_cast<double>(M_));
     rev_size_ = 1.0 / mult_;
+}
+
+void
+HierarchicalNSW::computeCandidateDistances(const void* query,
+                                           const InnerIdType* candidate_ids,
+                                           size_t candidate_count,
+                                           float* distances) const {
+    if (candidate_count == 0) {
+        return;
+    }
+
+    const auto* float_query = static_cast<const float*>(query);
+    std::fill_n(distances, candidate_count, 0.0F);
+    size_t candidate_index = 0;
+    for (; candidate_index + 3 < candidate_count; candidate_index += 4) {
+        const auto* codes1 =
+            reinterpret_cast<const float*>(getDataByInternalId(candidate_ids[candidate_index]));
+        const auto* codes2 =
+            reinterpret_cast<const float*>(getDataByInternalId(candidate_ids[candidate_index + 1]));
+        const auto* codes3 =
+            reinterpret_cast<const float*>(getDataByInternalId(candidate_ids[candidate_index + 2]));
+        const auto* codes4 =
+            reinterpret_cast<const float*>(getDataByInternalId(candidate_ids[candidate_index + 3]));
+        if (fp32_batch_metric_ == FP32BatchMetric::INNER_PRODUCT) {
+            vsag::FP32ComputeIPBatch4(float_query,
+                                      dim_,
+                                      codes1,
+                                      codes2,
+                                      codes3,
+                                      codes4,
+                                      distances[candidate_index],
+                                      distances[candidate_index + 1],
+                                      distances[candidate_index + 2],
+                                      distances[candidate_index + 3]);
+            distances[candidate_index] = 1.0F - distances[candidate_index];
+            distances[candidate_index + 1] = 1.0F - distances[candidate_index + 1];
+            distances[candidate_index + 2] = 1.0F - distances[candidate_index + 2];
+            distances[candidate_index + 3] = 1.0F - distances[candidate_index + 3];
+        } else {
+            vsag::FP32ComputeL2SqrBatch4(float_query,
+                                         dim_,
+                                         codes1,
+                                         codes2,
+                                         codes3,
+                                         codes4,
+                                         distances[candidate_index],
+                                         distances[candidate_index + 1],
+                                         distances[candidate_index + 2],
+                                         distances[candidate_index + 3]);
+        }
+    }
+    for (; candidate_index < candidate_count; ++candidate_index) {
+        distances[candidate_index] = fstdistfunc_(
+            query, getDataByInternalId(candidate_ids[candidate_index]), dist_func_param_);
+    }
 }
 
 void
@@ -538,7 +601,37 @@ HierarchicalNSW::searchBaseLayerST(InnerIdType ep_id,
         visited_array[ep_id] = visited_array_tag;
     }
 
-    std::shared_ptr<char[]> link_data = std::shared_ptr<char[]>(new char[size_links_level0_]);
+    std::shared_ptr<char[]> link_data =
+        std::shared_ptr<char[]>(new char[size_links_level0_ + maxM0_ * sizeof(float)]);
+    auto* batch_distances = reinterpret_cast<float*>(link_data.get() + size_links_level0_);
+    auto process_candidate = [&](InnerIdType candidate_id, float dist) {
+        if (top_candidates.size() < ef || lower_bound > dist) {
+            candidate_set.emplace(-dist, candidate_id);
+            auto* next_link_ptr =
+                data_level0_memory_->GetElementPtr(candidate_set.top().second, offsetLevel0_);
+            vsag::PrefetchLines(next_link_ptr, 64);
+
+            if ((!has_deletions || !isMarkedDeleted(candidate_id)) &&
+                ((!is_id_allowed) || is_id_allowed->CheckValid(getExternalLabel(candidate_id)))) {
+                if (iter_ctx != nullptr && !iter_ctx->CheckPoint(candidate_id)) {
+                    return;
+                }
+                top_candidates.emplace(dist, candidate_id);
+            }
+
+            if (top_candidates.size() > ef) {
+                auto cur_node_pair = top_candidates.top();
+                if (iter_ctx != nullptr && iter_ctx->CheckPoint(cur_node_pair.second)) {
+                    iter_ctx->AddDiscardNode(cur_node_pair.first, cur_node_pair.second);
+                }
+                top_candidates.pop();
+            }
+
+            if (not top_candidates.empty()) {
+                lower_bound = top_candidates.top().first;
+            }
+        }
+    };
     while (not candidate_set.empty()) {
         std::pair<float, InnerIdType> current_node_pair = candidate_set.top();
 
@@ -564,51 +657,49 @@ HierarchicalNSW::searchBaseLayerST(InnerIdType ep_id,
         vsag::PrefetchLines(vector_data_ptr, data_size_);
         vsag::PrefetchLines((char*)(data + 2), 64);
 
-        for (size_t j = 1; j <= size; j++) {
-            int candidate_id = *(data + j);
-            size_t pre_l = std::min(j, size - 2);
-            if (pre_l + prefetch_jump_code_size_ <= size) {
-                vector_data_ptr = data_level0_memory_->GetElementPtr(
-                    (*(data + pre_l + prefetch_jump_code_size_)), offset_data_);
-                vsag::PrefetchLines(
-                    (char*)(visited_array + *(data + pre_l + prefetch_jump_code_size_)), 64);
-                vsag::PrefetchLines(vector_data_ptr, data_size_);
-            }
-            if (visited_array[candidate_id] != visited_array_tag) {
-                visited_array[candidate_id] = visited_array_tag;
-                if (is_id_allowed && not candidate_set.empty() &&
-                    generator.NextFloat() < skip_threshold &&
-                    not is_id_allowed->CheckValid(getExternalLabel(candidate_id))) {
-                    continue;
+        if (fp32_batch_metric_ != FP32BatchMetric::NONE && not is_id_allowed) {
+            size_t candidate_count = 0;
+            auto* candidate_ids = reinterpret_cast<InnerIdType*>(data + 1);
+            for (size_t j = 1; j <= size; j++) {
+                int candidate_id = *(data + j);
+                size_t pre_l = std::min(j, size - 2);
+                if (pre_l + prefetch_jump_code_size_ <= size) {
+                    vector_data_ptr = data_level0_memory_->GetElementPtr(
+                        (*(data + pre_l + prefetch_jump_code_size_)), offset_data_);
+                    vsag::PrefetchLines(
+                        (char*)(visited_array + *(data + pre_l + prefetch_jump_code_size_)), 64);
+                    vsag::PrefetchLines(vector_data_ptr, data_size_);
                 }
-                float dist = 0;
-                char* currObj1 = getDataByInternalId(candidate_id);
-                dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
-                if (top_candidates.size() < ef || lower_bound > dist) {
-                    candidate_set.emplace(-dist, candidate_id);
-                    vector_data_ptr = data_level0_memory_->GetElementPtr(candidate_set.top().second,
-                                                                         offsetLevel0_);
-                    vsag::PrefetchLines(vector_data_ptr, 64);
-
-                    if ((!has_deletions || !isMarkedDeleted(candidate_id)) &&
-                        ((!is_id_allowed) ||
-                         is_id_allowed->CheckValid(getExternalLabel(candidate_id)))) {
-                        if (iter_ctx != nullptr && !iter_ctx->CheckPoint(candidate_id)) {
-                            continue;
-                        }
-                        top_candidates.emplace(dist, candidate_id);
+                if (visited_array[candidate_id] != visited_array_tag) {
+                    visited_array[candidate_id] = visited_array_tag;
+                    candidate_ids[candidate_count++] = candidate_id;
+                }
+            }
+            computeCandidateDistances(data_point, candidate_ids, candidate_count, batch_distances);
+            for (size_t candidate_index = 0; candidate_index < candidate_count; ++candidate_index) {
+                process_candidate(candidate_ids[candidate_index], batch_distances[candidate_index]);
+            }
+        } else {
+            for (size_t j = 1; j <= size; j++) {
+                int candidate_id = *(data + j);
+                size_t pre_l = std::min(j, size - 2);
+                if (pre_l + prefetch_jump_code_size_ <= size) {
+                    vector_data_ptr = data_level0_memory_->GetElementPtr(
+                        (*(data + pre_l + prefetch_jump_code_size_)), offset_data_);
+                    vsag::PrefetchLines(
+                        (char*)(visited_array + *(data + pre_l + prefetch_jump_code_size_)), 64);
+                    vsag::PrefetchLines(vector_data_ptr, data_size_);
+                }
+                if (visited_array[candidate_id] != visited_array_tag) {
+                    visited_array[candidate_id] = visited_array_tag;
+                    if (is_id_allowed && not candidate_set.empty() &&
+                        generator.NextFloat() < skip_threshold &&
+                        not is_id_allowed->CheckValid(getExternalLabel(candidate_id))) {
+                        continue;
                     }
-
-                    if (top_candidates.size() > ef) {
-                        auto cur_node_pair = top_candidates.top();
-                        if (iter_ctx != nullptr && iter_ctx->CheckPoint(cur_node_pair.second)) {
-                            iter_ctx->AddDiscardNode(cur_node_pair.first, cur_node_pair.second);
-                        }
-                        top_candidates.pop();
-                    }
-
-                    if (not top_candidates.empty())
-                        lower_bound = top_candidates.top().first;
+                    const float dist = fstdistfunc_(
+                        data_point, getDataByInternalId(candidate_id), dist_func_param_);
+                    process_candidate(candidate_id, dist);
                 }
             }
         }
@@ -1663,7 +1754,9 @@ HierarchicalNSW::searchKnn(const void* query_data,
         }
 
         float curdist = fstdistfunc_(query_data, getDataByInternalId(currObj), dist_func_param_);
-        std::shared_ptr<char[]> link_data = std::shared_ptr<char[]>(new char[size_links_level0_]);
+        std::shared_ptr<char[]> link_data =
+            std::shared_ptr<char[]>(new char[size_links_level0_ + maxM0_ * sizeof(float)]);
+        auto* batch_distances = reinterpret_cast<float*>(link_data.get() + size_links_level0_);
         for (int level = max_level_; level > 0; level--) {
             bool changed = true;
             while (changed) {
@@ -1676,10 +1769,18 @@ HierarchicalNSW::searchKnn(const void* query_data,
 
                 auto* datal = (InnerIdType*)(data + 1);
                 for (int i = 0; i < size; i++) {
-                    InnerIdType cand = datal[i];
-                    if (cand > max_elements_)
+                    if (datal[i] > max_elements_)
                         throw std::runtime_error("cand error");
-                    float d = fstdistfunc_(query_data, getDataByInternalId(cand), dist_func_param_);
+                }
+                if (fp32_batch_metric_ != FP32BatchMetric::NONE) {
+                    computeCandidateDistances(query_data, datal, size, batch_distances);
+                }
+                for (int i = 0; i < size; i++) {
+                    InnerIdType cand = datal[i];
+                    float d =
+                        fp32_batch_metric_ == FP32BatchMetric::NONE
+                            ? fstdistfunc_(query_data, getDataByInternalId(cand), dist_func_param_)
+                            : batch_distances[i];
 
                     if (d < curdist) {
                         curdist = d;

@@ -157,13 +157,17 @@ HybridVectorDataCell::query(float* result_dists,
     constexpr float kWeightEpsilon = 1e-5F;
     constexpr float kDistanceEpsilon = 1e-6F;
 
+    // Resolve the sparse offset-table cache misses while the dense batch is running.
+    if (std::abs(sparse_weight) > kWeightEpsilon and
+        std::abs(dense_weight) > kWeightEpsilon) {
+        for (InnerIdType i = 0; i < id_count; ++i) {
+            sparse_cell_->Prefetch(idx[i]);
+        }
+    }
+
     if (std::abs(sparse_weight) <= kWeightEpsilon) {
         if (std::abs(dense_weight) > kWeightEpsilon) {
-            dense_cell_->Query(result_dists,
-                               hybrid_comp->GetDenseComputer(),
-                               idx,
-                               id_count,
-                               search_alloc);
+            query_dense(result_dists, hybrid_comp, idx, id_count, search_alloc);
         } else {
             std::fill_n(result_dists, id_count, 0.0F);
         }
@@ -176,11 +180,7 @@ HybridVectorDataCell::query(float* result_dists,
     if (std::abs(dense_weight) <= kWeightEpsilon or
         lower_bound == std::numeric_limits<float>::max()) {
         if (std::abs(dense_weight) > kWeightEpsilon) {
-            dense_cell_->Query(result_dists,
-                               hybrid_comp->GetDenseComputer(),
-                               idx,
-                               id_count,
-                               search_alloc);
+            query_dense(result_dists, hybrid_comp, idx, id_count, search_alloc);
         } else {
             std::fill_n(result_dists, id_count, 0.0F);
         }
@@ -201,8 +201,7 @@ HybridVectorDataCell::query(float* result_dists,
     const float prune_scale = std::max(0.0F, hybrid_comp->GetPruneScale());
 
     if (std::abs(dense_weight) > kWeightEpsilon) {
-        dense_cell_->Query(
-            result_dists, hybrid_comp->GetDenseComputer(), idx, id_count, search_alloc);
+        query_dense(result_dists, hybrid_comp, idx, id_count, search_alloc);
     }
 
     const float query_sparse_norm = hybrid_comp->GetSparseQueryNorm();
@@ -242,9 +241,62 @@ HybridVectorDataCell::query(float* result_dists,
                                 sparse_weight * scratch.selected_sparse_dists_[i];
         }
     }
+}
 
+void
+HybridVectorDataCell::query_dense(float* result_dists,
+                                  const std::shared_ptr<HybridComputer>& computer,
+                                  const InnerIdType* ids,
+                                  InnerIdType count,
+                                  Allocator* allocator) {
+    const auto* cache = computer->GetDenseDistanceCache();
+    if (cache == nullptr or count < 4) {
+        dense_cell_->Query(result_dists, computer->GetDenseComputer(), ids, count, allocator);
+        return;
+    }
 
+    auto& scratch = computer->GetSearchScratch(allocator);
+    auto& missing_ids = scratch.dense_ids_;
+    auto& positions = scratch.dense_positions_;
+    missing_ids.clear();
+    positions.clear();
+    missing_ids.reserve(count + 3);
+    positions.reserve(count);
+    const auto batch_count = count - count % 4;
+    for (InnerIdType i = 0; i < batch_count; ++i) {
+        if (not cache->Find(ids[i], true, result_dists[i])) {
+            missing_ids.push_back(ids[i]);
+            positions.push_back(i);
+        }
+    }
 
+    // With no batch hit, preserve the existing fast path, including its tail.
+    if (missing_ids.size() == batch_count) {
+        dense_cell_->Query(result_dists, computer->GetDenseComputer(), ids, count, allocator);
+        return;
+    }
+    if (not missing_ids.empty()) {
+        const auto missing_count = missing_ids.size();
+        // Padding preserves the Batch4 reduction used by every original prefix
+        // element. The padding scores are discarded; query tail stays scalar.
+        const auto padded_count = (missing_count + 3) & ~size_t{3};
+        missing_ids.resize(padded_count, missing_ids.back());
+        scratch.dense_dists_.resize(padded_count);
+        dense_cell_->Query(scratch.dense_dists_.data(),
+                           computer->GetDenseComputer(),
+                           missing_ids.data(),
+                           static_cast<InnerIdType>(padded_count),
+                           allocator);
+        for (size_t i = 0; i < missing_count; ++i) {
+            result_dists[positions[i]] = scratch.dense_dists_[i];
+        }
+    }
+    for (InnerIdType i = batch_count; i < count; ++i) {
+        if (not cache->Find(ids[i], false, result_dists[i])) {
+            dense_cell_->Query(
+                result_dists + i, computer->GetDenseComputer(), ids + i, 1, allocator);
+        }
+    }
 }
 
 ComputerInterfacePtr

@@ -1,0 +1,5 @@
+# Only the compact ground-truth arrays are repository inputs.
+*
+!*/
+!.gitignore
+!*.npy

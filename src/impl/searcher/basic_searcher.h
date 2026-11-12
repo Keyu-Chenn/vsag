@@ -57,6 +57,15 @@ public:
            IteratorFilterContext* iter_ctx,
            Statistics& stats) const;
 
+    DistHeapPtr
+    SearchWithComputer(const GraphInterfacePtr& graph,
+                       const FlattenInterfacePtr& flatten,
+                       const VisitedListPtr& vl,
+                       const ComputerInterfacePtr& computer,
+                       const InnerSearchParam& inner_search_param,
+                       const LabelTablePtr& label_table,
+                       Statistics& stats) const;
+
     virtual bool
     SetRuntimeParameters(const UnorderedMap<std::string, float>& new_params);
 
@@ -75,8 +84,6 @@ public:
     SetMutexArray(MutexArrayPtr new_mutex_array);
 
 private:
-    // rid means the neighbor's rank (e.g., the first neighbor's rid == 0)
-    //  id means the neighbor's  id  (e.g., the first neighbor's  id == 12345)
     uint32_t
     visit(const GraphInterfacePtr& graph,
           const VisitedListPtr& vl,
@@ -84,7 +91,6 @@ private:
           const FilterPtr& filter,
           float skip_ratio,
           bool use_graph_neighbor_view,
-          Vector<InnerIdType>& to_be_visited_rid,
           Vector<InnerIdType>& to_be_visited_id,
           Vector<InnerIdType>& neighbors) const;
 
@@ -96,7 +102,8 @@ private:
                 const void* query,
                 const InnerSearchParam& inner_search_param,
                 const LabelTablePtr& label_table,
-                Statistics& stats) const;
+                Statistics& stats,
+                const ComputerInterfacePtr& prepared_computer = nullptr) const;
 
     template <InnerSearchMode mode = KNN_SEARCH>
     DistHeapPtr

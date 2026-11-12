@@ -55,6 +55,10 @@ MemoryIO::MultiReadImpl(uint8_t* datas, uint64_t* sizes, uint64_t* offsets, uint
 }
 void
 MemoryIO::PrefetchImpl(uint64_t offset, uint64_t cache_line) {
-    PrefetchLines(this->start_ + offset, cache_line);
+    if (cache_line == 64) {
+        vsag::PrefetchImpl<1>(this->start_ + offset);
+    } else {
+        PrefetchLines(this->start_ + offset, cache_line);
+    }
 }
 }  // namespace vsag

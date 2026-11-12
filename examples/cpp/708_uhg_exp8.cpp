@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -198,6 +199,98 @@ ReadNPYInt64(const std::string& path, std::vector<int64_t>& shape) {
 bool
 FileExists(const std::string& path) { std::ifstream f(path); return f.good(); }
 
+void
+CheckHNSWInsertResult(const tl::expected<std::vector<int64_t>, vsag::Error>& result,
+                      const std::string& operation) {
+    if (!result.has_value()) {
+        throw std::runtime_error(operation + " failed: " + result.error().message);
+    }
+    if (!result.value().empty()) {
+        throw std::runtime_error(operation + " rejected " +
+                                 std::to_string(result.value().size()) + " vector(s)");
+    }
+}
+
+// VSAG's HNSW implementation protects concurrent addPoint calls internally,
+// while Build() inserts a batch serially. Keep a serial prefix to establish the
+// graph, then use concurrent public-API Add() calls for the remainder. This is
+// an experiment-layer concurrent-Add builder, not a native parallel Build(),
+// and leaves the VSAG implementation and serialized index format unchanged.
+void
+BuildHNSW(vsag::IndexPtr index,
+          const std::vector<float>& vectors,
+          const std::vector<int64_t>& labels,
+          int64_t dim,
+          int build_threads,
+          int64_t parallel_warmup) {
+    const int64_t count = static_cast<int64_t>(labels.size());
+    if (count <= 0 || dim <= 0) {
+        throw std::runtime_error("cannot build HNSW from an empty or invalid dataset");
+    }
+    if (vectors.size() != static_cast<size_t>(count * dim)) {
+        throw std::runtime_error("dense vector/label shape mismatch during HNSW build");
+    }
+
+    const int64_t serial_count =
+        build_threads == 1 ? count : std::min(count, parallel_warmup);
+    auto serial = vsag::Dataset::Make();
+    serial->NumElements(serial_count)
+        ->Dim(dim)
+        ->Ids(labels.data())
+        ->Float32Vectors(vectors.data())
+        ->Owner(false);
+    CheckHNSWInsertResult(index->Build(serial), "serial HNSW warm-up Build");
+
+    std::cout << "HNSW requested build threads: " << build_threads << "\n"
+              << "HNSW serial warm-up vectors: " << serial_count << std::endl;
+    if (serial_count == count) {
+        std::cout << "HNSW actual parallel workers: 0" << std::endl;
+        return;
+    }
+
+    omp_set_dynamic(0);
+    int actual_parallel_workers = 0;
+    std::vector<std::string> errors(static_cast<size_t>(build_threads));
+#pragma omp parallel num_threads(build_threads)
+    {
+        const int thread_id = omp_get_thread_num();
+        const int actual_threads = omp_get_num_threads();
+#pragma omp single
+        actual_parallel_workers = actual_threads;
+        const int64_t remaining = count - serial_count;
+        const int64_t begin = serial_count + remaining * thread_id / actual_threads;
+        const int64_t end = serial_count + remaining * (thread_id + 1) / actual_threads;
+        if (begin < end) {
+            try {
+                auto batch = vsag::Dataset::Make();
+                batch->NumElements(end - begin)
+                    ->Dim(dim)
+                    ->Ids(labels.data() + begin)
+                    ->Float32Vectors(vectors.data() + begin * dim)
+                    ->Owner(false);
+                auto result = index->Add(batch);
+                if (!result.has_value()) {
+                    errors[thread_id] = "parallel HNSW Add failed: " + result.error().message;
+                } else if (!result.value().empty()) {
+                    errors[thread_id] = "parallel HNSW Add rejected " +
+                                        std::to_string(result.value().size()) + " vector(s)";
+                }
+            } catch (const std::exception& error) {
+                errors[thread_id] = error.what();
+            }
+        }
+    }
+    for (const auto& error : errors) {
+        if (!error.empty()) {
+            throw std::runtime_error(error);
+        }
+    }
+    std::cout << "HNSW actual parallel workers: " << actual_parallel_workers << std::endl;
+    if (index->GetNumElements() != count) {
+        throw std::runtime_error("parallel HNSW build produced an incomplete index");
+    }
+}
+
 std::string
 GetDatasetName(const std::string& h5_file) {
     std::string filename = h5_file;
@@ -218,6 +311,8 @@ PrintUsage(const char* program_name) {
               << "  --alpha <float>            Dense score weight (default: 0.5)\n"
               << "  --num_queries <int>        Number of queries to process (default: all)\n"
               << "  --threads <int>            Query-level parallel search threads (default: 1)\n"
+              << "  --build-threads <int>      HNSW construction threads (default: 1)\n"
+              << "  --parallel-warmup <int>    Serial insertions before parallel Add (default: 10000)\n"
               << "  --ef_search <int>          ef_search for HNSW (default: 200)\n"
               << "  --search_points <csv>      Run bk=ef_search points after one data/index load\n"
               << "  --build_only               Build/save HNSW and exit without search\n"
@@ -238,6 +333,8 @@ struct SearchParams {
     float alpha = 0.5f;
     int num_queries = -1;
     int threads = 1;
+    int build_threads = 1;
+    int64_t parallel_warmup = 10000;
     int ef_search = 200;
     std::vector<int> search_points;
     bool build_only = false;
@@ -263,6 +360,10 @@ ParseCommandLine(int argc, char** argv) {
         else if (arg == "--alpha" && i + 1 < argc) params.alpha = std::atof(argv[++i]);
         else if (arg == "--num_queries" && i + 1 < argc) params.num_queries = std::atoi(argv[++i]);
         else if (arg == "--threads" && i + 1 < argc) params.threads = std::atoi(argv[++i]);
+        else if (arg == "--build-threads" && i + 1 < argc)
+            params.build_threads = std::atoi(argv[++i]);
+        else if (arg == "--parallel-warmup" && i + 1 < argc)
+            params.parallel_warmup = std::atoll(argv[++i]);
         else if (arg == "--ef_search" && i + 1 < argc) params.ef_search = std::atoi(argv[++i]);
         else if (arg == "--search_points" && i + 1 < argc)
             params.search_points = ParseSearchPoints(argv[++i]);
@@ -275,7 +376,10 @@ ParseCommandLine(int argc, char** argv) {
         else { std::cerr << "Unknown argument: " << arg << std::endl; PrintUsage(argv[0]); exit(1); }
     }
     if (params.k <= 0) { std::cerr << "Error: k must be positive\n"; exit(1); }
-    if (params.threads <= 0) { std::cerr << "Error: threads must be positive\n"; exit(1); }
+    if (params.threads <= 0 || params.build_threads <= 0 || params.parallel_warmup <= 0) {
+        std::cerr << "Error: threads, build-threads, and parallel-warmup must be positive\n";
+        exit(1);
+    }
     for (int point : params.search_points) {
         if (point <= 0) { std::cerr << "Error: search_points must be positive\n"; exit(1); }
     }
@@ -294,7 +398,9 @@ main(int argc, char** argv) {
 
         bool need_build_dense = params.rebuild || !FileExists(dense_index_path);
 
-        if (need_build_dense) { std::string cmd = "mkdir -p " + params.index_dir; system(cmd.c_str()); }
+        if (need_build_dense) {
+            std::filesystem::create_directories(params.index_dir);
+        }
 
         std::vector<float> train_dense;
         std::vector<vsag::SparseVector> train_sparse;
@@ -389,11 +495,13 @@ main(int argc, char** argv) {
             auto dense_index = engine.CreateIndex("hnsw", hnsw_build_params).value();
 
             std::cout << "Building HNSW..." << std::endl;
-            auto base = vsag::Dataset::Make();
-            base->NumElements(num_train)->Dim(dense_dim)->Ids(train_labels.data())
-                ->Float32Vectors(train_dense.data())->Owner(false);
             auto t0 = std::chrono::high_resolution_clock::now();
-            dense_index->Build(base);
+            BuildHNSW(dense_index,
+                      train_dense,
+                      train_labels,
+                      dense_dim,
+                      params.build_threads,
+                      params.parallel_warmup);
             auto t1 = std::chrono::high_resolution_clock::now();
             std::cout << "HNSW built in " << std::chrono::duration<double>(t1 - t0).count()
                       << "s" << std::endl;
@@ -439,11 +547,13 @@ main(int argc, char** argv) {
 
         if (need_build_dense) {
             std::cout << "Building HNSW..." << std::endl;
-            auto base = vsag::Dataset::Make();
-            base->NumElements(num_train)->Dim(dense_dim)->Ids(train_labels.data())
-                ->Float32Vectors(train_dense.data())->Owner(false);
             auto t0 = std::chrono::high_resolution_clock::now();
-            dense_index->Build(base);
+            BuildHNSW(dense_index,
+                      train_dense,
+                      train_labels,
+                      dense_dim,
+                      params.build_threads,
+                      params.parallel_warmup);
             auto t1 = std::chrono::high_resolution_clock::now();
             std::cout << "HNSW built in " << std::chrono::duration<double>(t1 - t0).count() << "s" << std::endl;
             std::ofstream out(dense_index_path);
@@ -479,7 +589,7 @@ main(int argc, char** argv) {
         for (int effective_bk : search_points) {
             const int effective_ef_search =
                 params.search_points.empty() ? params.ef_search : effective_bk;
-            std::vector<float> query_recalls(actual_num_queries, 0.0f);
+            std::vector<std::vector<int64_t>> query_results(actual_num_queries);
             std::string dense_search_params =
                 R"({"hnsw": {"ef_search": )" + std::to_string(effective_ef_search) + "}}";
 
@@ -488,10 +598,6 @@ main(int argc, char** argv) {
 #pragma omp parallel for num_threads(params.threads) schedule(dynamic)
             for (int qi = 0; qi < actual_num_queries; qi++) {
                 const float query_alpha = mixed_alpha_mode ? mixed_alphas[qi] : params.alpha;
-                if (params.threads == 1 && (qi + 1) % 100 == 0)
-                    std::cout << "Processing query " << qi + 1 << "/" << actual_num_queries
-                              << " (point=" << effective_bk << ")" << std::endl;
-
                 auto query = vsag::Dataset::Make();
                 query->NumElements(1)->Dim(dense_dim)
                     ->Float32Vectors(test_dense.data() + qi * dense_dim)
@@ -527,18 +633,25 @@ main(int argc, char** argv) {
                 for (int i = 0; i < actual_k; i++)
                     search_results.push_back(hybrid_results[i].first);
 
-                int gt_k = std::min(params.k, (int)k_gt);
-                std::vector<int64_t> gt(ground_truth.begin() + qi * k_gt,
-                                        ground_truth.begin() + qi * k_gt + gt_k);
-                query_recalls[qi] = CalculateRecall(search_results, gt);
+                query_results[qi] = std::move(search_results);
             }
 
             auto search_end = std::chrono::high_resolution_clock::now();
             double elapsed = std::chrono::duration<double>(search_end - search_start).count();
             double qps = static_cast<double>(actual_num_queries) / elapsed;
+            uhg_mixed_alpha::WriteReturnedCounts(std::cout, query_results);
             double total_recall = 0.0;
-            for (float recall : query_recalls) {
-                total_recall += recall;
+            for (int qi = 0; qi < actual_num_queries; ++qi) {
+                if (query_results[qi].size() != static_cast<size_t>(params.k) ||
+                    std::unordered_set<int64_t>(query_results[qi].begin(),
+                                                query_results[qi].end()).size() !=
+                        query_results[qi].size()) {
+                    throw std::runtime_error("search returned fewer than k or duplicate results");
+                }
+                int gt_k = std::min(params.k, (int)k_gt);
+                std::vector<int64_t> gt(ground_truth.begin() + qi * k_gt,
+                                        ground_truth.begin() + qi * k_gt + gt_k);
+                total_recall += CalculateRecall(query_results[qi], gt);
             }
             float avg_recall = static_cast<float>(total_recall / actual_num_queries);
 
@@ -552,8 +665,12 @@ main(int argc, char** argv) {
             std::cout << "num_queries: " << actual_num_queries << "\n";
             std::cout << "threads: " << params.threads << "\n";
             std::cout << "----------------------------\n";
+            std::cout << std::setprecision(12);
             std::cout << "Recall: " << avg_recall << "\n";
             std::cout << "QPS: " << qps << "\n";
+            std::cout << "SearchSeconds: " << elapsed << "\n";
+            std::cout << "QPSScope: query_to_topk\n";
+            std::cout << "MetricSchema: 2\n";
             std::cout << "============================\n";
         }
 

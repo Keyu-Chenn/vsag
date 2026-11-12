@@ -34,3 +34,14 @@ endif ()
 
 set(CPR_ENABLE_SSL OFF)
 add_subdirectory(${cpr_SOURCE_DIR} ${cpr_BINARY_DIR})
+
+
+# curl 8.10.1 is not compatible with GCC 15 defaulting to C23.
+if (TARGET libcurl_shared)
+    set_property (TARGET libcurl_shared PROPERTY C_STANDARD 17)
+    set_property (TARGET libcurl_shared PROPERTY C_STANDARD_REQUIRED ON)
+endif ()
+if (TARGET libcurl_static)
+    set_property (TARGET libcurl_static PROPERTY C_STANDARD 17)
+    set_property (TARGET libcurl_static PROPERTY C_STANDARD_REQUIRED ON)
+endif ()

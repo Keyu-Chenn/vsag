@@ -114,6 +114,15 @@ private:
     DISTFUNC fstdistfunc_{nullptr};
     void* dist_func_param_{nullptr};
 
+    enum class FP32BatchMetric : uint8_t { NONE, INNER_PRODUCT, L2 };
+    FP32BatchMetric fp32_batch_metric_{FP32BatchMetric::NONE};
+
+    void
+    computeCandidateDistances(const void* query,
+                              const InnerIdType* candidate_ids,
+                              size_t candidate_count,
+                              float* distances) const;
+
     vsag::STLUnorderedMap<LabelType, InnerIdType> label_lookup_;
 
     std::default_random_engine level_generator_{2021};

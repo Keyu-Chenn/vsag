@@ -24,6 +24,35 @@ SparseVectorDataCell<QuantTmpl, IOTmpl>::query(float* result_dists,
                                                const std::shared_ptr<Computer<QuantTmpl>>& computer,
                                                const InnerIdType* idx,
                                                InnerIdType id_count) {
+    if constexpr (std::is_same_v<IOTmpl, MemoryIO>) {
+        constexpr size_t kCodePrefetchDistance = 4;
+        std::array<uint32_t, kCodePrefetchDistance> offsets{};
+        const auto prepare_code = [&](InnerIdType i) {
+            const auto offset = get_offset(idx[i]);
+            offsets[i % kCodePrefetchDistance] = offset;
+            if (offset < io_->size_) {
+                io_->Prefetch(offset);
+            }
+        };
+
+        const auto initial_count =
+            std::min<InnerIdType>(id_count, kCodePrefetchDistance);
+        for (InnerIdType i = 0; i < initial_count; ++i) {
+            prepare_code(i);
+        }
+        for (InnerIdType i = 0; i < id_count; ++i) {
+            bool need_release{false};
+            const auto* codes =
+                get_codes_by_offset(idx[i], offsets[i % kCodePrefetchDistance], need_release);
+            const auto future = i + kCodePrefetchDistance;
+            if (future < id_count) {
+                prepare_code(future);
+            }
+            computer->ComputeDist(codes, result_dists + i);
+        }
+        return;
+    }
+
     for (int i = 0; i < id_count; ++i) {
         bool need_release{false};
         auto codes = this->GetCodesById(idx[i], need_release);
@@ -122,11 +151,45 @@ template <typename QuantTmpl, typename IOTmpl>
 const uint8_t*
 SparseVectorDataCell<QuantTmpl, IOTmpl>::GetCodesById(InnerIdType id, bool& need_release) const {
     CHECK_ARGUMENT(id < total_count_, fmt::format("sparse vector id {} is out of range", id));
+    return get_codes_by_offset(id, get_offset(id), need_release);
+}
 
+template <typename QuantTmpl, typename IOTmpl>
+uint32_t
+SparseVectorDataCell<QuantTmpl, IOTmpl>::get_offset(InnerIdType id) const {
     uint32_t offset{0};
-    CHECK_ARGUMENT(offset_io_->Read(
-                       sizeof(offset), id * sizeof(offset), reinterpret_cast<uint8_t*>(&offset)),
+    bool need_release{false};
+    const auto* offset_data =
+        offset_io_->Read(sizeof(offset), id * sizeof(offset), need_release);
+    CHECK_ARGUMENT(offset_data != nullptr,
                    fmt::format("failed to read offset of sparse vector {}", id));
+    std::memcpy(&offset, offset_data, sizeof(offset));
+    if (need_release) {
+        offset_io_->Release(offset_data);
+    }
+    return offset;
+}
+
+template <typename QuantTmpl, typename IOTmpl>
+const uint8_t*
+SparseVectorDataCell<QuantTmpl, IOTmpl>::get_codes_by_offset(InnerIdType id,
+                                                            uint32_t offset,
+                                                            bool& need_release) const {
+    if constexpr (std::is_same_v<IOTmpl, MemoryIO>) {
+        need_release = false;
+        auto* codes = io_->Read(sizeof(uint32_t), offset, need_release);
+        CHECK_ARGUMENT(codes != nullptr,
+                       fmt::format("failed to read sparse vector {}", id));
+
+        uint32_t length{0};
+        std::memcpy(&length, codes, sizeof(length));
+        const uint64_t read_size = sizeof(uint32_t) * (2ULL * length + 1ULL);
+        CHECK_ARGUMENT(read_size <= max_code_size_,
+                       fmt::format("invalid code size {} of sparse vector {}", read_size, id));
+        CHECK_ARGUMENT(offset <= io_->size_ and read_size <= io_->size_ - offset,
+                       fmt::format("failed to read sparse vector {}", id));
+        return codes;
+    }
 
     uint32_t length{0};
     CHECK_ARGUMENT(io_->Read(

@@ -13,4 +13,9 @@ FetchContent_Declare (
 )
 
 FetchContent_MakeAvailable (yaml-cpp)
+
+# yaml-cpp 0.8.0 omits <cstdint>, which GCC 15 no longer includes transitively.
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options (yaml-cpp PRIVATE -include cstdint)
+endif ()
 include_directories (${yaml-cpp_SOURCE_DIR}/include)

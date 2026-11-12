@@ -15,9 +15,14 @@
 
 #pragma once
 
+#include <array>
+#include <cstring>
+#include <type_traits>
+
 #include "flatten_interface.h"
 #include "io/basic_io.h"
 #include "io/memory_block_io.h"
+#include "io/memory_io.h"
 #include "vsag/dataset.h"
 
 namespace vsag {
@@ -79,7 +84,13 @@ public:
     }
 
     void
-    Prefetch(InnerIdType id) override{};
+    Prefetch(InnerIdType id) override {
+        if constexpr (std::is_same_v<IOTmpl, MemoryIO>) {
+            if (id < total_count_) {
+                offset_io_->Prefetch(static_cast<uint64_t>(id) * sizeof(uint32_t));
+            }
+        }
+    }
 
     void
     ExportModel(const FlattenInterfacePtr& other) const override {
@@ -131,6 +142,12 @@ public:
     }
 
 private:
+    [[nodiscard]] uint32_t
+    get_offset(InnerIdType id) const;
+
+    [[nodiscard]] const uint8_t*
+    get_codes_by_offset(InnerIdType id, uint32_t offset, bool& need_release) const;
+
     inline void
     query(float* result_dists,
           const std::shared_ptr<Computer<QuantTmpl>>& computer,

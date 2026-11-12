@@ -17,6 +17,17 @@
 
 namespace uhg_mixed_alpha {
 
+// Emit after the search timer so every measured pass retains per-query
+// cardinalities without changing the timed search path.
+inline void
+WriteReturnedCounts(std::ostream& out, const std::vector<std::vector<int64_t>>& results) {
+    out << "ReturnedCounts: [";
+    for (size_t q = 0; q < results.size(); ++q) {
+        out << (q ? "," : "") << results[q].size();
+    }
+    out << "]\n";
+}
+
 inline std::vector<float>
 ReadNPYFloat32(const std::string& path, std::vector<int64_t>& shape) {
     std::ifstream file(path, std::ios::binary);

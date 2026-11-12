@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
+#include <cstddef>
 #include <memory>
 #include <sstream>
 #include <vector>
@@ -70,10 +71,11 @@ MakeSparseVector(uint32_t len, uint32_t* ids, float* vals) {
 }  // namespace
 
 TEST_CASE("HybridVectorDataCell dense-first sparse pruning", "[ut][HybridVectorDataCell]") {
+    constexpr std::size_t kDim = 2;
     auto allocator = SafeAllocator::FactoryDefaultAllocator();
     IndexCommonParam common_param;
     common_param.allocator_ = allocator;
-    common_param.dim_ = 2;
+    common_param.dim_ = kDim;
     common_param.metric_ = MetricType::METRIC_TYPE_IP;
 
     auto dense_param = MakeFlattenParam("fp32");
@@ -100,7 +102,7 @@ TEST_CASE("HybridVectorDataCell dense-first sparse pruning", "[ut][HybridVectorD
         MakeSparseVector(1, sparse_id2, sparse_val2),
     };
 
-    const auto dense_size = common_param.dim_ * sizeof(float);
+    const auto dense_size = kDim * sizeof(float);
     std::vector<int8_t> hybrid_vectors(dense_vectors.size() * sizeof(float) +
                                        sparse_vectors.size() * sizeof(SparseVector));
     std::memcpy(hybrid_vectors.data(), dense_vectors.data(), dense_vectors.size() * sizeof(float));
@@ -170,6 +172,111 @@ TEST_CASE("HybridVectorDataCell dense-first sparse pruning", "[ut][HybridVectorD
     restored->Query(restored_dists.data(), restored_computer, ids, 3, allocator.get());
     for (InnerIdType i = 0; i < 3; ++i) {
         REQUIRE(std::abs(restored_dists[i] - pruned_dists[i]) < 1e-5F);
+    }
+}
+
+TEST_CASE("Hybrid dense reuse rejects stale IDs and different kernels",
+          "[ut][HybridVectorDataCell]") {
+    HybridDenseDistanceCache cache;
+    cache.Reset();
+    InnerIdType first[] = {0, 1, 2, 3};
+    float scores[] = {0.25F, 0.5F, 0.75F, 1.0F};
+    cache.Record(first, scores, 4);
+    float result = 0;
+    REQUIRE(cache.Find(0, true, result));
+    REQUIRE(result == scores[0]);
+    REQUIRE_FALSE(cache.Find(0, false, result));
+
+    // Exercise IDs that collide in the bounded cache. Eviction is allowed, but
+    // any retained hit must still belong to the requested ID.
+    InnerIdType collision[] = {65537, 65536, 65539, 65538};
+    float collision_scores[] = {10.0F, 11.0F, 12.0F, 13.0F};
+    cache.Record(collision, collision_scores, 4);
+    if (cache.Find(0, true, result)) {
+        REQUIRE(result == scores[0]);
+    }
+    REQUIRE(cache.Find(collision[0], true, result));
+    REQUIRE(result == collision_scores[0]);
+    cache.Reset();
+    REQUIRE_FALSE(cache.Find(collision[0], true, result));
+}
+
+TEST_CASE("Hybrid dense reuse preserves FP32 results across query and batch boundaries",
+          "[ut][HybridVectorDataCell]") {
+    constexpr uint64_t dim = 769;
+    constexpr InnerIdType count = 29;
+    auto allocator = SafeAllocator::FactoryDefaultAllocator();
+    IndexCommonParam common;
+    common.allocator_ = allocator;
+    common.dim_ = dim;
+    common.metric_ = MetricType::METRIC_TYPE_IP;
+    auto cell = std::make_shared<HybridVectorDataCell>(
+        MakeFlattenParam("fp32"), MakeFlattenParam("sparse"), common);
+    cell->Resize(count);
+    std::vector<float> dense(count * dim);
+    for (size_t i = 0; i < dense.size(); ++i) {
+        dense[i] = static_cast<float>(static_cast<int>((i * 97 + 11) % 1021) - 510) / 5100;
+    }
+    uint32_t sparse_ids[] = {3, 7};
+    float sparse_vals[] = {0.2F, 0.3F};
+    std::vector<SparseVector> sparse(count, MakeSparseVector(2, sparse_ids, sparse_vals));
+    std::vector<int8_t> data(dense.size() * sizeof(float) + sparse.size() * sizeof(SparseVector));
+    std::memcpy(data.data(), dense.data(), dense.size() * sizeof(float));
+    std::memcpy(data.data() + dense.size() * sizeof(float),
+                sparse.data(),
+                sparse.size() * sizeof(SparseVector));
+    cell->BatchInsertVector(data.data(), count);
+
+    HybridDenseDistanceCache cache;
+    std::vector<InnerIdType> ids(count);
+    for (InnerIdType i = 0; i < count; ++i) ids[i] = (i * 7) % count;
+    for (int query_number = 0; query_number < 3; ++query_number) {
+        std::vector<float> query(dim);
+        for (size_t i = 0; i < dim; ++i) {
+            query[i] =
+                static_cast<float>(static_cast<int>((i * 53 + query_number * 193) % 997) - 498) /
+                5000;
+        }
+        auto sparse_query = MakeSparseVector(2, sparse_ids, sparse_vals);
+        std::vector<int8_t> hybrid_query(dim * sizeof(float) + sizeof(SparseVector));
+        std::memcpy(hybrid_query.data(), query.data(), dim * sizeof(float));
+        std::memcpy(hybrid_query.data() + dim * sizeof(float), &sparse_query, sizeof(SparseVector));
+        auto control = cell->FactoryComputer(hybrid_query.data());
+        auto candidate =
+            std::static_pointer_cast<HybridComputer>(cell->FactoryComputer(hybrid_query.data()));
+        candidate->SetDenseDistanceCache(&cache);
+        auto guide = cell->GetDenseCell()->FactoryComputer(query.data());
+
+        for (int pattern = 0; pattern < 3; ++pattern) {
+            cache.Reset();
+            if (pattern != 0) {
+                // Some hits, some misses, and hits from the wrong reduction kernel.
+                std::vector<InnerIdType> guide_ids =
+                    pattern == 1 ? std::vector<InnerIdType>{ids[0], ids[3], ids[5], ids[9], ids[1]}
+                                 : ids;
+                std::vector<float> scores(guide_ids.size());
+                cell->GetDenseCell()->Query(
+                    scores.data(), guide, guide_ids.data(), guide_ids.size(), allocator.get());
+                cache.Record(guide_ids.data(), scores.data(), guide_ids.size());
+            }
+            for (const float weight : {0.0F, 0.2F, 0.8F, 1.0F}) {
+                control->SetHybridWeight(weight, 1 - weight);
+                candidate->SetHybridWeight(weight, 1 - weight);
+                for (const float bound : {std::numeric_limits<float>::max(), 0.8F}) {
+                    control->SetSearchLowerBound(bound);
+                    candidate->SetSearchLowerBound(bound);
+                    for (InnerIdType size = 1; size <= count; ++size) {
+                        std::vector<float> expected(size), actual(size);
+                        cell->Query(expected.data(), control, ids.data(), size, allocator.get());
+                        cell->Query(actual.data(), candidate, ids.data(), size, allocator.get());
+                        INFO("query=" << query_number << " pattern=" << pattern << " size=" << size
+                                      << " weight=" << weight << " bound=" << bound);
+                        REQUIRE(std::memcmp(expected.data(), actual.data(), size * sizeof(float)) ==
+                                0);
+                    }
+                }
+            }
+        }
     }
 }
 

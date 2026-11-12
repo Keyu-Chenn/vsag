@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -168,6 +169,28 @@ ParseSearchPoints(const std::string& text) {
     return values;
 }
 
+struct CountSummary {
+    int min;
+    int max;
+    double mean;
+};
+
+CountSummary
+SummarizeCounts(const std::vector<int>& counts) {
+    if (counts.empty()) {
+        return {0, 0, 0.0};
+    }
+    int min_value = counts.front();
+    int max_value = counts.front();
+    double total = 0.0;
+    for (int value : counts) {
+        min_value = std::min(min_value, value);
+        max_value = std::max(max_value, value);
+        total += value;
+    }
+    return {min_value, max_value, total / static_cast<double>(counts.size())};
+}
+
 void
 PrintUsage(const char* program_name) {
     std::cout << "Usage: " << program_name << " <h5_file> [options]\n"
@@ -298,6 +321,14 @@ ParseCommandLine(int argc, char** argv) {
         std::cerr << "Error: alpha must be between 0.0 and 1.0\n";
         exit(1);
     }
+    if (params.query_prune_ratio < 0.0f || params.query_prune_ratio > 0.9f) {
+        std::cerr << "Error: query_prune_ratio must be in [0, 0.9]\n";
+        exit(1);
+    }
+    if (params.term_prune_ratio < 0.0f || params.term_prune_ratio > 0.9f) {
+        std::cerr << "Error: term_prune_ratio must be in [0, 0.9]\n";
+        exit(1);
+    }
     return params;
 }
 
@@ -337,8 +368,7 @@ main(int argc, char** argv) {
 
         // Create index directory if needed
         if (need_build) {
-            std::string cmd = "mkdir -p " + params.index_dir;
-            system(cmd.c_str());
+            std::filesystem::create_directories(params.index_dir);
         }
 
         // Data containers (only loaded when needed)
@@ -576,7 +606,10 @@ main(int argc, char** argv) {
             const int effective_bk_dense = params.search_points.empty() ? params.bk_dense : point;
             const int effective_bk_sparse = params.search_points.empty() ? params.bk_sparse : point;
             const int effective_ef_search = params.search_points.empty() ? params.ef_search : point;
-            std::vector<float> query_recalls(actual_num_queries, 0.0f);
+            std::vector<std::vector<int64_t>> query_results(actual_num_queries);
+            std::vector<int> dense_candidate_counts(actual_num_queries);
+            std::vector<int> sparse_candidate_counts(actual_num_queries);
+            std::vector<int> union_candidate_counts(actual_num_queries);
             std::string dense_search_params = R"({"hnsw": {"ef_search": )" +
                 std::to_string(effective_ef_search) + "}}";
 
@@ -586,11 +619,6 @@ main(int argc, char** argv) {
             for (int query_idx = 0; query_idx < actual_num_queries; query_idx++) {
                 const float query_alpha =
                     mixed_alpha_mode ? mixed_alphas[query_idx] : params.alpha;
-                if (params.threads == 1 && (query_idx + 1) % 100 == 0) {
-                    std::cout << "Processing query " << query_idx + 1 << "/"
-                              << actual_num_queries << " (point=" << point << ")" << std::endl;
-                }
-
                 auto query = vsag::Dataset::Make();
                 query->NumElements(1)
                     ->Dim(dense_dim)
@@ -602,6 +630,8 @@ main(int argc, char** argv) {
                     query, effective_bk_dense, dense_search_params).value();
                 auto sparse_results = sparse_index->KnnSearch(
                     query, effective_bk_sparse, sparse_search_params).value();
+                dense_candidate_counts[query_idx] = dense_results->GetDim();
+                sparse_candidate_counts[query_idx] = sparse_results->GetDim();
 
                 std::unordered_map<int64_t, CandidateDistances> candidate_distances;
                 candidate_distances.reserve(dense_results->GetDim() + sparse_results->GetDim());
@@ -621,6 +651,7 @@ main(int argc, char** argv) {
                     candidate.has_sparse = true;
                     candidate.sparse_dist = sparse_search_dists[i];
                 }
+                union_candidate_counts[query_idx] = static_cast<int>(candidate_distances.size());
 
                 std::vector<int64_t> missing_dense_ids;
                 std::vector<int64_t> missing_sparse_ids;
@@ -681,10 +712,7 @@ main(int argc, char** argv) {
                     search_results.push_back(hybrid_results[i].first);
                 }
 
-                int gt_k = std::min(params.k, (int)k_gt);
-                std::vector<int64_t> gt(ground_truth.begin() + query_idx * k_gt,
-                                       ground_truth.begin() + query_idx * k_gt + gt_k);
-                query_recalls[query_idx] = CalculateRecall(search_results, gt);
+                query_results[query_idx] = std::move(search_results);
             }
 
             auto search_end = std::chrono::high_resolution_clock::now();
@@ -692,7 +720,50 @@ main(int argc, char** argv) {
             double qps = actual_num_queries / elapsed_seconds;
 
             double total_recall = 0.0;
-            for (float recall : query_recalls) total_recall += recall;
+            int short_query_count = 0;
+            int total_missing = 0;
+            int duplicate_query_count = 0;
+            std::vector<int> returned_counts(actual_num_queries);
+            for (int query_idx = 0; query_idx < actual_num_queries; ++query_idx) {
+                returned_counts[query_idx] = static_cast<int>(query_results[query_idx].size());
+                if (returned_counts[query_idx] < params.k) {
+                    ++short_query_count;
+                    total_missing += params.k - returned_counts[query_idx];
+                }
+                if (std::unordered_set<int64_t>(query_results[query_idx].begin(),
+                                                query_results[query_idx].end()).size() !=
+                    query_results[query_idx].size()) {
+                    ++duplicate_query_count;
+                }
+                int gt_k = std::min(params.k, (int)k_gt);
+                std::vector<int64_t> gt(ground_truth.begin() + query_idx * k_gt,
+                                        ground_truth.begin() + query_idx * k_gt + gt_k);
+                total_recall += CalculateRecall(query_results[query_idx], gt);
+            }
+            auto returned_summary = SummarizeCounts(returned_counts);
+            uhg_mixed_alpha::WriteReturnedCounts(std::cout, query_results);
+            auto dense_summary = SummarizeCounts(dense_candidate_counts);
+            auto sparse_summary = SummarizeCounts(sparse_candidate_counts);
+            auto union_summary = SummarizeCounts(union_candidate_counts);
+            std::cout << std::setprecision(12)
+                      << "CardinalityDiagnostics: {\"method\":\"hnsw_sindi\","
+                      << "\"requested_k\":" << params.k << ",\"queries\":"
+                      << actual_num_queries << ",\"short_query_count\":"
+                      << short_query_count << ",\"total_missing\":" << total_missing
+                      << ",\"duplicate_query_count\":" << duplicate_query_count
+                      << ",\"returned_count\":{\"min\":" << returned_summary.min
+                      << ",\"mean\":" << returned_summary.mean << ",\"max\":"
+                      << returned_summary.max << "},\"dense_candidate_count\":{\"min\":"
+                      << dense_summary.min << ",\"mean\":" << dense_summary.mean
+                      << ",\"max\":" << dense_summary.max
+                      << "},\"sparse_candidate_count\":{\"min\":" << sparse_summary.min
+                      << ",\"mean\":" << sparse_summary.mean << ",\"max\":"
+                      << sparse_summary.max << "},\"union_candidate_count\":{\"min\":"
+                      << union_summary.min << ",\"mean\":" << union_summary.mean
+                      << ",\"max\":" << union_summary.max << "}}\n";
+            if (short_query_count != 0 || duplicate_query_count != 0) {
+                throw std::runtime_error("search returned fewer than k or duplicate results");
+            }
             float avg_recall = static_cast<float>(total_recall / actual_num_queries);
 
             std::cout << "\n========== Results ==========\n";
@@ -711,8 +782,12 @@ main(int argc, char** argv) {
             std::cout << "index_dir: " << params.index_dir << "\n";
             std::cout << "gt_file: " << gt_file_path << "\n";
             std::cout << "----------------------------\n";
+            std::cout << std::setprecision(12);
             std::cout << "Recall: " << avg_recall << "\n";
             std::cout << "QPS: " << qps << "\n";
+            std::cout << "SearchSeconds: " << elapsed_seconds << "\n";
+            std::cout << "QPSScope: query_to_topk\n";
+            std::cout << "MetricSchema: 2\n";
             std::cout << "============================\n";
         }
 

@@ -36,7 +36,6 @@ BasicSearcher::visit(const GraphInterfacePtr& graph,
                      const FilterPtr& filter,
                      float skip_ratio,
                      bool use_graph_neighbor_view,
-                     Vector<InnerIdType>& to_be_visited_rid,
                      Vector<InnerIdType>& to_be_visited_id,
                      Vector<InnerIdType>& neighbors) const {
     LinearCongruentialGenerator generator;
@@ -70,7 +69,6 @@ BasicSearcher::visit(const GraphInterfacePtr& graph,
         if (not vl->Get(neighbor_ids[i])) {
             if (not filter || count_no_visited == 0 || generator.NextFloat() > skip_threshold ||
                 filter->CheckValid(neighbor_ids[i])) {
-                to_be_visited_rid[count_no_visited] = i;
                 to_be_visited_id[count_no_visited] = neighbor_ids[i];
                 count_no_visited++;
             }
@@ -108,6 +106,22 @@ BasicSearcher::Search(const GraphInterfacePtr& graph,
         graph, flatten, vl, query, inner_search_param, iter_ctx, stats);
 }
 
+DistHeapPtr
+BasicSearcher::SearchWithComputer(const GraphInterfacePtr& graph,
+                                  const FlattenInterfacePtr& flatten,
+                                  const VisitedListPtr& vl,
+                                  const ComputerInterfacePtr& computer,
+                                  const InnerSearchParam& inner_search_param,
+                                  const LabelTablePtr& label_table,
+                                  Statistics& stats) const {
+    if (inner_search_param.search_mode == KNN_SEARCH) {
+        return search_impl<KNN_SEARCH>(
+            graph, flatten, vl, nullptr, inner_search_param, label_table, stats, computer);
+    }
+    return search_impl<RANGE_SEARCH>(
+        graph, flatten, vl, nullptr, inner_search_param, label_table, stats, computer);
+}
+
 template <InnerSearchMode mode>
 DistHeapPtr
 BasicSearcher::search_impl(const GraphInterfacePtr& graph,
@@ -142,9 +156,8 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
     uint32_t hops = 0;
     uint32_t dist_cmp = 0;
     uint32_t count_no_visited = 0;
-    Vector<InnerIdType> to_be_visited_rid(graph->MaximumDegree(), alloc);
     Vector<InnerIdType> to_be_visited_id(graph->MaximumDegree(), alloc);
-    Vector<InnerIdType> neighbors(graph->MaximumDegree(), alloc);
+    Vector<InnerIdType> neighbors(alloc);
     Vector<float> line_dists(graph->MaximumDegree(), alloc);
 
     if (!iter_ctx->IsFirstUsed()) {
@@ -199,7 +212,6 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
                                  inner_search_param.is_inner_id_allowed,
                                  inner_search_param.skip_ratio,
                                  inner_search_param.use_graph_neighbor_view,
-                                 to_be_visited_rid,
                                  to_be_visited_id,
                                  neighbors);
 
@@ -259,7 +271,8 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
                            const void* query,
                            const InnerSearchParam& inner_search_param,
                            const LabelTablePtr& label_table,
-                           Statistics& stats) const {
+                           Statistics& stats,
+                           const ComputerInterfacePtr& prepared_computer) const {
     Allocator* alloc =
         inner_search_param.search_alloc == nullptr ? allocator_ : inner_search_param.search_alloc;
     auto top_candidates = std::make_shared<StandardHeap<true, false>>(alloc, -1);
@@ -268,7 +281,8 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
         return top_candidates;
     }
 
-    auto computer = flatten->FactoryComputer(query);
+    auto computer =
+        prepared_computer != nullptr ? prepared_computer : flatten->FactoryComputer(query);
     computer->SetPruneScale(inner_search_param.hybrid_prune_scale);
     computer->SetHybridWeight(inner_search_param.hybrid_dense_weight,
                               inner_search_param.hybrid_sparse_weight);
@@ -315,9 +329,8 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
     uint32_t hops = 0;
     uint32_t dist_cmp = 0;
     uint32_t count_no_visited = 0;
-    Vector<InnerIdType> to_be_visited_rid(graph->MaximumDegree(), alloc);
     Vector<InnerIdType> to_be_visited_id(graph->MaximumDegree(), alloc);
-    Vector<InnerIdType> neighbors(graph->MaximumDegree(), alloc);
+    Vector<InnerIdType> neighbors(alloc);
     Vector<float> line_dists(graph->MaximumDegree(), alloc);
 
     Filter* attr_ft = nullptr;
@@ -440,7 +453,6 @@ BasicSearcher::search_impl(const GraphInterfacePtr& graph,
                                  inner_search_param.is_inner_id_allowed,
                                  inner_search_param.skip_ratio,
                                  inner_search_param.use_graph_neighbor_view,
-                                 to_be_visited_rid,
                                  to_be_visited_id,
                                  neighbors);
 

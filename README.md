@@ -133,6 +133,11 @@ Generate the main-experiment and ablation figures:
 python3 experiments/UniGraph/run.py plot --group all --x-min 0.7 --x-max 1.0
 ```
 
+This command reads the completed results without rerunning the experiments.
+`--group all` renders both main-experiment and ablation figures, while
+`--x-min` and `--x-max` set the displayed Recall range for the main curves.
+The `multi_weight` ablation produces a summary table instead of a figure.
+
 Generated logs, summaries, and figures are written under
 `experiments/UniGraph/runs/main/` and `experiments/UniGraph/runs/ablation/`.
 

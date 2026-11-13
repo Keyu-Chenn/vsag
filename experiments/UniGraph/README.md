@@ -81,4 +81,8 @@ Generate the figures:
 python3 experiments/UniGraph/run.py plot --group all --x-min 0.7 --x-max 1.0
 ```
 
+The command uses existing results and does not rerun any experiment.
+`--group all` renders the main and ablation figures, and the Recall range
+applies to the main curves. The `multi_weight` ablation outputs a table.
+
 Generated files are written under `runs/main/` and `runs/ablation/`.

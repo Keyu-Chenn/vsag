@@ -14,7 +14,7 @@ import multi_weight_protocol as base
 
 HERE = Path(__file__).resolve().parent
 EXPERIMENT_ROOT = HERE.parent
-RUN_ROOT = EXPERIMENT_ROOT / "runs" / "multi_weight"
+RUN_ROOT = EXPERIMENT_ROOT / "runs" / "ablation"
 WORKLOAD = "mixed_0_1"
 TARGETS = (0.90, 0.95, 0.99)
 REPETITIONS = 3

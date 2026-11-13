@@ -45,30 +45,40 @@ Check the complete setup:
 python3 experiments/UniGraph/run.py check
 ```
 
-Run the main experiments for Figures 5, 6, 8, and 9:
+### Main experiments
+
+Run both mixed-alpha and fixed-alpha experiments:
 
 ```bash
 python3 experiments/UniGraph/run.py main run
 ```
 
-Run one suite or one dataset when needed:
+Run one main suite or a small dataset subset when needed:
 
 ```bash
 python3 experiments/UniGraph/run.py main run --suite mixed_alpha
+python3 experiments/UniGraph/run.py main run --suite fixed_alpha
 python3 experiments/UniGraph/run.py main run \
   --suite mixed_alpha --datasets nq --methods uhg
 ```
 
-Run the multi-weight experiment for Table V:
+### Ablation studies
+
+Run all three ablation studies or select one:
 
 ```bash
-python3 experiments/UniGraph/run.py multi-weight run
+python3 experiments/UniGraph/run.py ablation run
+python3 experiments/UniGraph/run.py ablation run --suite entry_point
+python3 experiments/UniGraph/run.py ablation run --suite hybrid_pruning
+python3 experiments/UniGraph/run.py ablation run --suite multi_weight
 ```
+
+### Generate figures
 
 Generate the figures:
 
 ```bash
-python3 experiments/UniGraph/run.py plot --suite all --x-min 0.7 --x-max 1.0
+python3 experiments/UniGraph/run.py plot --group all --x-min 0.7 --x-max 1.0
 ```
 
-All generated logs, summaries, and figures are written under `runs/`.
+Generated files are written under `runs/main/` and `runs/ablation/`.

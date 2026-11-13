@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render Figures 5, 6, 8, and 9 from the canonical search summary."""
+"""Render the UniGraph main-experiment and ablation figures."""
 from __future__ import annotations
 
 import argparse
@@ -19,6 +19,12 @@ METHODS = (
     "hnsw", "sindi", "hnsw_sindi", "naive_hybrid_hnsw",
     "optimized_hybrid_hnsw", "uhg", "ladr_adaptive_hybrid",
 )
+
+SUITE_GROUPS = {
+    "all": ("mixed_alpha", "fixed_alpha", "entry_point", "hybrid_pruning"),
+    "main": ("mixed_alpha", "fixed_alpha"),
+    "ablation": ("entry_point", "hybrid_pruning"),
+}
 
 LABELS = {key: OLD_LABELS.get(key, key) for key in METHODS}
 LABELS.update(
@@ -57,7 +63,7 @@ def export(svg, output, stem, html_max_width=1180):
     document = render_html(svg, stem+".svg")
     if html_max_width != 1180:
         document = document.replace("max-width: 1180px", f"max-width: {html_max_width}px")
-    if stem == "ablation1":
+    if stem == "entry_point":
         document = document.replace("max-width: 1180px", "max-width: 1480px")
     (output / (stem+".html")).write_text(document)
     write_pdf_from_svg(svg, output / (stem+".pdf"))
@@ -203,8 +209,8 @@ def entry_ablation(rows):
         legend_x += item_width + legend_gap
 
     for panel, alpha in enumerate(("0.3", "0.7")):
-        pairs = [(single(rows, "ablation1", dataset, "unguided", alpha),
-                  single(rows, "ablation1", dataset, "guided", alpha))
+        pairs = [(single(rows, "entry_point", dataset, "unguided", alpha),
+                  single(rows, "entry_point", dataset, "guided", alpha))
                  for dataset in DATASET_ORDER]
         panel_x = start_x + panel * (panel_width + column_gap)
         plot_left = panel_x + 148
@@ -282,8 +288,8 @@ def entry_ablation(rows):
 
 
 def pruning_ablation(rows):
-    pairs = [(single(rows,"ablation2",ds,"prune_no_prune","mixed"),
-              single(rows,"ablation2",ds,"prune_0.3","mixed")) for ds in DATASET_ORDER]
+    pairs = [(single(rows,"hybrid_pruning",ds,"prune_no_prune","mixed"),
+              single(rows,"hybrid_pruning",ds,"prune_0.3","mixed")) for ds in DATASET_ORDER]
     width, height = 900, 520
     panel_x, panel_y, panel_width = 50, 80, 800
     plot_left, plot_top = panel_x + 64, panel_y + 13
@@ -382,18 +388,29 @@ def pruning_ablation(rows):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-root",type=Path,required=True)
-    parser.add_argument("--suite",choices=("all","mixed_alpha","fixed_alpha","ablation1","ablation2"),default="all")
+    parser.add_argument(
+        "--suite",
+        choices=(
+            *SUITE_GROUPS,
+            "mixed_alpha", "fixed_alpha", "entry_point", "hybrid_pruning",
+        ),
+        default="all",
+    )
     parser.add_argument("--x-min",type=float,default=0.)
     parser.add_argument("--x-max",type=float,default=1.)
     args=parser.parse_args()
     if not 0 <= args.x_min < args.x_max <= 1:
         parser.error("require 0 <= x-min < x-max <= 1")
     rows=load(args.run_root/"summary.tsv")
-    suites=("mixed_alpha","fixed_alpha","ablation1","ablation2") if args.suite=="all" else (args.suite,)
+    suites = SUITE_GROUPS.get(args.suite, (args.suite,))
     for suite in suites:
         svg=(curves(rows,suite,args.x_min,args.x_max) if suite in {"mixed_alpha","fixed_alpha"}
-             else entry_ablation(rows) if suite=="ablation1" else pruning_ablation(rows))
-        suffix="" if args.x_min==0 and args.x_max==1 else f"_recall_{args.x_min:g}_{args.x_max:g}"
+             else entry_ablation(rows) if suite=="entry_point" else pruning_ablation(rows))
+        suffix = (
+            "" if suite in {"entry_point", "hybrid_pruning"}
+            or (args.x_min == 0 and args.x_max == 1)
+            else f"_recall_{args.x_min:g}_{args.x_max:g}"
+        )
         export(svg,args.run_root/"figures",suite+suffix)
 
 

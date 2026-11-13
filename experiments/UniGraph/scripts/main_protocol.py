@@ -30,6 +30,7 @@ ORIGINAL_POINTS = {
 }
 ADDED_HNSW_POINTS = ORIGINAL_POINTS["hnsw"]
 LADR_POINTS = (1, 2, 5, 10, 20, 50, 100, 200)
+ABLATION_SUITES = frozenset(("entry_point", "hybrid_pruning"))
 ORIGINAL_BINARIES = {
     "hnsw": "708_uhg_exp8",
     "sindi": "709_uhg_exp9",
@@ -83,7 +84,7 @@ class Job:
 
     @property
     def points(self) -> tuple[int, ...]:
-        if self.suite.startswith("ablation"):
+        if self.suite in ABLATION_SUITES:
             return (300,)
         if self.method == "ladr_adaptive_hybrid":
             return LADR_POINTS
@@ -195,7 +196,7 @@ def original_search_command(
     ]
     if job.variant == "prune_no_prune":
         command += ["--disable_hybrid_pruning"]
-    if job.suite.startswith("ablation"):
+    if job.suite in ABLATION_SUITES:
         if not isinstance(points, int):
             if len(points) != 1:
                 raise ValueError("ablation requires exactly one search point")

@@ -13,11 +13,11 @@ reproducible experiment entry point is
 
 ## Experiments
 
-The experiment runner covers:
+The experiment runner covers two groups:
 
-- mixed-weight and fixed-weight Recall-QPS comparisons (Figures 5 and 6);
-- entry-point and hybrid-pruning ablations (Figures 8 and 9);
-- fixed-weight graph versus multi-weight UniGraph (Table V).
+- **Main experiments:** mixed-weight and fixed-weight Recall-QPS comparisons.
+- **Ablation studies:** entry-point selection, hybrid pruning, and fixed-weight
+  versus multi-weight graph construction.
 
 The experiments use five BGE-M3 dense-sparse datasets: Natural Questions,
 HotpotQA, MS MARCO, FEVER, and DBpedia-Entity.
@@ -87,25 +87,19 @@ Validate the complete experiment setup:
 python3 experiments/UniGraph/run.py check
 ```
 
-Run all main experiments for Figures 5, 6, 8, and 9:
+### Main experiments
+
+Run both mixed-alpha and fixed-alpha experiments:
 
 ```bash
 python3 experiments/UniGraph/run.py main run
 ```
 
-Individual experiment suites can also be run separately:
+Run either main experiment separately:
 
 ```bash
 python3 experiments/UniGraph/run.py main run --suite mixed_alpha
 python3 experiments/UniGraph/run.py main run --suite fixed_alpha
-python3 experiments/UniGraph/run.py main run --suite ablation1
-python3 experiments/UniGraph/run.py main run --suite ablation2
-```
-
-Run the multi-weight graph experiment for Table V:
-
-```bash
-python3 experiments/UniGraph/run.py multi-weight run
 ```
 
 For a quick single-dataset run:
@@ -115,14 +109,32 @@ python3 experiments/UniGraph/run.py main run \
   --suite mixed_alpha --datasets nq --methods uhg
 ```
 
-Generate the figures after completing the main experiments:
+### Ablation studies
+
+Run all three ablation studies:
 
 ```bash
-python3 experiments/UniGraph/run.py plot --suite all --x-min 0.7 --x-max 1.0
+python3 experiments/UniGraph/run.py ablation run
+```
+
+Run an individual ablation:
+
+```bash
+python3 experiments/UniGraph/run.py ablation run --suite entry_point
+python3 experiments/UniGraph/run.py ablation run --suite hybrid_pruning
+python3 experiments/UniGraph/run.py ablation run --suite multi_weight
+```
+
+### Generate figures
+
+Generate the main-experiment and ablation figures:
+
+```bash
+python3 experiments/UniGraph/run.py plot --group all --x-min 0.7 --x-max 1.0
 ```
 
 Generated logs, summaries, and figures are written under
-`experiments/UniGraph/runs/`.
+`experiments/UniGraph/runs/main/` and `experiments/UniGraph/runs/ablation/`.
 
 ## License
 

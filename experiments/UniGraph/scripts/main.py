@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the final UniGraph search experiments used by Figures 5, 6, 8, and 9."""
+"""Run the UniGraph Recall--QPS and search ablation experiments."""
 
 from __future__ import annotations
 
@@ -25,7 +25,14 @@ DEFAULT_RUN_ROOT = ROOT / "runs" / "main"
 
 DATASETS = protocol.DATASETS
 FIXED_DATASETS = protocol.FIXED_DATASETS
-SUITES = ("mixed_alpha", "fixed_alpha", "ablation1", "ablation2")
+MAIN_SUITES = ("mixed_alpha", "fixed_alpha")
+SEARCH_ABLATION_SUITES = ("entry_point", "hybrid_pruning")
+SUITES = (*MAIN_SUITES, *SEARCH_ABLATION_SUITES)
+SUITE_GROUPS = {
+    "all": SUITES,
+    "main": MAIN_SUITES,
+    "ablation": SEARCH_ABLATION_SUITES,
+}
 METHODS = (
     "hnsw",
     "sindi",
@@ -59,9 +66,8 @@ def make_job(suite: str, dataset: str, method: str, k: int,
     return protocol.Job(suite, dataset, method, k, alpha)
 
 
-def all_jobs(suite: str | None = None) -> list[protocol.Job]:
+def all_jobs(suites: tuple[str, ...] = SUITES) -> list[protocol.Job]:
     selected: list[protocol.Job] = []
-    suites = SUITES if suite is None else (suite,)
     for name in suites:
         if name == "mixed_alpha":
             selected.extend(
@@ -77,14 +83,14 @@ def all_jobs(suite: str | None = None) -> list[protocol.Job]:
                 for alpha in ("0.3", "0.4", "0.5", "0.6", "0.7")
                 for method in METHODS
             )
-        elif name == "ablation1":
+        elif name == "entry_point":
             selected.extend(
                 protocol.Job(name, dataset, "uhg", 100, alpha, variant)
                 for dataset in DATASETS
                 for alpha in ("0.3", "0.7")
                 for variant in ("unguided", "guided")
             )
-        elif name == "ablation2":
+        elif name == "hybrid_pruning":
             selected.extend(
                 protocol.Job(name, dataset, "uhg", 100, "mixed", variant)
                 for dataset in DATASETS
@@ -157,7 +163,7 @@ def command_for(args: SimpleNamespace, job: protocol.Job) -> list[str]:
     command = protocol.original_search_command(
         args,
         job,
-        300 if job.suite.startswith("ablation") else sequence,
+        300 if job.suite in protocol.ABLATION_SUITES else sequence,
         cache,
     )
     if job.method == "sindi":
@@ -172,7 +178,7 @@ def result_path(args: SimpleNamespace, job: protocol.Job) -> Path:
     if job.suite == "fixed_alpha":
         return (args.result_root / job.suite / job.dataset / f"alpha_{job.alpha}" /
                 f"{METHOD_FILENAMES[job.method]}.json")
-    if job.suite == "ablation1":
+    if job.suite == "entry_point":
         return (args.result_root / job.suite / job.dataset / f"alpha_{job.alpha}" /
                 f"{job.variant}.json")
     return args.result_root / job.suite / job.dataset / f"{job.variant}.json"
@@ -231,9 +237,12 @@ def required_index(args: SimpleNamespace, job: protocol.Job) -> list[Path]:
     return [protocol.index_path(args, job)]
 
 
-def select_jobs(suite: str, datasets: set[str] | None,
+def select_jobs(group: str, suite: str, datasets: set[str] | None,
                 methods: set[str] | None) -> list[protocol.Job]:
-    selected = all_jobs(None if suite == "all" else suite)
+    allowed_suites = SUITE_GROUPS[group]
+    if suite != "all" and suite not in allowed_suites:
+        raise ValueError(f"suite {suite!r} does not belong to the {group!r} group")
+    selected = all_jobs(allowed_suites if suite == "all" else (suite,))
     if datasets:
         selected = [job for job in selected if job.dataset in datasets]
     if methods:
@@ -382,7 +391,7 @@ def run_one(args: SimpleNamespace, job: protocol.Job) -> None:
     protocol.atomic_json(output, record)
 
 
-def summarize(args: SimpleNamespace) -> list[dict]:
+def summarize(args: SimpleNamespace, suites: tuple[str, ...]) -> list[dict]:
     fields = (
         "suite", "dataset", "method", "k", "alpha", "variant", "point",
         "recall", "qps_median", "qps_min", "qps_max",
@@ -390,7 +399,7 @@ def summarize(args: SimpleNamespace) -> list[dict]:
         "total_missing", "result",
     )
     rows: list[dict] = []
-    for job in all_jobs():
+    for job in all_jobs(suites):
         path = result_path(args, job)
         if not path.is_file():
             continue
@@ -450,6 +459,7 @@ def parse_set(value: str | None) -> set[str] | None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("stage", choices=("check", "plan", "run", "verify", "summarize"))
+    parser.add_argument("--group", choices=tuple(SUITE_GROUPS), default="all")
     parser.add_argument("--suite", choices=("all", *SUITES), default="all")
     parser.add_argument("--datasets", help="comma-separated dataset names")
     parser.add_argument("--methods", help="comma-separated method names")
@@ -471,7 +481,11 @@ def main() -> None:
         args = configure(options.run_root, options.cpu)
     except (RuntimeError, ValueError) as error:
         parser.error(str(error))
-    selected = select_jobs(options.suite, datasets, methods)
+    try:
+        selected = select_jobs(options.group, options.suite, datasets, methods)
+    except ValueError as error:
+        parser.error(str(error))
+    summary_suites = SUITE_GROUPS[options.group]
     if options.stage in {"check", "plan"}:
         report = check(args, selected)
         if options.stage == "plan":
@@ -489,7 +503,7 @@ def main() -> None:
     with lock_path.open("a+") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if options.stage == "summarize":
-            rows = summarize(args)
+            rows = summarize(args, summary_suites)
             print(f"wrote {len(rows)} rows to {args.run_root / 'summary.tsv'}")
             return
         if options.stage == "verify":
@@ -503,7 +517,7 @@ def main() -> None:
             raise SystemExit("preflight failed")
         for job in selected:
             run_one(args, job)
-            summarize(args)
+            summarize(args, summary_suites)
         audit = verify(args, selected)
         protocol.atomic_json(args.run_root / "audit.json", audit)
         if not audit["passed"]:
